@@ -10,11 +10,7 @@ import { antdTheme } from './theme/antdTheme';
 import { Welcome } from './pages/Welcome';
 import { Callback } from './pages/Callback';
 import { Forms } from './pages/Forms';
-
-// Pages (will be created in subsequent tasks)
-function Settings() {
-  return <div>Settings</div>;
-}
+import { Settings } from './pages/Settings';
 
 export default function App() {
   return (
