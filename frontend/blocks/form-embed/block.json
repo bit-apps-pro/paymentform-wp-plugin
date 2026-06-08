@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "paymentform/form",
+  "version": "0.1.0",
+  "title": "PaymentForm Form",
+  "category": "embed",
+  "icon": "money-alt",
+  "description": "Embed a PaymentForm form on this page.",
+  "keywords": ["payment", "form", "paymentform"],
+  "attributes": {
+    "formId": { "type": "string", "default": "" }
+  },
+  "supports": { "html": false, "align": ["wide", "full"] },
+  "textdomain": "paymentform",
+  "editorScript": "file:../../../dist/block-editor.js",
+  "viewScript": "file:../../../dist/block-view.js"
+}
