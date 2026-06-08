@@ -66,42 +66,40 @@ class ApiClientTest extends TestCase
         $this->assertStringContainsString('Bearer test-token', $lastRequest->getHeader('Authorization')[0]);
     }
 
-    public function test_401_triggers_refresh_callback_and_retries(): void
+    public function test_401_triggers_refresh_and_retries(): void
     {
-        $refreshCalled = false;
         $mockHandler = new MockHandler([
             new Response(401, [], 'Unauthorized'),
+            new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                'data' => ['token' => 'new-token', 'expires_at' => '2026-06-09T12:00:00Z']
+            ])),
             new Response(200, ['Content-Type' => 'application/json'], json_encode(['success' => true])),
         ]);
         $handlerStack = HandlerStack::create($mockHandler);
         $httpClient = new Client(['handler' => $handlerStack]);
 
         $apiClient = new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test', $httpClient);
-        $apiClient->setRefreshCallback(function () use (&$refreshCalled) {
-            $refreshCalled = true;
-            // Update token to simulate refresh
-            $this->tokenService->store('new-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
-        });
 
         $result = $apiClient->request('GET', '/data', []);
 
-        $this->assertTrue($refreshCalled);
         $this->assertSame(['success' => true], $result);
+        // Verify token was updated
+        $this->assertSame('new-token', $this->tokenService->get());
     }
 
     public function test_second_401_clears_token_and_throws(): void
     {
         $mockHandler = new MockHandler([
             new Response(401, [], 'Unauthorized'),
+            new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                'data' => ['token' => 'new-token', 'expires_at' => '2026-06-09T12:00:00Z']
+            ])),
             new Response(401, [], 'Unauthorized'),
         ]);
         $handlerStack = HandlerStack::create($mockHandler);
         $httpClient = new Client(['handler' => $handlerStack]);
 
         $apiClient = new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test', $httpClient);
-        $apiClient->setRefreshCallback(function () {
-            // Refresh "fails" by not updating the token
-        });
 
         $this->expectException(DisconnectedException::class);
         $this->expectExceptionMessage('token_revoked');
@@ -165,6 +163,9 @@ class ApiClientTest extends TestCase
     {
         $mockHandler = new MockHandler([
             new Response(401, [], 'Unauthorized'),
+            new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                'data' => ['token' => 'new-token', 'expires_at' => '2026-06-09T12:00:00Z']
+            ])),
             new Response(200, ['Content-Type' => 'application/json'], json_encode(['ok' => true])),
         ]);
         $handlerStack = HandlerStack::create($mockHandler);
@@ -173,15 +174,8 @@ class ApiClientTest extends TestCase
         $refreshLock = new TokenRefreshLock();
         $apiClient = new ApiClient($this->tokenService, $refreshLock, 'https://api.test', $httpClient);
 
-        $refreshCalled = false;
-        $apiClient->setRefreshCallback(function () use (&$refreshCalled) {
-            $refreshCalled = true;
-            $this->tokenService->store('new-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
-        });
-
         $result = $apiClient->request('GET', '/data', []);
 
-        $this->assertTrue($refreshCalled);
         $this->assertSame(['ok' => true], $result);
         // Lock should be released after refresh
         $this->assertTrue($refreshLock->acquire());
