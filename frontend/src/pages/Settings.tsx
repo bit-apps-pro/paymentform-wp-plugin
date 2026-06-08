@@ -1,4 +1,4 @@
-import { Card, Descriptions, Button, Space, Popconfirm, Spin, Empty, Row, Col, theme } from 'antd';
+import { Card, Descriptions, Button, Space, Popconfirm, Spin, Empty, theme } from 'antd';
 import { dateI18n } from '@wordpress/date';
 import { useConnection } from '../features/auth/useConnection';
 import { useRefreshToken } from '../features/auth/useRefreshToken';
@@ -40,7 +40,7 @@ export function Settings() {
   }
 
   const expiresAtTime = connection.expiresAt
-    ? dateI18n('F j, Y \a\t g:i A', connection.expiresAt)
+    ? dateI18n('F j, Y at g:i A', connection.expiresAt)
     : 'Unknown';
 
   const expiresInDays = connection.expiresIn

@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import { Spin } from 'antd';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { theme } from 'antd';
 import { css } from '@emotion/css';
 
 export function Callback() {
   const { token } = theme.useToken();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   useEffect(() => {

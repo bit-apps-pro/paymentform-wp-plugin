@@ -11,7 +11,7 @@ describe('request utility', () => {
       ok: true,
       json: async () => ({ success: true }),
     });
-    global.fetch = mockFetch;
+    (globalThis as any).fetch = mockFetch;
 
     await request('/test');
 
@@ -28,7 +28,7 @@ describe('request utility', () => {
       statusText: 'Not Found',
       json: async () => ({ code: 'not_found', message: 'Resource not found' }),
     });
-    global.fetch = mockFetch;
+    (globalThis as any).fetch = mockFetch;
 
     try {
       await request('/missing');
@@ -45,7 +45,7 @@ describe('request utility', () => {
       ok: true,
       json: async () => ({ id: '123', name: 'Test' }),
     });
-    global.fetch = mockFetch;
+    (globalThis as any).fetch = mockFetch;
 
     const result = await request('/test');
 

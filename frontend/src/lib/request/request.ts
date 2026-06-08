@@ -1,6 +1,13 @@
 import type { ApiError } from './types';
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+interface FetchInit {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  credentials?: 'same-origin' | 'include' | 'omit';
+}
+
+export async function request<T>(path: string, init: FetchInit = {}): Promise<T> {
   const config = (window as any).paymentformAdmin;
   if (!config) {
     throw new Error('paymentform: window.paymentformAdmin not initialized');

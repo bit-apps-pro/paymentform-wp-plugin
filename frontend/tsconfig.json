@@ -3,6 +3,7 @@
     "ignoreDeprecations": "6.0",
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",

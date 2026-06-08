@@ -13,7 +13,7 @@ describe('Forms page', () => {
   });
 
   it('renders without crashing', () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    (globalThis as any).fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ data: [] }),
     });
@@ -32,7 +32,7 @@ describe('Forms page', () => {
   });
 
   it('renders Forms content container', () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    (globalThis as any).fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ data: [] }),
     });

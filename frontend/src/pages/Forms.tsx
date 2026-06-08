@@ -1,7 +1,7 @@
 import { Table, Empty, Button, Space, Tag, Spin, message } from 'antd';
 import { Copy } from 'lucide-react';
 import { dateI18n } from '@wordpress/date';
-import { useFormsList } from '../features/forms/useFormsList';
+import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { css } from '@emotion/css';
 import { theme } from 'antd';
 
@@ -16,13 +16,12 @@ export function Forms() {
     });
   };
 
-  const columns: any[] = [
+  const columns = [
     {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
       width: 200,
-      render: (text: string) => <span>{text}</span>,
     },
     {
       title: 'Status',
@@ -51,7 +50,7 @@ export function Forms() {
       title: 'Actions',
       key: 'actions',
       width: 100,
-      render: (_: unknown, record: any) => (
+      render: (_: unknown, record: Form) => (
         <Space size="small">
           <Button
             type="text"
@@ -92,7 +91,7 @@ export function Forms() {
     <div className={containerStyles}>
       <Table
         columns={columns}
-        dataSource={forms.map((form: any) => ({ ...form, key: form.id }))}
+        dataSource={forms.map((form) => ({ ...form, key: form.id }))}
         pagination={{ pageSize: 10 }}
         scroll={{ x: 'max-content' }}
         size="middle"

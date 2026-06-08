@@ -16,7 +16,7 @@ Object.defineProperty(window, 'paymentformAdmin', {
 });
 
 // Mock fetch globally
-global.fetch = vi.fn();
+(globalThis as any).fetch = vi.fn();
 
 // Mock navigator.clipboard
 Object.defineProperty(navigator, 'clipboard', {

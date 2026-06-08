@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, queryAllByRole } from '@testing-library/react';
+import { render, queryAllByRole } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider } from 'antd';

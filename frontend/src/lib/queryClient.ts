@@ -1,5 +1,6 @@
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import type { ApiError } from './request/types';
+import { handle401 } from './request/handle401';
 
 let notificationInstance: any = null;
 
@@ -23,9 +24,11 @@ const queryCache = new QueryCache({
         notification.warning({
           message: 'Session expired',
           description: 'Your session has expired. Please reconnect.',
-          duration: 0,
+          duration: 4,
+          btn: null,
         });
       }
+      handle401();
       return;
     }
 
@@ -48,9 +51,10 @@ const mutationCache = new MutationCache({
         notification.warning({
           message: 'Session expired',
           description: 'Your session has expired. Please reconnect.',
-          duration: 0,
+          duration: 4,
         });
       }
+      handle401();
       return;
     }
 
