@@ -10,6 +10,12 @@ if (!defined('AUTH_KEY')) {
 if (!defined('AUTH_SALT')) {
     define('AUTH_SALT', 'test-auth-salt-' . str_repeat('b', 32));
 }
+if (!defined('PAYMENTFORM_API_BASE_URL')) {
+    define('PAYMENTFORM_API_BASE_URL', 'https://api.paymentform.io');
+}
+if (!defined('PAYMENTFORM_APP_BASE_URL')) {
+    define('PAYMENTFORM_APP_BASE_URL', 'https://app.paymentform.io');
+}
 
 // Mock WordPress role
 class TestWpRole

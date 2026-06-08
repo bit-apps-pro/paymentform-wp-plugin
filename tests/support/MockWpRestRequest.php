@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Support;
 
+use ArrayAccess;
+
 /**
  * Mock WP_REST_Request for unit testing controllers without WordPress runtime.
  */

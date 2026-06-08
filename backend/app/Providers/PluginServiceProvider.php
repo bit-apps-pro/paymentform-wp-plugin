@@ -6,6 +6,7 @@ namespace PaymentForm\Providers;
 
 use Pimple\Container;
 use PaymentForm\HTTP\Routes;
+use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenRefreshLock;
@@ -41,6 +42,11 @@ final class PluginServiceProvider
 
         // Webhook signature verification
         $c[WebhookService::class] = static fn() => new WebhookService();
+
+        // HTTP Controllers
+        $c[ConnectController::class] = static fn($c) => new ConnectController(
+            $c[ConnectService::class]
+        );
     }
 
     public function boot(): void
