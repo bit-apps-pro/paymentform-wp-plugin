@@ -78,4 +78,30 @@ class ConnectServiceTest extends TestCase
         $parsed = parse_url($url);
         $this->assertSame($appUrl . '/connect', $parsed['scheme'] . '://' . $parsed['host'] . $parsed['path']);
     }
+
+    public function test_consume_state_rejects_mismatched_user(): void
+    {
+        // Generate state as user 5
+        \TestWpFunctions::setCurrentUser((object) ['ID' => 5, 'user_login' => 'user5']);
+        $state = $this->svc->generateState();
+
+        // Switch to user 7
+        \TestWpFunctions::setCurrentUser((object) ['ID' => 7, 'user_login' => 'user7']);
+        $userId = $this->svc->consumeState($state);
+
+        $this->assertNull($userId);
+    }
+
+    public function test_consume_state_rejects_anonymous_generator(): void
+    {
+        // Generate state as anonymous (user 0)
+        \TestWpFunctions::setCurrentUser((object) ['ID' => 0, 'user_login' => '']);
+        $state = $this->svc->generateState();
+
+        // Consume as any user
+        \TestWpFunctions::setCurrentUser((object) ['ID' => 1, 'user_login' => 'user1']);
+        $userId = $this->svc->consumeState($state);
+
+        $this->assertNull($userId);
+    }
 }

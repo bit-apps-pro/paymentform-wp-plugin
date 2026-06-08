@@ -27,15 +27,22 @@ final class ConnectService
 
     public function consumeState(string $state): ?int
     {
-        $data = get_transient(self::STATE_TRANSIENT_PREFIX . $state);
+        $key = 'paymentform_connect_state_' . $state;
+        $data = \get_transient($key);
+        \delete_transient($key);
 
-        if ($data === false || !is_array($data)) {
+        if (!is_array($data) || !isset($data['user_id'])) {
             return null;
         }
 
-        delete_transient(self::STATE_TRANSIENT_PREFIX . $state);
+        $storedUserId = (int) $data['user_id'];
+        $currentUserId = (int) (\wp_get_current_user()->ID ?? 0);
 
-        return $data['user_id'] ?? null;
+        if ($storedUserId === 0 || $storedUserId !== $currentUserId) {
+            return null;
+        }
+
+        return $storedUserId;
     }
 
     public function buildConnectUrl(string $appBaseUrl, string $callbackUrl, string $state): string
