@@ -362,8 +362,9 @@ if (!class_exists('WP_REST_Response')) {
 }
 
 // Exception for redirect testing (thrown by wp_safe_redirect mock)
-if (!class_exists('PaymentForm\Tests\RedirectException')) {
-    class RedirectException extends Exception
+// Extends Error instead of Exception so it won't be caught by "catch (Exception)"
+if (!class_exists('RedirectException')) {
+    final class RedirectException extends Error
     {
         public string $location;
         public int $status;
@@ -372,7 +373,7 @@ if (!class_exists('PaymentForm\Tests\RedirectException')) {
         {
             $this->location = $location;
             $this->status = $status;
-            parent::__construct('Redirect: ' . $location);
+            parent::__construct('Redirect: ' . $location, $status);
         }
     }
 }

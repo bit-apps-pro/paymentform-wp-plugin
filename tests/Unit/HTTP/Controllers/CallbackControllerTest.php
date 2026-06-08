@@ -98,4 +98,37 @@ class CallbackControllerTest extends TestCase
 
         $this->assertNull($this->tokenService->get());
     }
+
+    public function test_handle_successful_exchange_stores_token_and_webhook_secret_then_redirects(): void
+    {
+        $state = $this->connectService->generateState();
+
+        $mockHandler = new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                'status' => true,
+                'data' => [
+                    'token' => 'plaintext-token',
+                    'expires_at' => '2026-07-08T09:43:46+00:00',
+                    'webhook_secret' => 'hex-secret',
+                ]
+            ])),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
+            'code' => 'auth-code',
+            'state' => $state,
+        ]);
+
+        $controller = new CallbackController($this->connectService, $this->tokenService, $httpClient);
+
+        $this->expectException(RedirectException::class);
+        $this->expectExceptionMessageMatches('/connected=1/');
+
+        $controller->handle($req);
+
+        $this->assertSame('plaintext-token', $this->tokenService->get());
+        $this->assertSame('hex-secret', $this->tokenService->getWebhookSecret());
+    }
 }
