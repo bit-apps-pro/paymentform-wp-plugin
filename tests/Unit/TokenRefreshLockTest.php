@@ -37,4 +37,23 @@ class TokenRefreshLockTest extends TestCase
 
         $this->assertTrue($this->lock->acquire());
     }
+
+    public function test_concurrent_acquire_returns_false(): void
+    {
+        // First acquire succeeds
+        $this->assertTrue($this->lock->acquire());
+        // Second concurrent acquire fails
+        $this->assertFalse($this->lock->acquire());
+    }
+
+    public function test_stale_lock_is_reclaimed_after_ttl(): void
+    {
+        // Set a stale lock (5 seconds TTL, simulate 6 seconds old)
+        $staleTime = (string)(time() - 6);
+        \TestWpFunctions::getOption('paymentform_refresh_lock', false);  // ensure exists
+        \update_option('paymentform_refresh_lock', $staleTime);
+
+        // Acquire should succeed because lock is stale
+        $this->assertTrue($this->lock->acquire());
+    }
 }

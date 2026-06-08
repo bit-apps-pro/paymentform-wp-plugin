@@ -9,6 +9,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use PaymentForm\Services\ApiClient;
+use PaymentForm\Services\DisconnectedException;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
@@ -102,7 +103,7 @@ class ApiClientTest extends TestCase
             // Refresh "fails" by not updating the token
         });
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(DisconnectedException::class);
         $this->expectExceptionMessage('token_revoked');
 
         $apiClient->request('GET', '/data', []);
@@ -158,5 +159,31 @@ class ApiClientTest extends TestCase
         $this->assertNotNull($lastRequest);
         $this->assertStringContainsString('Bearer test-token', $lastRequest->getHeader('Authorization')[0]);
         $this->assertStringContainsString('v', $lastRequest->getHeader('X-Custom')[0]);
+    }
+
+    public function test_refresh_lock_acquired_and_released_on_401(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(401, [], 'Unauthorized'),
+            new Response(200, ['Content-Type' => 'application/json'], json_encode(['ok' => true])),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $refreshLock = new TokenRefreshLock();
+        $apiClient = new ApiClient($this->tokenService, $refreshLock, 'https://api.test', $httpClient);
+
+        $refreshCalled = false;
+        $apiClient->setRefreshCallback(function () use (&$refreshCalled) {
+            $refreshCalled = true;
+            $this->tokenService->store('new-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
+        });
+
+        $result = $apiClient->request('GET', '/data', []);
+
+        $this->assertTrue($refreshCalled);
+        $this->assertSame(['ok' => true], $result);
+        // Lock should be released after refresh
+        $this->assertTrue($refreshLock->acquire());
     }
 }

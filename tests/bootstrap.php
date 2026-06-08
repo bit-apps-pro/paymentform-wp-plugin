@@ -53,6 +53,16 @@ class TestWpFunctions
         return self::$options[$option] ?? $default;
     }
 
+    public static function addOption(string $option, mixed $value, string $deprecated = '', string $autoload = 'yes'): bool
+    {
+        // add_option returns false if option already exists (atomic DB unique-key behavior)
+        if (isset(self::$options[$option])) {
+            return false;
+        }
+        self::$options[$option] = $value;
+        return true;
+    }
+
     public static function updateOption(string $option, mixed $value, bool $autoload = true): bool
     {
         self::$options[$option] = $value;
@@ -127,6 +137,13 @@ if (!function_exists('update_option')) {
     function update_option(string $option, mixed $value, bool $autoload = true): bool
     {
         return TestWpFunctions::updateOption($option, $value, $autoload);
+    }
+}
+
+if (!function_exists('add_option')) {
+    function add_option(string $option, mixed $value, string $deprecated = '', string $autoload = 'yes'): bool
+    {
+        return TestWpFunctions::addOption($option, $value, $deprecated, $autoload);
     }
 }
 

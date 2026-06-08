@@ -26,14 +26,14 @@ final class ApiClient
 
     public function request(string $method, string $path, array $options = []): array
     {
-        return $this->makeRequest($method, $path, $options, isRetry: false);
+        return $this->makeRequest($method, $path, $options, isRetry: false, knownToken: null);
     }
 
-    private function makeRequest(string $method, string $path, array $options, bool $isRetry): array
+    private function makeRequest(string $method, string $path, array $options, bool $isRetry, ?string $knownToken = null): array
     {
         $client = $this->httpClient ?? new Client();
         $url = $this->baseUrl . $path;
-        $token = $this->tokenService->get();
+        $token = $knownToken ?? $this->tokenService->get();
 
         if ($token === null) {
             throw new RuntimeException('no_token');
@@ -56,33 +56,42 @@ final class ApiClient
                 if ($isRetry) {
                     // Second 401: clear token and throw
                     $this->tokenService->clear();
-                    throw new RuntimeException('token_revoked');
+                    throw new DisconnectedException('token_revoked');
                 }
 
                 // First 401: try to refresh
                 if ($this->refreshCallback !== null) {
+                    if (!$this->refreshLock->acquire()) {
+                        // Another worker is refreshing — re-read token, give it one chance to have updated.
+                        $newToken = $this->tokenService->get();
+                        if ($newToken !== null && $newToken !== $token) {
+                            return $this->makeRequest($method, $path, $options, isRetry: true, knownToken: $newToken);
+                        }
+                        throw new RuntimeException('refresh_in_progress');
+                    }
+
                     try {
                         ($this->refreshCallback)();
                         // Retry the request
                         return $this->makeRequest($method, $path, $options, isRetry: true);
-                    } catch (RuntimeException $e) {
-                        // Refresh failed, rethrow
-                        throw $e;
+                    } finally {
+                        $this->refreshLock->release();
                     }
                 }
 
                 // No refresh callback set, treat as revoked
                 $this->tokenService->clear();
-                throw new RuntimeException('token_revoked');
+                throw new DisconnectedException('token_revoked');
             }
 
             // Handle other HTTP errors
             if ($e->getResponse() !== null) {
                 $statusCode = $e->getResponse()->getStatusCode();
-                $body = $e->getResponse()->getBody()->getContents();
+                $body = (string) $e->getResponse()->getBody();
+                $truncated = strlen($body) > 500 ? substr($body, 0, 500) . '…' : $body;
 
                 throw new RuntimeException(
-                    'api_error_' . $statusCode . ': ' . $body
+                    'api_error_' . $statusCode . ': ' . $truncated
                 );
             }
 
