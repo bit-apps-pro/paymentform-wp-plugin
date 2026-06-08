@@ -9,6 +9,10 @@ use PaymentForm\HTTP\Routes;
 use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\StatusController;
+use PaymentForm\HTTP\Controllers\RefreshController;
+use PaymentForm\HTTP\Controllers\DisconnectController;
+use PaymentForm\HTTP\Controllers\FormsProxyController;
+use PaymentForm\HTTP\Controllers\WebhookController;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenRefreshLock;
@@ -58,6 +62,25 @@ final class PluginServiceProvider
         $c[StatusController::class] = static fn($c) => new StatusController(
             $c[TokenService::class],
             $c[ApiClient::class]
+        );
+
+        $c[RefreshController::class] = static fn($c) => new RefreshController(
+            $c[TokenService::class],
+            $c[ApiClient::class]
+        );
+
+        $c[DisconnectController::class] = static fn($c) => new DisconnectController(
+            $c[TokenService::class],
+            $c[ApiClient::class]
+        );
+
+        $c[FormsProxyController::class] = static fn($c) => new FormsProxyController(
+            $c[ApiClient::class]
+        );
+
+        $c[WebhookController::class] = static fn($c) => new WebhookController(
+            $c[TokenService::class],
+            $c[WebhookService::class]
         );
     }
 
