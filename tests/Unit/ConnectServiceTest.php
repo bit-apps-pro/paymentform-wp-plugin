@@ -79,17 +79,19 @@ class ConnectServiceTest extends TestCase
         $this->assertSame($appUrl . '/connect', $parsed['scheme'] . '://' . $parsed['host'] . $parsed['path']);
     }
 
-    public function test_consume_state_rejects_mismatched_user(): void
+    public function test_consume_state_accepts_when_current_user_differs(): void
     {
         // Generate state as user 5
         \TestWpFunctions::setCurrentUser((object) ['ID' => 5, 'user_login' => 'user5']);
         $state = $this->svc->generateState();
 
-        // Switch to user 7
+        // Switch to user 7 (e.g. unauthenticated REST context where current user is different).
+        // The 64-char state itself is the single-use credential, so consume must still succeed
+        // and return the stored user_id from generation time.
         \TestWpFunctions::setCurrentUser((object) ['ID' => 7, 'user_login' => 'user7']);
         $userId = $this->svc->consumeState($state);
 
-        $this->assertNull($userId);
+        $this->assertSame(5, $userId);
     }
 
     public function test_consume_state_rejects_anonymous_generator(): void

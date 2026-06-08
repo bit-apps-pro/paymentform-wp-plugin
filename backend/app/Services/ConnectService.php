@@ -35,10 +35,13 @@ final class ConnectService
             return null;
         }
 
+        // The 64-char random state itself is the CSRF credential (single-use, 10min TTL).
+        // We do not bind to wp_get_current_user() because the OAuth-style callback is reached
+        // via a top-level browser navigation that does not carry an X-WP-Nonce header, so WP
+        // REST treats the request as unauthenticated and wp_get_current_user()->ID returns 0
+        // even when the visitor still has a valid WP session cookie.
         $storedUserId = (int) $data['user_id'];
-        $currentUserId = (int) (\wp_get_current_user()->ID ?? 0);
-
-        if ($storedUserId === 0 || $storedUserId !== $currentUserId) {
+        if ($storedUserId === 0) {
             return null;
         }
 
