@@ -10,7 +10,7 @@ use RuntimeException;
 
 final class ApiClient
 {
-    private mixed $refreshCallback = null;
+    private ?\Closure $refreshCallback = null;
 
     public function __construct(
         private readonly TokenService $tokenService,
@@ -19,7 +19,7 @@ final class ApiClient
         private readonly ?Client $httpClient = null,
     ) {}
 
-    public function setRefreshCallback(callable $callback): void
+    public function setRefreshCallback(\Closure $callback): void
     {
         $this->refreshCallback = $callback;
     }

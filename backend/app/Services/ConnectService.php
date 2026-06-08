@@ -47,7 +47,7 @@ final class ConnectService
 
     public function buildConnectUrl(string $appBaseUrl, string $callbackUrl, string $state): string
     {
-        $siteUrl = home_url();
+        $siteUrl = site_url();
         $params = [
             'site_url' => $siteUrl,
             'callback_url' => $callbackUrl,

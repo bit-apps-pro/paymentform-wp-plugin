@@ -19,4 +19,7 @@ if (!defined('PAYMENTFORM_API_BASE_URL')) {
 $container = ServiceContainer::instance();
 $provider  = new PluginServiceProvider();
 $provider->register($container);
-$provider->boot();
+
+add_action('plugins_loaded', static function () use ($provider) {
+    $provider->boot();
+});

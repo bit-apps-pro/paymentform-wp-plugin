@@ -22,4 +22,9 @@ final class ServiceContainer
     {
         return self::instance()->offsetGet($id);
     }
+
+    public static function reset(): void
+    {
+        self::$instance = null;
+    }
 }

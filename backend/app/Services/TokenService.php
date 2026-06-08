@@ -46,7 +46,7 @@ final class TokenService
         $data['iv'] = $encrypted['iv'];
         $data['tag'] = $encrypted['tag'];
         $data['expires_at'] = $expiresAt;
-        $data['connected_at'] = (new \DateTime())->format(\DateTimeInterface::ATOM);
+        $data['connected_at'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(\DateTimeInterface::ATOM);
 
         update_option(self::OPTION_NAME, $data, false);
     }
