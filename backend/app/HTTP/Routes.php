@@ -76,12 +76,15 @@ final class Routes
 
     private static function requiresCap(): callable
     {
-        return static function (): bool {
+        return static function ($req): bool {
             if (!current_user_can('paymentform_manage')) {
                 return false;
             }
 
-            $nonce = $_SERVER['HTTP_X_WP_NONCE'] ?? null;
+            $nonce = $req->get_header('X-WP-Nonce')
+                  ?? $_SERVER['HTTP_X_WP_NONCE']
+                  ?? $req->get_param('_wpnonce')
+                  ?? '';
             return wp_verify_nonce($nonce, 'wp_rest') !== false;
         };
     }
