@@ -47,11 +47,14 @@ class StatusControllerTest extends TestCase
         $controller = new StatusController($this->tokenService, $this->apiClient);
         $req = new MockWpRestRequest('GET', '/paymentform/v1/status');
 
-        // Will throw because no valid API, but we're just testing the controller structure
+        // Will throw because no valid API, but we verify the token was read
         try {
-            $response = $controller->show($req);
+            $controller->show($req);
+            $this->fail('Expected exception');
         } catch (\Exception) {
             // Expected - API call will fail, that's OK
+            // Verify that token was present when attempted
+            $this->assertSame('test-token', $this->tokenService->get());
         }
     }
 }
