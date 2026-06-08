@@ -25,7 +25,12 @@ final class CallbackController
         $code = $req->get_param('code');
         $state = $req->get_param('state');
 
-        if (!is_string($code) || !is_string($state)) {
+        // Validate code and state: both required, code ≤128 chars, state = 64 char hex
+        if (!is_string($code) || $code === '' || strlen($code) > 128) {
+            wp_safe_redirect(admin_url('admin.php?page=paymentform&error=missing_params'));
+            return;
+        }
+        if (!is_string($state) || $state === '' || strlen($state) !== 64) {
             wp_safe_redirect(admin_url('admin.php?page=paymentform&error=missing_params'));
             return;
         }
@@ -58,15 +63,22 @@ final class CallbackController
                 return;
             }
 
-            $this->tokenService->store($token, $expiresAt);
-
-            if (is_string($webhookSecret)) {
-                $this->tokenService->storeWebhookSecret($webhookSecret);
+            try {
+                // Store webhook secret FIRST (no side effects)
+                if (is_string($webhookSecret)) {
+                    $this->tokenService->storeWebhookSecret($webhookSecret);
+                }
+                // Then store token
+                $this->tokenService->store($token, $expiresAt);
+            } catch (\Throwable $e) {
+                $this->tokenService->clear();
+                wp_safe_redirect(admin_url('admin.php?page=paymentform&error=storage_failed'));
+                return;
             }
 
             wp_safe_redirect(admin_url('admin.php?page=paymentform&connected=1'));
             return;
-        } catch (RuntimeException|Exception $e) {
+        } catch (\Exception $e) {
             // Log or debug the error here in production
             // error_log('PaymentForm callback exchange error: ' . $e->getMessage());
             wp_safe_redirect(admin_url('admin.php?page=paymentform&error=exchange_failed'));
