@@ -7,6 +7,7 @@ namespace PaymentForm\Providers;
 use Pimple\Container;
 use PaymentForm\HTTP\Routes;
 use PaymentForm\HTTP\Controllers\ConnectController;
+use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenRefreshLock;
@@ -46,6 +47,11 @@ final class PluginServiceProvider
         // HTTP Controllers
         $c[ConnectController::class] = static fn($c) => new ConnectController(
             $c[ConnectService::class]
+        );
+
+        $c[CallbackController::class] = static fn($c) => new CallbackController(
+            $c[ConnectService::class],
+            $c[TokenService::class]
         );
     }
 
