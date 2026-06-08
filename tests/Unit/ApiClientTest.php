@@ -142,4 +142,21 @@ class ApiClientTest extends TestCase
 
         $apiClient->request('GET', '/data', []);
     }
+
+    public function test_authorization_header_survives_user_headers(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode(['ok' => true])),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $apiClient = new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test', $httpClient);
+        $apiClient->request('POST', '/test', ['headers' => ['X-Custom' => 'v']]);
+
+        $lastRequest = $mockHandler->getLastRequest();
+        $this->assertNotNull($lastRequest);
+        $this->assertStringContainsString('Bearer test-token', $lastRequest->getHeader('Authorization')[0]);
+        $this->assertStringContainsString('v', $lastRequest->getHeader('X-Custom')[0]);
+    }
 }

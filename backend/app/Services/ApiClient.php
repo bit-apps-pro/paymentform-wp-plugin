@@ -39,17 +39,14 @@ final class ApiClient
             throw new RuntimeException('no_token');
         }
 
-        $defaultOptions = [
-            'headers' => array_merge(
-                $options['headers'] ?? [],
-                [
-                    'Authorization' => 'Bearer ' . $token,
-                    'Accept' => 'application/json',
-                ]
-            ),
-        ];
-
-        $mergedOptions = array_merge($defaultOptions, $options);
+        $mergedOptions = $options;
+        $mergedOptions['headers'] = array_merge(
+            $options['headers'] ?? [],
+            [
+                'Authorization' => 'Bearer ' . $token,
+                'Accept' => 'application/json',
+            ]
+        );
 
         try {
             $response = $client->request($method, $url, $mergedOptions);
