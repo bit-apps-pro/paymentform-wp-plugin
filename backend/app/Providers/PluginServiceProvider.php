@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymentForm\Providers;
 
 use Pimple\Container;
+use PaymentForm\HTTP\Routes;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenRefreshLock;
@@ -14,8 +15,11 @@ use PaymentForm\Services\WebhookService;
 
 final class PluginServiceProvider
 {
+    private ?Container $container = null;
+
     public function register(Container $c): void
     {
+        $this->container = $c;
         // Core encryption service
         $c[EncryptionService::class] = static fn() => new EncryptionService();
 
@@ -53,7 +57,10 @@ final class PluginServiceProvider
 
     public function registerRoutes(): void
     {
-        // Wired up in Phase 3
+        if ($this->container === null) {
+            return;
+        }
+        Routes::register($this->container);
     }
 
     public function registerAdminMenu(): void
