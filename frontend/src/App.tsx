@@ -8,6 +8,7 @@ import { QueryErrorBridge } from './components/QueryErrorBridge';
 import { queryClient } from './lib/queryClient';
 import { antdTheme } from './theme/antdTheme';
 import { Welcome } from './pages/Welcome';
+import { Callback } from './pages/Callback';
 
 // Pages (will be created in subsequent tasks)
 function Forms() {
@@ -16,10 +17,6 @@ function Forms() {
 
 function Settings() {
   return <div>Settings</div>;
-}
-
-function Callback() {
-  return <div>Callback</div>;
 }
 
 export default function App() {
