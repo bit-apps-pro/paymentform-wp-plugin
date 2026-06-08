@@ -7,12 +7,9 @@ import { AppShell } from './components/AppShell';
 import { QueryErrorBridge } from './components/QueryErrorBridge';
 import { queryClient } from './lib/queryClient';
 import { antdTheme } from './theme/antdTheme';
+import { Welcome } from './pages/Welcome';
 
 // Pages (will be created in subsequent tasks)
-function Welcome() {
-  return <div>Welcome</div>;
-}
-
 function Forms() {
   return <div>Forms</div>;
 }
