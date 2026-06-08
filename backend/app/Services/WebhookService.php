@@ -49,7 +49,10 @@ final class WebhookService
         }
 
         // Mark nonce as used (TTL = freshness window + future tolerance)
-        set_transient($nonceKey, true, self::NONCE_TTL);
+        // Fail closed if replay defense mechanism fails
+        if (\set_transient($nonceKey, true, self::NONCE_TTL) === false) {
+            return false;
+        }
 
         return true;
     }
