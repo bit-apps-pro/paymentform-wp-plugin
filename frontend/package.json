@@ -1,0 +1,52 @@
+{
+  "name": "paymentform-admin",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@ant-design/cssinjs": "2.1.2",
+    "@ant-design/icons": "6.2.5",
+    "@emotion/css": "11.13.5",
+    "@emotion/react": "11.14.0",
+    "@tanstack/react-query": "5.101.0",
+    "@tanstack/react-table": "8.21.3",
+    "@wordpress/date": "5.48.0",
+    "@wordpress/i18n": "6.21.0",
+    "antd": "6.4.3",
+    "jotai": "2.20.0",
+    "lucide-react": "1.17.0",
+    "mutative": "1.3.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-router-dom": "7.17.0",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@types/wordpress__i18n": "3.11.0",
+    "@typescript-eslint/eslint-plugin": "8.60.1",
+    "@typescript-eslint/parser": "8.60.1",
+    "@vitejs/plugin-react": "6.0.2",
+    "eslint": "10.4.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.2",
+    "globals": "^15.14.0",
+    "happy-dom": "20.10.2",
+    "prettier": "3.8.3",
+    "terser": "^5.34.1",
+    "typescript": "6.0.3",
+    "vite": "8.0.16",
+    "vitest": "4.1.8"
+  }
+}
