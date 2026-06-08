@@ -1,7 +1,8 @@
 import { Layout, theme, Space, Menu } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { DollarSign, FileText, Settings as SettingsIcon } from 'lucide-react';
+import { FileText, Settings as SettingsIcon } from 'lucide-react';
 import { css } from '@emotion/css';
+import { Logo } from './Logo';
 
 const { Header, Sider, Content } = Layout;
 
@@ -9,7 +10,8 @@ export function AppShell() {
   const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
-  const connected = window.paymentformAdmin?.connected === '1' || window.paymentformAdmin?.connected === true;
+  const connected =
+    window.paymentformAdmin?.connected === '1' || window.paymentformAdmin?.connected === true;
 
   const headerStyles = css`
     background: ${token.colorBgContainer};
@@ -22,6 +24,7 @@ export function AppShell() {
 
   const siderStyles = css`
     background: ${token.colorBgContainer};
+    border-inline-end: 1px solid ${token.colorBorder};
   `;
 
   const contentStyles = css`
@@ -44,8 +47,8 @@ export function AppShell() {
       <Sider
         width={220}
         collapsible
-        breakpoint="lg"
-        collapsedWidth={0}
+        breakpoint="md"
+        collapsedWidth={56}
         className={siderStyles}
       >
         <Menu
@@ -59,9 +62,9 @@ export function AppShell() {
       <Layout>
         <Header className={headerStyles}>
           <Space>
-            <DollarSign size={24} color={token.colorPrimary} />
+            <Logo size={28} />
             <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong }}>
-              PaymentForm Admin
+              PaymentForm
             </span>
           </Space>
         </Header>

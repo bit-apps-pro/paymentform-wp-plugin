@@ -4,8 +4,12 @@ import { request } from '../../lib/request/request';
 export interface Form {
   id: string;
   name: string;
+  slug: string | null;
   status: string;
-  created_at: string;
+  formType?: number;
+  submissionsCount?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface FormsListResponse {

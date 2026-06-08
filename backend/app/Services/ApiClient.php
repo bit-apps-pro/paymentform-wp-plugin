@@ -44,7 +44,7 @@ final class ApiClient
             if (!is_string($token) || !is_string($expiresAt)) {
                 throw new RuntimeException('refresh_invalid_response');
             }
-            $this->tokenService->store($token, $expiresAt);
+            $this->tokenService->store($token, $expiresAt, $this->tokenService->getTenant());
         } catch (\JsonException $e) {
             throw new RuntimeException('refresh_invalid_response', 0, $e);
         }

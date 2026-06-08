@@ -129,13 +129,22 @@ final class PluginServiceProvider
 
     public function registerAdminMenu(): void
     {
+        $iconSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnL'
+            . 'jAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHJ4PSI3IiBmaWxsPSIjNkU2MkU1Ii8+PHBhdGggZD0iTTExIDI1VjhIMTguNzY0NUMyMC4wMzQ1IDggMjEu'
+            . 'MTExNiA4LjIxNzAyIDIxLjk5NTcgOC42NTEwNkMyMi44Nzk5IDkuMDg1MTEgMjMuNTQ3IDkuNzA0MDIgMjMuOTk3MiAxMC41MDc4QzI0LjQ2MzQgMTEuMzExNiAyNC42OTY1IDEyLj'
+            . 'I4NDIgMjQuNjk2NSAxMy40MjU1QzI0LjY5NjUgMTQuNTY2OSAyNC40NjM0IDE1LjU0NzUgMjMuOTk3MiAxNi4zNjc0QzIzLjU0NyAxNy4xNzEyIDIyLjg3OTkgMTcuNzkwMSAyMS45'
+            . 'OTU3IDE4LjIyNDFDMjEuMTExNiAxOC42NTgyIDIwLjAzNDUgMTguODc1MiAxOC43NjQ1IDE4Ljg3NTJIMTQuNzM3NlYyMkwxMSAyNVpNMTQuNzM3NiAxNS45ODE2SDE4LjEzNzZDMT'
+            . 'kuMTAyMSAxNS45ODE2IDE5LjgzMzYgMTUuNzY0NSAyMC4zMzE5IDE1LjMzMDVDMjAuODQ2MyAxNC44OTY1IDIxLjEwMzUgMTQuMjYxNSAyMS4xMDM1IDEzLjQyNTVDMjEuMTAzNSAx'
+            . 'Mi41ODk2IDIwLjg0NjMgMTEuOTYyNiAyMC4zMzE5IDExLjU0NDdDMTkuODMzNiAxMS4xMjY3IDE5LjEwMjEgMTAuOTE3NyAxOC4xMzc2IDEwLjkxNzdIMTQuNzM3NlYxNS45ODE2WiIg'
+            . 'ZmlsbD0id2hpdGUiLz48L3N2Zz4=';
+
         add_menu_page(
             'PaymentForm',
             'PaymentForm',
             'manage_options',
             'paymentform',
             [$this, 'renderAdminPage'],
-            'dashicons-money-alt',
+            $iconSvg,
             80
         );
     }

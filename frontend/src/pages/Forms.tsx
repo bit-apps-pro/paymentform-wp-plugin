@@ -1,6 +1,5 @@
 import { Table, Empty, Button, Space, Tag, Spin, message, Flex, Typography, theme } from 'antd';
 import { Copy } from 'lucide-react';
-import { dateI18n } from '@wordpress/date';
 import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { css } from '@emotion/css';
 
@@ -15,35 +14,47 @@ export function Forms() {
     });
   };
 
+  const statusColor = (status: string): string => {
+    switch (status) {
+      case 'enabled':
+      case 'active':
+      case 'published':
+        return 'green';
+      case 'draft':
+      case 'disabled':
+        return 'blue';
+      default:
+        return 'default';
+    }
+  };
+
   const columns = [
     {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      width: 200,
+      width: 220,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (status: string) => {
-        const color = status === 'active' ? 'green' : status === 'draft' ? 'blue' : 'default';
-        return <Tag color={color}>{status}</Tag>;
-      },
+      render: (status: string) => <Tag color={statusColor(status)}>{status}</Tag>,
+    },
+    {
+      title: 'Submissions',
+      dataIndex: 'submissionsCount',
+      key: 'submissionsCount',
+      width: 120,
+      render: (count: number | undefined) => count ?? 0,
     },
     {
       title: 'Created',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 150,
-      render: (date: string) => {
-        try {
-          return dateI18n('F j, Y', new Date(date).getTime() / 1000);
-        } catch {
-          return date;
-        }
-      },
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 180,
+      render: (date: string | undefined) => date ?? '—',
     },
     {
       title: 'Actions',
