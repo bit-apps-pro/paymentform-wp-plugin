@@ -80,8 +80,9 @@ final class CallbackController
             wp_safe_redirect(admin_url('admin.php?page=paymentform&connected=1'));
             return;
         } catch (\Exception $e) {
-            // Log or debug the error here in production
-            // error_log('PaymentForm callback exchange error: ' . $e->getMessage());
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PaymentForm callback exchange error: ' . $e->getMessage());
+            }
             wp_safe_redirect(admin_url('admin.php?page=paymentform&error=exchange_failed'));
             return;
         }
