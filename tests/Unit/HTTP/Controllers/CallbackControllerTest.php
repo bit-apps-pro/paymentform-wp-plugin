@@ -113,6 +113,7 @@ class CallbackControllerTest extends TestCase
                     'token' => 'plaintext-token',
                     'expires_at' => '2026-07-08T09:43:46+00:00',
                     'webhook_secret' => 'hex-secret',
+                    'tenant' => 'ws-test',
                 ]
             ])),
         ]);
@@ -133,6 +134,7 @@ class CallbackControllerTest extends TestCase
 
         $this->assertSame('plaintext-token', $this->tokenService->get());
         $this->assertSame('hex-secret', $this->tokenService->getWebhookSecret());
+        $this->assertSame('ws-test', $this->tokenService->getTenant());
     }
 
     public function test_handle_rejects_empty_code(): void

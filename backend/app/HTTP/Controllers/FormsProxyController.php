@@ -18,7 +18,7 @@ final class FormsProxyController
     public function index($req): WP_REST_Response
     {
         try {
-            $response = $this->apiClient->request('GET', '/api/forms');
+            $response = $this->apiClient->request('GET', '/form');
             return new WP_REST_Response($response, 200);
         } catch (DisconnectedException) {
             return new WP_REST_Response([
@@ -46,7 +46,7 @@ final class FormsProxyController
         }
 
         try {
-            $response = $this->apiClient->request('GET', '/api/forms/' . (int) $id);
+            $response = $this->apiClient->request('GET', '/form/' . (int) $id);
             return new WP_REST_Response($response, 200);
         } catch (DisconnectedException) {
             return new WP_REST_Response([

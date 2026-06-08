@@ -25,7 +25,7 @@ final class StatusController
         }
 
         try {
-            $response = $this->apiClient->request('GET', '/api/me');
+            $response = $this->apiClient->request('GET', '/me');
         } catch (DisconnectedException|RuntimeException $e) {
             return new WP_REST_Response([
                 'connected' => false,

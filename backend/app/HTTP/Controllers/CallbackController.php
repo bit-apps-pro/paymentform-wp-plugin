@@ -57,6 +57,7 @@ final class CallbackController
             $token = $body['data']['token'] ?? null;
             $expiresAt = $body['data']['expires_at'] ?? null;
             $webhookSecret = $body['data']['webhook_secret'] ?? null;
+            $tenant = $body['data']['tenant'] ?? null;
 
             if (!is_string($token) || !is_string($expiresAt)) {
                 wp_safe_redirect(admin_url('admin.php?page=paymentform&error=invalid_response'));
@@ -69,7 +70,7 @@ final class CallbackController
                     $this->tokenService->storeWebhookSecret($webhookSecret);
                 }
                 // Then store token
-                $this->tokenService->store($token, $expiresAt);
+                $this->tokenService->store($token, $expiresAt, $tenant);
             } catch (\Throwable $e) {
                 $this->tokenService->clear();
                 wp_safe_redirect(admin_url('admin.php?page=paymentform&error=storage_failed'));

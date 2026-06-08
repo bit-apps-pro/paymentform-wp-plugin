@@ -186,14 +186,18 @@ final class PluginServiceProvider
         }
 
         $tokenService = $this->container[TokenService::class];
+        $raw = $tokenService->getRaw();
         $token = $tokenService->get();
+        $expiresAt = is_array($raw) ? ($raw['expires_at'] ?? null) : null;
+        $tenant = is_array($raw) ? ($raw['tenant'] ?? null) : null;
 
         wp_localize_script('paymentform-admin', 'paymentformAdmin', [
             'nonce' => wp_create_nonce('wp_rest'),
             'restUrl' => rest_url('paymentform/v1/'),
             'adminUrl' => admin_url('admin.php?page=paymentform'),
             'connected' => $token !== null,
-            'expiresAt' => $token !== null ? ($token['expires_at'] ?? null) : null,
+            'expiresAt' => $expiresAt,
+            'tenant' => $tenant,
             'version' => PAYMENTFORM_VERSION,
             'siteUrl' => site_url(),
         ]);
