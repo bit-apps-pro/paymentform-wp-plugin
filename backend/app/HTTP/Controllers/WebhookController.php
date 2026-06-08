@@ -20,25 +20,23 @@ final class WebhookController
         $body = $req->get_body();
         $signature = $req->get_header('X-PaymentForm-Signature');
 
+        $reason = null;
+
         if (!is_string($signature) || $signature === '') {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'missing_signature',
-            ], 401);
+            $reason = 'missing_signature';
+        } elseif (($secret = $this->tokenService->getWebhookSecret()) === null) {
+            $reason = 'no_webhook_secret';
+        } elseif (!$this->webhookService->verify($body, $signature, $secret)) {
+            $reason = 'invalid_signature';
         }
 
-        $secret = $this->tokenService->getWebhookSecret();
-        if ($secret === null) {
+        if ($reason !== null) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[paymentform][webhook] ' . $reason);
+            }
             return new WP_REST_Response([
                 'status' => false,
-                'code' => 'no_webhook_secret',
-            ], 401);
-        }
-
-        if (!$this->webhookService->verify($body, $signature, $secret)) {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'invalid_signature',
+                'code' => 'unauthorized',
             ], 401);
         }
 
