@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
-use PaymentForm\Services\TokenService;
+use PaymentForm\Services\TokenServiceInterface;
 use PaymentForm\Services\WebhookService;
 use WP_REST_Response;
 
 final class WebhookController
 {
     public function __construct(
-        private readonly TokenService $tokenService,
+        private readonly TokenServiceInterface $tokenService,
         private readonly WebhookService $webhookService,
     ) {}
 

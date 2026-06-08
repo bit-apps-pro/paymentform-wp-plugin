@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace PaymentForm\HTTP\Controllers;
 
 use PaymentForm\Services\ApiClient;
-use PaymentForm\Services\TokenService;
+use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
 use WP_REST_Response;
 
 final class DisconnectController
 {
     public function __construct(
-        private readonly TokenService $tokenService,
+        private readonly TokenServiceInterface $tokenService,
         private readonly ApiClient $apiClient,
     ) {}
 

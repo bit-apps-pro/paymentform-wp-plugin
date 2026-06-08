@@ -8,7 +8,7 @@ use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use PaymentForm\Services\ConnectService;
-use PaymentForm\Services\TokenService;
+use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
 use WP_REST_Response;
 
@@ -16,7 +16,7 @@ final class CallbackController
 {
     public function __construct(
         private readonly ConnectService $connectService,
-        private readonly TokenService $tokenService,
+        private readonly TokenServiceInterface $tokenService,
         private readonly ?ClientInterface $httpClient = null,
     ) {}
 
