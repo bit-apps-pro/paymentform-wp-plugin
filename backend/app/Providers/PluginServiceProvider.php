@@ -6,6 +6,7 @@ namespace PaymentForm\Providers;
 
 use Pimple\Container;
 use PaymentForm\HTTP\Routes;
+use PaymentForm\HTTP\Shortcode;
 use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\StatusController;
@@ -87,14 +88,22 @@ final class PluginServiceProvider
     public function boot(): void
     {
         add_action('init', [$this, 'loadTextdomain']);
+        add_action('init', [$this, 'registerBlockAndShortcode']);
         add_action('rest_api_init', [$this, 'registerRoutes']);
         add_action('admin_menu', [$this, 'registerAdminMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
+        add_action('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
     }
 
     public function loadTextdomain(): void
     {
         load_plugin_textdomain('paymentform', false, dirname(plugin_basename(PAYMENTFORM_PLUGIN_FILE)) . '/languages');
+    }
+
+    public function registerBlockAndShortcode(): void
+    {
+        register_block_type(PAYMENTFORM_PLUGIN_DIR . 'frontend/blocks/form-embed');
+        (new Shortcode())->register();
     }
 
     public function registerRoutes(): void
@@ -145,7 +154,7 @@ final class PluginServiceProvider
         wp_enqueue_script(
             'paymentform-admin',
             PAYMENTFORM_PLUGIN_URL . 'frontend/dist/admin.js',
-            [],
+            ['wp-element'],
             $version,
             true
         );
@@ -175,5 +184,36 @@ final class PluginServiceProvider
             'version' => PAYMENTFORM_VERSION,
             'siteUrl' => site_url(),
         ]);
+    }
+
+    public function enqueueFrontendAssets(): void
+    {
+        $frontend_dir = PAYMENTFORM_PLUGIN_DIR . 'frontend/dist';
+        $view_js = $frontend_dir . '/block-view.js';
+
+        if (!file_exists($view_js)) {
+            return;
+        }
+
+        $version = PAYMENTFORM_VERSION;
+        if (file_exists($view_js)) {
+            $version .= '.' . filemtime($view_js);
+        }
+
+        // Check if shortcode is used in current post
+        global $post;
+        if ($post && has_shortcode($post->post_content, 'paymentform')) {
+            wp_enqueue_script(
+                'paymentform-form-view-script',
+                PAYMENTFORM_PLUGIN_URL . 'frontend/dist/block-view.js',
+                [],
+                $version,
+                true
+            );
+
+            wp_localize_script('paymentform-form-view-script', 'paymentformView', [
+                'rendererBaseUrl' => PAYMENTFORM_RENDERER_BASE_URL,
+            ]);
+        }
     }
 }

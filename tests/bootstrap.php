@@ -336,6 +336,57 @@ if (!function_exists('esc_html')) {
     }
 }
 
+if (!function_exists('esc_attr')) {
+    function esc_attr(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('sanitize_key')) {
+    function sanitize_key(string $key): string
+    {
+        return preg_replace('/[^a-z0-9_\-]/i', '', $key) ?: '';
+    }
+}
+
+if (!function_exists('shortcode_atts')) {
+    function shortcode_atts(array $pairs, array $atts, string $shortcode = ''): array
+    {
+        $out = [];
+        foreach ($pairs as $name => $default) {
+            if (array_key_exists($name, $atts)) {
+                $out[$name] = $atts[$name];
+            } else {
+                $out[$name] = $default;
+            }
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('add_shortcode')) {
+    function add_shortcode(string $tag, callable $callback): void
+    {
+        // No-op in tests
+    }
+}
+
+if (!function_exists('has_shortcode')) {
+    function has_shortcode(string $content, string $tag): bool
+    {
+        // Check if shortcode is present in content
+        return strpos($content, '[' . $tag) !== false;
+    }
+}
+
+if (!function_exists('register_block_type')) {
+    function register_block_type(string $block_type, array $args = []): void
+    {
+        // No-op in tests
+    }
+}
+
 // Mock WP_REST_Response
 if (!class_exists('WP_REST_Response')) {
     class WP_REST_Response

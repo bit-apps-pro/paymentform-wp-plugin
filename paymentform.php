@@ -23,6 +23,7 @@ define('PAYMENTFORM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PAYMENTFORM_PLUGIN_URL', plugin_dir_url(__FILE__));
 defined('PAYMENTFORM_API_BASE_URL') || define('PAYMENTFORM_API_BASE_URL', 'https://api.paymentform.io');
 defined('PAYMENTFORM_APP_BASE_URL') || define('PAYMENTFORM_APP_BASE_URL', 'https://app.paymentform.io');
+defined('PAYMENTFORM_RENDERER_BASE_URL') || define('PAYMENTFORM_RENDERER_BASE_URL', 'https://render.paymentform.io');
 
 if (!file_exists(PAYMENTFORM_PLUGIN_DIR . 'vendor/autoload.php')) {
     add_action('admin_notices', function () {
