@@ -232,6 +232,145 @@ if (!function_exists('is_multisite')) {
     }
 }
 
+if (!function_exists('rest_url')) {
+    function rest_url(string $path = ''): string
+    {
+        $base = 'http://example.test/wp-json/';
+        return $path ? $base . ltrim($path, '/') : $base;
+    }
+}
+
+if (!function_exists('admin_url')) {
+    function admin_url(string $path = ''): string
+    {
+        $base = 'http://example.test/wp-admin/';
+        return $path ? $base . ltrim($path, '/') : $base;
+    }
+}
+
+if (!function_exists('rest_api_init')) {
+    function rest_api_init(): void
+    {
+        // No-op in tests
+    }
+}
+
+if (!function_exists('register_rest_route')) {
+    function register_rest_route(string $namespace, string $route, array $args = []): bool
+    {
+        // No-op in tests — route registration is tested by integration tests
+        return true;
+    }
+}
+
+if (!function_exists('wp_safe_redirect')) {
+    function wp_safe_redirect(string $location, int $status = 302): void
+    {
+        throw new RedirectException($location, $status);
+    }
+}
+
+if (!function_exists('wp_verify_nonce')) {
+    function wp_verify_nonce(?string $nonce, string $action = ''): int|false
+    {
+        // In tests, return 1 (valid) if nonce is not null; false otherwise
+        return $nonce ? 1 : false;
+    }
+}
+
+if (!function_exists('current_user_can')) {
+    function current_user_can(string $cap, mixed ...$args): bool
+    {
+        // In tests, default to true; tests can override by mocking
+        return true;
+    }
+}
+
+if (!function_exists('plugin_basename')) {
+    function plugin_basename(string $file): string
+    {
+        return 'paymentform/paymentform.php';
+    }
+}
+
+if (!function_exists('add_action')) {
+    function add_action(string $hook, callable $function_to_add, int $priority = 10, int $accepted_args = 1): bool
+    {
+        // No-op in tests
+        return true;
+    }
+}
+
+if (!function_exists('wp_enqueue_script')) {
+    function wp_enqueue_script(string $handle, string $src = '', array $deps = [], mixed $ver = false, bool $in_footer = false): void
+    {
+        // No-op in tests
+    }
+}
+
+if (!function_exists('wp_localize_script')) {
+    function wp_localize_script(string $object_name, string $var_name, array $l10n): bool
+    {
+        // No-op in tests
+        return true;
+    }
+}
+
+if (!function_exists('esc_url')) {
+    function esc_url(string $url): string
+    {
+        return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('esc_html')) {
+    function esc_html(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Mock WP_REST_Response
+if (!class_exists('WP_REST_Response')) {
+    class WP_REST_Response
+    {
+        private array $data;
+        private int $status;
+
+        public function __construct(mixed $data = null, int $status = 200)
+        {
+            $this->data = (array) $data;
+            $this->status = $status;
+        }
+
+        public function get_data(): array
+        {
+            return $this->data;
+        }
+
+        public function get_status(): int
+        {
+            return $this->status;
+        }
+    }
+}
+
+// Exception for redirect testing (thrown by wp_safe_redirect mock)
+if (!class_exists('PaymentForm\Tests\RedirectException')) {
+    class RedirectException extends Exception
+    {
+        public string $location;
+        public int $status;
+
+        public function __construct(string $location, int $status = 302)
+        {
+            $this->location = $location;
+            $this->status = $status;
+            parent::__construct('Redirect: ' . $location);
+        }
+    }
+}
+
 // Mock WordPress database
 class TestWpDb
 {
