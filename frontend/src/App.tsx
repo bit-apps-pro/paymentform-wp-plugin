@@ -9,12 +9,9 @@ import { queryClient } from './lib/queryClient';
 import { antdTheme } from './theme/antdTheme';
 import { Welcome } from './pages/Welcome';
 import { Callback } from './pages/Callback';
+import { Forms } from './pages/Forms';
 
 // Pages (will be created in subsequent tasks)
-function Forms() {
-  return <div>Forms</div>;
-}
-
 function Settings() {
   return <div>Settings</div>;
 }
