@@ -1,4 +1,4 @@
-import { Layout, theme, Space } from 'antd';
+import { Layout, theme, Space, Flex } from 'antd';
 import { Outlet } from 'react-router-dom';
 import { DollarSign } from 'lucide-react';
 import { css } from '@emotion/css';
@@ -36,9 +36,11 @@ export function AppShell() {
         collapsedWidth={0}
         className={siderStyles}
       >
-        <Space direction="vertical" style={{ width: '100%', padding: token.paddingLG }}>
-          <div style={{ fontSize: '14px', fontWeight: 500 }}>PaymentForm</div>
-        </Space>
+        <Flex vertical style={{ width: '100%', padding: token.paddingLG }}>
+          <div style={{ fontSize: token.fontSize, fontWeight: token.fontWeightStrong }}>
+            PaymentForm
+          </div>
+        </Flex>
       </Sider>
       <Layout>
         <Header className={headerStyles}>

@@ -1,9 +1,8 @@
-import { Table, Empty, Button, Space, Tag, Spin, message } from 'antd';
+import { Table, Empty, Button, Space, Tag, Spin, message, Flex, Typography, theme } from 'antd';
 import { Copy } from 'lucide-react';
 import { dateI18n } from '@wordpress/date';
 import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { css } from '@emotion/css';
-import { theme } from 'antd';
 
 export function Forms() {
   const { token } = theme.useToken();
@@ -71,7 +70,10 @@ export function Forms() {
   if (isLoading) {
     return (
       <div className={containerStyles}>
-        <Spin tip="Loading forms..." />
+        <Flex vertical align="center" gap={token.marginMD} style={{ paddingTop: token.paddingXL }}>
+          <Spin size="large" />
+          <Typography.Text type="secondary">Loading forms…</Typography.Text>
+        </Flex>
       </div>
     );
   }

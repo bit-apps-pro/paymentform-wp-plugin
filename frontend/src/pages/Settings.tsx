@@ -1,4 +1,4 @@
-import { Card, Descriptions, Button, Space, Popconfirm, Spin, Empty, theme } from 'antd';
+import { Card, Descriptions, Button, Space, Popconfirm, Spin, Empty, Flex, Typography, theme } from 'antd';
 import { dateI18n } from '@wordpress/date';
 import { useConnection } from '../features/auth/useConnection';
 import { useRefreshToken } from '../features/auth/useRefreshToken';
@@ -23,7 +23,10 @@ export function Settings() {
   if (isLoading) {
     return (
       <div className={containerStyles}>
-        <Spin tip="Loading connection status..." />
+        <Flex vertical align="center" gap={token.marginMD} style={{ paddingTop: token.paddingXL }}>
+          <Spin size="large" />
+          <Typography.Text type="secondary">Loading connection status…</Typography.Text>
+        </Flex>
       </div>
     );
   }

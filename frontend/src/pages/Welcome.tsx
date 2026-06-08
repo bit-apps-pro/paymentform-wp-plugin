@@ -1,8 +1,7 @@
-import { Result, Button, Spin } from 'antd';
+import { Result, Button, Spin, Flex, Typography, theme } from 'antd';
 import { Wallet } from 'lucide-react';
 import { useConnect } from '../features/auth/useConnect';
 import { css } from '@emotion/css';
-import { theme } from 'antd';
 
 export function Welcome() {
   const { token } = theme.useToken();
@@ -26,7 +25,10 @@ export function Welcome() {
     <div className={containerStyles}>
       <div className={contentStyles}>
         {isPending ? (
-          <Spin tip="Redirecting to PaymentForm..." />
+          <Flex vertical align="center" gap={token.marginMD}>
+            <Spin size="large" />
+            <Typography.Text type="secondary">Redirecting to PaymentForm…</Typography.Text>
+          </Flex>
         ) : (
           <Result
             icon={<Wallet size={64} color={token.colorPrimary} />}

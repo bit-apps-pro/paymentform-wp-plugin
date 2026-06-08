@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { Spin } from 'antd';
+import { Spin, Flex, Typography, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { theme } from 'antd';
 import { css } from '@emotion/css';
 
 export function Callback() {
@@ -27,7 +26,10 @@ export function Callback() {
 
   return (
     <div className={containerStyles}>
-      <Spin size="large" tip="Finishing setup..." />
+      <Flex vertical align="center" gap={token.marginMD}>
+        <Spin size="large" />
+        <Typography.Text type="secondary">Finishing setup…</Typography.Text>
+      </Flex>
     </div>
   );
 }
