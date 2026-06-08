@@ -53,7 +53,14 @@ final class ApiClient
     private function makeRequest(string $method, string $path, array $options, bool $isRetry, ?string $knownToken = null): array
     {
         $client = $this->httpClient ?? new Client();
-        $url = $this->baseUrl . $path;
+
+        // Inject tenant prefix for non-auth paths
+        $tenant = $this->tokenService->getTenant();
+        $effectivePath = $tenant !== null && !str_starts_with($path, '/auth/')
+            ? '/' . rawurlencode($tenant) . $path
+            : $path;
+        $url = rtrim($this->baseUrl, '/') . $effectivePath;
+
         $token = $knownToken ?? $this->tokenService->get();
 
         if ($token === null) {

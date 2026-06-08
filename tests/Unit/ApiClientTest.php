@@ -219,4 +219,43 @@ class ApiClientTest extends TestCase
         // After the entire flow completes, the lock should be acquirable (released before retry)
         $this->assertTrue($refreshLock->acquire());
     }
+
+    public function test_request_prepends_tenant_prefix_for_non_auth_paths(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode(['data' => 'test'])),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $this->tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM), 'ws-test');
+
+        $apiClient = new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test', $httpClient);
+        $apiClient->request('GET', '/me', []);
+
+        $lastRequest = $mockHandler->getLastRequest();
+        $this->assertNotNull($lastRequest);
+        $this->assertStringContainsString('/ws-test/me', (string) $lastRequest->getUri());
+    }
+
+    public function test_refresh_path_not_prefixed_with_tenant(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                'data' => ['token' => 'new-token', 'expires_at' => '2026-06-09T12:00:00Z']
+            ])),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $this->tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM), 'ws-test');
+
+        $apiClient = new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test', $httpClient);
+        $apiClient->refresh();
+
+        $lastRequest = $mockHandler->getLastRequest();
+        $this->assertNotNull($lastRequest);
+        $this->assertStringContainsString('/auth/refresh', (string) $lastRequest->getUri());
+        $this->assertStringNotContainsString('/ws-test/auth', (string) $lastRequest->getUri());
+    }
 }

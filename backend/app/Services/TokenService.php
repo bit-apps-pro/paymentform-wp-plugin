@@ -35,7 +35,7 @@ final class TokenService implements TokenServiceInterface
         }
     }
 
-    public function store(string $token, string $expiresAt): void
+    public function store(string $token, string $expiresAt, ?string $tenant = null): void
     {
         $data = $this->getRaw() ?? [];
 
@@ -46,6 +46,7 @@ final class TokenService implements TokenServiceInterface
         $data['iv'] = $encrypted['iv'];
         $data['tag'] = $encrypted['tag'];
         $data['expires_at'] = $expiresAt;
+        $data['tenant'] = $tenant;
         $data['connected_at'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(\DateTimeInterface::ATOM);
 
         update_option(self::OPTION_NAME, $data, false);
@@ -126,5 +127,15 @@ final class TokenService implements TokenServiceInterface
         } catch (RuntimeException) {
             return null;
         }
+    }
+
+    public function getTenant(): ?string
+    {
+        $raw = $this->getRaw();
+        if (!is_array($raw) || !isset($raw['tenant'])) {
+            return null;
+        }
+        $value = $raw['tenant'];
+        return is_string($value) && $value !== '' ? $value : null;
     }
 }

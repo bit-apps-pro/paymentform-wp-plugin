@@ -144,4 +144,25 @@ class TokenServiceTest extends TestCase
         $this->svc->clear();
         $this->assertNull($this->svc->getWebhookSecret());
     }
+
+    public function test_store_persists_tenant(): void
+    {
+        $token = 'test-token';
+        $expiresAt = (new \DateTime('+30 days'))->format(\DateTimeInterface::ATOM);
+        $tenant = 'ws-test';
+
+        $this->svc->store($token, $expiresAt, $tenant);
+
+        $this->assertSame($tenant, $this->svc->getTenant());
+    }
+
+    public function test_get_tenant_returns_null_when_no_tenant(): void
+    {
+        $token = 'test-token';
+        $expiresAt = (new \DateTime('+30 days'))->format(\DateTimeInterface::ATOM);
+
+        $this->svc->store($token, $expiresAt);
+
+        $this->assertNull($this->svc->getTenant());
+    }
 }

@@ -8,7 +8,7 @@ interface TokenServiceInterface
 {
     public function get(): ?string;
 
-    public function store(string $token, string $expiresAt): void;
+    public function store(string $token, string $expiresAt, ?string $tenant = null): void;
 
     public function clear(): void;
 
@@ -21,4 +21,6 @@ interface TokenServiceInterface
     public function storeWebhookSecret(string $secret): void;
 
     public function getWebhookSecret(): ?string;
+
+    public function getTenant(): ?string;
 }
