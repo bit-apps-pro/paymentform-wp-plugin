@@ -6,7 +6,7 @@ namespace PaymentForm\Services;
 
 use RuntimeException;
 
-final class TokenService
+final class TokenService implements TokenServiceInterface
 {
     private const OPTION_NAME = 'paymentform_credentials';
     private const CONTEXT_TOKEN = 'paymentform:token:v1';

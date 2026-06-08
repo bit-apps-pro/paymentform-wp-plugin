@@ -11,7 +11,7 @@ use RuntimeException;
 final class ApiClient
 {
     public function __construct(
-        private readonly TokenService $tokenService,
+        private readonly TokenServiceInterface $tokenService,
         private readonly TokenRefreshLock $refreshLock,
         private readonly string $baseUrl = 'https://api.paymentform.io',
         private readonly ?Client $httpClient = null,
