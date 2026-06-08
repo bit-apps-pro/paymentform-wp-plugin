@@ -11,18 +11,41 @@ if (!defined('AUTH_SALT')) {
     define('AUTH_SALT', 'test-auth-salt-' . str_repeat('b', 32));
 }
 
+// Mock WordPress role
+class TestWpRole
+{
+    private array $capabilities = [];
+
+    public function add_cap(string $cap): void
+    {
+        $this->capabilities[$cap] = true;
+    }
+
+    public function remove_cap(string $cap): void
+    {
+        unset($this->capabilities[$cap]);
+    }
+
+    public function has_cap(string $cap): bool
+    {
+        return isset($this->capabilities[$cap]);
+    }
+}
+
 // Global test double for WordPress functions
 class TestWpFunctions
 {
     private static array $options = [];
     private static array $transients = [];
     private static object $currentUser;
+    private static array $roles = [];
 
     public static function reset(): void
     {
         self::$options = [];
         self::$transients = [];
         self::$currentUser = (object) ['ID' => 1, 'user_login' => 'test_user'];
+        self::$roles = ['administrator' => new TestWpRole()];
     }
 
     public static function getOption(string $option, mixed $default = false): mixed
@@ -86,6 +109,11 @@ class TestWpFunctions
         $base = 'http://example.test';
         return $path ? $base . '/' . ltrim($path, '/') : $base;
     }
+
+    public static function getRole(string $roleName): ?TestWpRole
+    {
+        return self::$roles[$roleName] ?? null;
+    }
 }
 
 if (!function_exists('get_option')) {
@@ -148,5 +176,19 @@ if (!function_exists('http_build_query')) {
     function http_build_query(array $data): string
     {
         return \http_build_query($data);
+    }
+}
+
+if (!function_exists('get_role')) {
+    function get_role(string $role)
+    {
+        return TestWpFunctions::getRole($role);
+    }
+}
+
+if (!function_exists('flush_rewrite_rules')) {
+    function flush_rewrite_rules(bool $hard = true): void
+    {
+        // No-op in tests
     }
 }
