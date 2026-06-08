@@ -89,6 +89,7 @@ final class PluginServiceProvider
         add_action('init', [$this, 'loadTextdomain']);
         add_action('rest_api_init', [$this, 'registerRoutes']);
         add_action('admin_menu', [$this, 'registerAdminMenu']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
     }
 
     public function loadTextdomain(): void
@@ -106,6 +107,73 @@ final class PluginServiceProvider
 
     public function registerAdminMenu(): void
     {
-        // Wired up in Phase 4
+        add_menu_page(
+            'PaymentForm',
+            'PaymentForm',
+            'manage_options',
+            'paymentform',
+            [$this, 'renderAdminPage'],
+            'dashicons-money-alt',
+            80
+        );
+    }
+
+    public function renderAdminPage(): void
+    {
+        echo '<div id="paymentform-admin-root"></div>';
+    }
+
+    public function enqueueAdminAssets(string $hook): void
+    {
+        if ($hook !== 'toplevel_page_paymentform') {
+            return;
+        }
+
+        $frontend_dir = PAYMENTFORM_PLUGIN_DIR . 'frontend/dist';
+        $js_file = $frontend_dir . '/admin.js';
+        $css_file = $frontend_dir . '/admin.css';
+
+        if (!file_exists($js_file)) {
+            return;
+        }
+
+        $version = PAYMENTFORM_VERSION;
+        if (file_exists($js_file)) {
+            $version .= '.' . filemtime($js_file);
+        }
+
+        wp_enqueue_script(
+            'paymentform-admin',
+            PAYMENTFORM_PLUGIN_URL . 'frontend/dist/admin.js',
+            [],
+            $version,
+            true
+        );
+
+        if (file_exists($css_file)) {
+            wp_enqueue_style(
+                'paymentform-admin',
+                PAYMENTFORM_PLUGIN_URL . 'frontend/dist/admin.css',
+                [],
+                $version
+            );
+        }
+
+        if ($this->container === null) {
+            return;
+        }
+
+        $tokenService = $this->container[TokenService::class];
+        $token = $tokenService->get();
+
+        wp_localize_script('paymentform-admin', 'paymentformAdmin', [
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restUrl' => rest_url('paymentform/v1/'),
+            'adminUrl' => admin_url('admin.php?page=paymentform'),
+            'connected' => $token !== null,
+            'expiresAt' => $token !== null ? ($token['expires_at'] ?? null) : null,
+            'version' => PAYMENTFORM_VERSION,
+            'siteUrl' => site_url(),
+        ]);
     }
 }
