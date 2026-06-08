@@ -1,0 +1,15 @@
+/vendor/
+/node_modules/
+/dist/
+/build/
+/.pnpm-store/
+/.bin/
+/.wrangler/
+*.log
+.env
+.env.local
+.DS_Store
+.idea/
+.vscode/
+/coverage/
+/tests/__output__/
