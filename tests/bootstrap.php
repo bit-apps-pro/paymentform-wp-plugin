@@ -209,3 +209,47 @@ if (!function_exists('flush_rewrite_rules')) {
         // No-op in tests
     }
 }
+
+if (!function_exists('wp_get_current_user')) {
+    function wp_get_current_user(): object
+    {
+        return TestWpFunctions::getCurrentUser();
+    }
+}
+
+if (!function_exists('site_url')) {
+    function site_url(string $path = ''): string
+    {
+        $base = 'http://example.test';
+        return $path ? $base . '/' . ltrim($path, '/') : $base;
+    }
+}
+
+if (!function_exists('is_multisite')) {
+    function is_multisite(): bool
+    {
+        return false;
+    }
+}
+
+// Mock WordPress database
+class TestWpDb
+{
+    public array $queryLog = [];
+
+    public function query(string $query): int|false
+    {
+        $this->queryLog[] = $query;
+        // Simulate successful DELETE
+        if (stripos($query, 'DELETE') === 0) {
+            return 1;
+        }
+        return false;
+    }
+}
+
+// Global $wpdb mock
+if (!isset($GLOBALS['wpdb'])) {
+    $GLOBALS['wpdb'] = new TestWpDb();
+    $GLOBALS['wpdb']->options = 'wp_options';
+}

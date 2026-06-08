@@ -33,13 +33,12 @@ if (!file_exists(PAYMENTFORM_PLUGIN_DIR . 'vendor/autoload.php')) {
 
 require_once PAYMENTFORM_PLUGIN_DIR . 'vendor/autoload.php';
 
-// Register activation, deactivation, and uninstall hooks (before bootstrap)
+// Register activation and deactivation hooks (before bootstrap)
+// Uninstall hook is registered via uninstall.php instead
 use PaymentForm\Activation\Activator;
 use PaymentForm\Activation\Deactivator;
-use PaymentForm\Activation\Uninstaller;
 
 register_activation_hook(PAYMENTFORM_PLUGIN_FILE, [Activator::class, 'activate']);
 register_deactivation_hook(PAYMENTFORM_PLUGIN_FILE, [Deactivator::class, 'deactivate']);
-register_uninstall_hook(PAYMENTFORM_PLUGIN_FILE, [Uninstaller::class, 'uninstall']);
 
 require_once PAYMENTFORM_PLUGIN_DIR . 'backend/bootstrap.php';

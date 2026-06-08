@@ -17,8 +17,12 @@ final class Uninstaller
         // Delete credentials option
         delete_option('paymentform_credentials');
 
-        // Clean up any transients related to PaymentForm
-        // (In a real implementation, we'd iterate and delete all paymentform_* transients)
-        // For MVP, we can ignore this since WordPress will clean up old transients
+        // Wipe all stale transients and related options
+        global $wpdb;
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_paymentform\_%' " .
+            "OR option_name LIKE '\_transient\_timeout\_paymentform\_%' " .
+            "OR option_name = 'paymentform_refresh_lock'"
+        );
     }
 }

@@ -40,4 +40,20 @@ class UninstallerTest extends TestCase
 
         $this->assertNull($tokenService->get());
     }
+
+    public function test_uninstall_calls_database_cleanup(): void
+    {
+        // Verify that uninstall calls wpdb->query for cleanup
+        // The actual row deletion is performed by WordPress at the DB level
+        $wpdb = $GLOBALS['wpdb'];
+        $initialQueryCount = count($wpdb->queryLog);
+
+        Uninstaller::uninstall();
+
+        // Verify wpdb->query was called
+        $this->assertGreaterThan($initialQueryCount, count($wpdb->queryLog));
+        $lastQuery = end($wpdb->queryLog);
+        $this->assertStringContainsString('DELETE', $lastQuery);
+        $this->assertStringContainsString('paymentform', $lastQuery);
+    }
 }
