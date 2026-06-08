@@ -16,11 +16,13 @@ class TestWpFunctions
 {
     private static array $options = [];
     private static array $transients = [];
+    private static object $currentUser;
 
     public static function reset(): void
     {
         self::$options = [];
         self::$transients = [];
+        self::$currentUser = (object) ['ID' => 1, 'user_login' => 'test_user'];
     }
 
     public static function getOption(string $option, mixed $default = false): mixed
@@ -68,6 +70,22 @@ class TestWpFunctions
         unset(self::$transients[$transient]);
         return true;
     }
+
+    public static function getCurrentUser(): object
+    {
+        return self::$currentUser;
+    }
+
+    public static function setCurrentUser(object $user): void
+    {
+        self::$currentUser = $user;
+    }
+
+    public static function getHomeUrl(string $path = ''): string
+    {
+        $base = 'http://example.test';
+        return $path ? $base . '/' . ltrim($path, '/') : $base;
+    }
 }
 
 if (!function_exists('get_option')) {
@@ -109,5 +127,26 @@ if (!function_exists('delete_transient')) {
     function delete_transient(string $transient): bool
     {
         return TestWpFunctions::deleteTransient($transient);
+    }
+}
+
+if (!function_exists('wp_get_current_user')) {
+    function wp_get_current_user(): object
+    {
+        return TestWpFunctions::getCurrentUser();
+    }
+}
+
+if (!function_exists('home_url')) {
+    function home_url(string $path = ''): string
+    {
+        return TestWpFunctions::getHomeUrl($path);
+    }
+}
+
+if (!function_exists('http_build_query')) {
+    function http_build_query(array $data): string
+    {
+        return \http_build_query($data);
     }
 }
