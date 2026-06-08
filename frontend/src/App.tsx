@@ -12,6 +12,11 @@ import { Callback } from './pages/Callback';
 import { Forms } from './pages/Forms';
 import { Settings } from './pages/Settings';
 
+function RootRedirect() {
+  const connected = window.paymentformAdmin?.connected === '1' || window.paymentformAdmin?.connected === true;
+  return <Navigate to={connected ? '/forms' : '/welcome'} replace />;
+}
+
 export default function App() {
   return (
     <ErrorBoundary fallback={<ErrorFallback />}>
@@ -22,7 +27,7 @@ export default function App() {
             <HashRouter>
               <Routes>
                 <Route element={<AppShell />}>
-                  <Route index element={<Navigate to="/welcome" replace />} />
+                  <Route index element={<RootRedirect />} />
                   <Route path="welcome" element={<Welcome />} />
                   <Route path="forms" element={<Forms />} />
                   <Route path="settings" element={<Settings />} />

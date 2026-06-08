@@ -3,8 +3,8 @@ interface Window {
     nonce: string;
     restUrl: string;
     adminUrl: string;
-    connected: boolean;
-    expiresAt: number | null;
+    connected: boolean | string;
+    expiresAt: string | number | null;
     version: string;
     siteUrl: string;
   };
