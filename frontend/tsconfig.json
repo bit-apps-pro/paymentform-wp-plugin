@@ -25,6 +25,6 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src"],
+  "include": ["src", "blocks"],
   "exclude": ["node_modules", "dist"]
 }

@@ -10,7 +10,7 @@ describe('paymentform block view script', () => {
     document.body.appendChild(container);
 
     // Setup window.paymentformView
-    (window as Record<string, unknown>).paymentformView = { rendererBaseUrl: rendererUrl };
+    (window as unknown as Record<string, unknown>).paymentformView = { rendererBaseUrl: rendererUrl };
   });
 
   afterEach(() => {
@@ -25,7 +25,7 @@ describe('paymentform block view script', () => {
 
   function simulateViewBootup() {
     // Simulate the view script execution
-    const cfg = (window as Record<string, unknown>).paymentformView as { rendererBaseUrl: string } | undefined ?? { rendererBaseUrl: rendererUrl };
+    const cfg = (window as unknown as Record<string, unknown>).paymentformView as { rendererBaseUrl: string } | undefined ?? { rendererBaseUrl: rendererUrl };
     const rendererOrigin = new URL(cfg.rendererBaseUrl).origin;
 
     document.querySelectorAll<HTMLElement>('.paymentform-embed[data-form-id]').forEach((host) => {

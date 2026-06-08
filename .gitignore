@@ -1,10 +1,11 @@
 /vendor/
-/node_modules/
-/dist/
-/build/
-/.pnpm-store/
-/.bin/
+node_modules/
+dist/
+build/
+.pnpm-store/
+.bin/
 /.wrangler/
+.phpunit.result.cache
 *.log
 .env
 .env.local

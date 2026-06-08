@@ -40,6 +40,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "@types/wordpress__block-editor": "^15.0.6",
     "@types/wordpress__i18n": "3.11.0",
     "@typescript-eslint/eslint-plugin": "8.60.1",
     "@typescript-eslint/parser": "8.60.1",
