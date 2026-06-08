@@ -150,4 +150,43 @@ class WebhookServiceTest extends TestCase
         $result = $this->svc->verify('body', 't=' . $timestamp . ';v1=abc', $this->secret);
         $this->assertFalse($result);
     }
+
+    public function test_rejects_short_hmac_hex(): void
+    {
+        $timestamp = time();
+        $body = 'test body';
+        $header = 't=' . $timestamp . ',v1=ab'; // Too short
+
+        $result = $this->svc->verify($body, $header, $this->secret);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_rejects_uppercase_hex(): void
+    {
+        $timestamp = time();
+        $body = 'test body';
+        // Create a valid lowercase hmac, then uppercase it
+        $message = $timestamp . '.' . $body;
+        $hmac = hash_hmac('sha256', $message, $this->secret);
+        $uppercased = strtoupper($hmac);
+        $header = 't=' . $timestamp . ',v1=' . $uppercased;
+
+        $result = $this->svc->verify($body, $header, $this->secret);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_empty_body_with_valid_signature(): void
+    {
+        $timestamp = time();
+        $body = '';
+        $message = $timestamp . '.' . $body;
+        $hmac = hash_hmac('sha256', $message, $this->secret);
+        $header = 't=' . $timestamp . ',v1=' . $hmac;
+
+        $result = $this->svc->verify($body, $header, $this->secret);
+
+        $this->assertTrue($result);
+    }
 }

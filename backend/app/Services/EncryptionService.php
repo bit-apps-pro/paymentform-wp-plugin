@@ -64,6 +64,10 @@ final class EncryptionService
             throw new RuntimeException('wp_salts_missing');
         }
 
+        if (strlen(AUTH_KEY) < 32 || strlen(AUTH_SALT) < 32) {
+            throw new RuntimeException('wp_salts_too_short');
+        }
+
         return hash_hkdf('sha256', AUTH_KEY . AUTH_SALT, self::KEY_LEN, $context);
     }
 }

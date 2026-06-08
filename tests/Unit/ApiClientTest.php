@@ -186,4 +186,20 @@ class ApiClientTest extends TestCase
         // Lock should be released after refresh
         $this->assertTrue($refreshLock->acquire());
     }
+
+    public function test_invalid_json_response_throws_runtime_exception(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], 'not valid json {'),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $apiClient = new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test', $httpClient);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('invalid_json_response');
+
+        $apiClient->request('GET', '/data', []);
+    }
 }

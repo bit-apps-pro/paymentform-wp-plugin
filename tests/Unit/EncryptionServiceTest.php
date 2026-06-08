@@ -62,4 +62,11 @@ class EncryptionServiceTest extends TestCase
         $this->assertNotSame($a['iv'], $b['iv']);
         $this->assertNotSame($a['ciphertext'], $b['ciphertext']);
     }
+
+    public function test_invalid_base64_inputs_throw(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('invalid_base64');
+        $this->svc->decrypt('not-valid-base64!!!', 'aW52', 'dGFn');
+    }
 }

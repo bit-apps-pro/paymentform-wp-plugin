@@ -50,7 +50,11 @@ final class ApiClient
 
         try {
             $response = $client->request($method, $url, $mergedOptions);
-            return json_decode($response->getBody()->getContents(), true, 512, JSON_THROW_ON_ERROR);
+            try {
+                return json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new RuntimeException('invalid_json_response', 0, $e);
+            }
         } catch (RequestException $e) {
             if ($e->getResponse()?->getStatusCode() === 401) {
                 if ($isRetry) {
