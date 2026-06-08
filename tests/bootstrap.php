@@ -15,10 +15,12 @@ if (!defined('AUTH_SALT')) {
 class TestWpFunctions
 {
     private static array $options = [];
+    private static array $transients = [];
 
     public static function reset(): void
     {
         self::$options = [];
+        self::$transients = [];
     }
 
     public static function getOption(string $option, mixed $default = false): mixed
@@ -35,6 +37,35 @@ class TestWpFunctions
     public static function deleteOption(string $option): bool
     {
         unset(self::$options[$option]);
+        return true;
+    }
+
+    public static function setTransient(string $transient, mixed $value, int $expiration = 0): bool
+    {
+        self::$transients[$transient] = [
+            'value' => $value,
+            'expires_at' => $expiration > 0 ? time() + $expiration : PHP_INT_MAX,
+        ];
+        return true;
+    }
+
+    public static function getTransient(string $transient): mixed
+    {
+        if (!isset(self::$transients[$transient])) {
+            return false;
+        }
+
+        if (self::$transients[$transient]['expires_at'] < time()) {
+            unset(self::$transients[$transient]);
+            return false;
+        }
+
+        return self::$transients[$transient]['value'];
+    }
+
+    public static function deleteTransient(string $transient): bool
+    {
+        unset(self::$transients[$transient]);
         return true;
     }
 }
@@ -57,5 +88,26 @@ if (!function_exists('delete_option')) {
     function delete_option(string $option): bool
     {
         return TestWpFunctions::deleteOption($option);
+    }
+}
+
+if (!function_exists('set_transient')) {
+    function set_transient(string $transient, mixed $value, int $expiration = 0): bool
+    {
+        return TestWpFunctions::setTransient($transient, $value, $expiration);
+    }
+}
+
+if (!function_exists('get_transient')) {
+    function get_transient(string $transient): mixed
+    {
+        return TestWpFunctions::getTransient($transient);
+    }
+}
+
+if (!function_exists('delete_transient')) {
+    function delete_transient(string $transient): bool
+    {
+        return TestWpFunctions::deleteTransient($transient);
     }
 }
