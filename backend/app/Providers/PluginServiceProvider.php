@@ -93,6 +93,19 @@ final class PluginServiceProvider
         add_action('admin_menu', [$this, 'registerAdminMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
+        add_filter('script_loader_tag', [$this, 'addModuleTypeToScripts'], 10, 2);
+    }
+
+    public function addModuleTypeToScripts(string $tag, string $handle): string
+    {
+        $moduleHandles = ['paymentform-admin', 'paymentform-form-view-script', 'paymentform-form-editor-script'];
+        if (!in_array($handle, $moduleHandles, true)) {
+            return $tag;
+        }
+        if (str_contains($tag, 'type="module"')) {
+            return $tag;
+        }
+        return str_replace('<script ', '<script type="module" ', $tag);
     }
 
     public function loadTextdomain(): void
