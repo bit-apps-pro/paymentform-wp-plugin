@@ -96,8 +96,6 @@ final class ApiClient
 
                 try {
                     $this->refresh();
-                    // Retry the request
-                    return $this->makeRequest($method, $path, $options, isRetry: true);
                 } catch (RuntimeException $refreshException) {
                     // On refresh error, treat as revoked
                     $this->tokenService->clear();
@@ -105,6 +103,9 @@ final class ApiClient
                 } finally {
                     $this->refreshLock->release();
                 }
+
+                // Retry the request OUTSIDE the lock window
+                return $this->makeRequest($method, $path, $options, isRetry: true);
             }
 
             // Handle other HTTP errors

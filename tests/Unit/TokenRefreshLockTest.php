@@ -50,10 +50,28 @@ class TokenRefreshLockTest extends TestCase
     {
         // Set a stale lock (5 seconds TTL, simulate 6 seconds old)
         $staleTime = (string)(time() - 6);
+        $stalePayload = 'oldtoken|' . $staleTime;
         \TestWpFunctions::getOption('paymentform_refresh_lock', false);  // ensure exists
-        \update_option('paymentform_refresh_lock', $staleTime);
+        \update_option('paymentform_refresh_lock', $stalePayload);
 
         // Acquire should succeed because lock is stale
         $this->assertTrue($this->lock->acquire());
+    }
+
+    public function test_release_only_deletes_when_owner_matches(): void
+    {
+        // Worker A acquires the lock
+        $this->assertTrue($this->lock->acquire());
+
+        // Simulate another worker replacing the lock by setting the option directly to a different token
+        \update_option('paymentform_refresh_lock', 'differenttoken|' . time());
+
+        // Worker A releases — should NOT delete because it doesn't own the lock anymore
+        $this->lock->release();
+
+        // Lock should still exist (option still set)
+        $this->assertFalse($this->lock->acquire());
+        // Verify the option still contains a value
+        $this->assertNotEmpty(\get_option('paymentform_refresh_lock'));
     }
 }

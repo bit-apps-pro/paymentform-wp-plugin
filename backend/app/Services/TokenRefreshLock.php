@@ -9,26 +9,45 @@ final class TokenRefreshLock
     private const LOCK_OPTION = 'paymentform_refresh_lock';
     private const TTL_SECONDS = 5;
 
+    private ?string $ownerToken = null;
+
     public function acquire(): bool
     {
-        // add_option returns false if the option already exists (atomic at DB unique-key level).
-        $acquired = \add_option(self::LOCK_OPTION, (string)time(), '', 'no');
-        if ($acquired) {
+        $token = bin2hex(random_bytes(16));
+        $payload = $token . '|' . time();
+
+        if (\add_option(self::LOCK_OPTION, $payload, '', 'no')) {
+            $this->ownerToken = $token;
             return true;
         }
 
-        // Stale lock? check timestamp.
-        $existing = (int) \get_option(self::LOCK_OPTION, '0');
-        if ($existing && (time() - $existing) > self::TTL_SECONDS) {
+        // Stale check
+        $existing = (string) \get_option(self::LOCK_OPTION, '');
+        $parts = explode('|', $existing, 2);
+        $existingTs = isset($parts[1]) ? (int) $parts[1] : 0;
+        if ($existingTs > 0 && (time() - $existingTs) > self::TTL_SECONDS) {
+            // Best-effort stale reclaim: try to swap atomically by deleting only the stale value, then re-add.
+            // delete_option is not value-conditioned, so this race window remains. Documented limitation.
             \delete_option(self::LOCK_OPTION);
-            return \add_option(self::LOCK_OPTION, (string)time(), '', 'no');
+            if (\add_option(self::LOCK_OPTION, $payload, '', 'no')) {
+                $this->ownerToken = $token;
+                return true;
+            }
         }
-
         return false;
     }
 
     public function release(): void
     {
-        \delete_option(self::LOCK_OPTION);
+        if ($this->ownerToken === null) {
+            return; // Not the owner — never call delete_option.
+        }
+        $existing = (string) \get_option(self::LOCK_OPTION, '');
+        $parts = explode('|', $existing, 2);
+        $existingToken = $parts[0] ?? '';
+        if (hash_equals($existingToken, $this->ownerToken)) {
+            \delete_option(self::LOCK_OPTION);
+        }
+        $this->ownerToken = null;
     }
 }

@@ -196,4 +196,27 @@ class ApiClientTest extends TestCase
 
         $apiClient->request('GET', '/data', []);
     }
+
+    public function test_refresh_lock_released_before_retry_request(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(401, [], 'Unauthorized'),
+            new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                'data' => ['token' => 'new-token', 'expires_at' => '2026-06-09T12:00:00Z']
+            ])),
+            new Response(200, ['Content-Type' => 'application/json'], json_encode(['ok' => true])),
+        ]);
+        $handlerStack = HandlerStack::create($mockHandler);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $refreshLock = new TokenRefreshLock();
+        $apiClient = new ApiClient($this->tokenService, $refreshLock, 'https://api.test', $httpClient);
+
+        // Execute the request (will trigger 401, refresh, and retry)
+        $result = $apiClient->request('GET', '/data', []);
+
+        $this->assertSame(['ok' => true], $result);
+        // After the entire flow completes, the lock should be acquirable (released before retry)
+        $this->assertTrue($refreshLock->acquire());
+    }
 }
