@@ -19,7 +19,7 @@ const queryCache = new QueryCache({
     if (meta?.silent) return;
 
     const apiError = error as ApiError;
-    if (apiError.status === 401 || apiError.code === 'unauthorized') {
+    if (apiError.status === 401 || apiError.errorCode === 'UNAUTHORIZED') {
       const notification = getNotification();
       if (notification) {
         notification.warning({
@@ -36,7 +36,7 @@ const queryCache = new QueryCache({
     const notification = getNotification();
     if (notification) {
       notification.error({
-        message: apiError.code || __('Error', 'paymentform'),
+        message: apiError.errorCode || __('Error', 'paymentform'),
         description: apiError.message || __('An unexpected error occurred', 'paymentform'),
       });
     }

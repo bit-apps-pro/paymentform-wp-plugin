@@ -34,7 +34,7 @@ export async function request<T>(path: string, init: FetchInit = {}): Promise<T>
   if (!res.ok) {
     const errorBody = body as any;
     const err: ApiError = Object.assign(new Error(), {
-      code: errorBody?.code ?? `http_${res.status}`,
+      errorCode: errorBody?.error_code ?? `HTTP_${res.status}`,
       message: errorBody?.message ?? res.statusText,
       status: res.status,
       details: errorBody,

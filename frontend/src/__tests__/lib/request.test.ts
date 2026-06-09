@@ -26,7 +26,7 @@ describe('request utility', () => {
       ok: false,
       status: 404,
       statusText: 'Not Found',
-      json: async () => ({ code: 'not_found', message: 'Resource not found' }),
+      json: async () => ({ error_code: 'NOT_FOUND', message: 'Resource not found' }),
     });
     (globalThis as any).fetch = mockFetch;
 
@@ -34,7 +34,7 @@ describe('request utility', () => {
       await request('/missing');
       expect.fail('Should have thrown error');
     } catch (error: any) {
-      expect(error.code).toBe('not_found');
+      expect(error.errorCode).toBe('NOT_FOUND');
       expect(error.message).toBe('Resource not found');
       expect(error.status).toBe(404);
     }
