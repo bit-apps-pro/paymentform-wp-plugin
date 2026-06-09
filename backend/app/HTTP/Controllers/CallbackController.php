@@ -59,6 +59,7 @@ final class CallbackController
             'body' => wp_json_encode([
                 'code' => $code,
                 'site_url' => site_url(),
+                'client_slug' => 'wp-plugin',
             ]),
         ]);
 
