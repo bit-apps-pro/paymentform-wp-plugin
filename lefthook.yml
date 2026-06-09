@@ -1,0 +1,34 @@
+# Lefthook hook config, mirroring the bit-* plugin family so contributors get
+# the same fast PHP + JS gating regardless of which BitApps plugin they're on.
+# Front-end commands run inside `frontend/` because this plugin keeps Vite +
+# Vitest scoped under that directory (unlike bit-pi which uses a flat layout).
+pre-commit:
+  parallel: true
+  commands:
+    php-lint:
+      glob: '*.php'
+      run: composer lint
+
+    php-test:
+      glob: '*php'
+      run: composer test
+
+    js-lint:
+      glob: 'frontend/**/*.{js,ts,jsx,tsx}'
+      root: frontend/
+      run: pnpm lint
+
+    js-typecheck:
+      glob: 'frontend/**/*.{ts,tsx}'
+      root: frontend/
+      run: pnpm typecheck
+
+    js-test:
+      glob: 'frontend/**/*.test.{ts,tsx}'
+      root: frontend/
+      run: pnpm test
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm commitlint --edit {1}
