@@ -46,11 +46,17 @@ final class FormsProxyController
         }
     }
 
+    /**
+     * Build the JSON body for an upstream / validation failure. Exception
+     * messages may carry internal URLs or stack hints — only forward them
+     * when `WP_DEBUG` is on so production sites don't leak detail to the
+     * authenticated admin.
+     */
     private function errorResponse(ErrorCode $errorCode, int $status, ?string $message = null): WP_REST_Response
     {
         $body = ['status' => false, 'error_code' => $errorCode->value];
 
-        if ($message !== null) {
+        if ($message !== null && defined('WP_DEBUG') && WP_DEBUG) {
             $body['message'] = $message;
         }
 

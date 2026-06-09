@@ -42,11 +42,25 @@ final class RefreshController
                 ]
             ], 200);
         } catch (RuntimeException $e) {
-            return new WP_REST_Response([
-                'status' => false,
-                'error_code' => ErrorCode::REFRESH_FAILED->value,
-                'message' => $e->getMessage(),
-            ], 502);
+            return new WP_REST_Response($this->failureBody($e), 502);
         }
+    }
+
+    /**
+     * Upstream exception text can include internal hostnames or stack hints.
+     * Surface a generic body in normal operation; reveal the detail only
+     * under `WP_DEBUG` so admins debugging in-place still get the signal.
+     *
+     * @return array<string, mixed>
+     */
+    private function failureBody(RuntimeException $e): array
+    {
+        $body = ['status' => false, 'error_code' => ErrorCode::REFRESH_FAILED->value];
+
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            $body['message'] = $e->getMessage();
+        }
+
+        return $body;
     }
 }
