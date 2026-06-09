@@ -154,6 +154,31 @@ final class PluginServiceProvider
         echo '<div id="paymentform-admin-root"></div>';
     }
 
+    /**
+     * CSS that flattens WP admin chrome on our page so the React shell fills the
+     * viewport without producing an outer page scrollbar or a gap between the WP
+     * admin sidebar and the plugin sidebar.
+     */
+    private function adminChromeOverrides(): string
+    {
+        return <<<'CSS'
+html.wp-toolbar { overflow: hidden; }
+body.toplevel_page_paymentform #wpcontent { padding-left: 0 !important; margin-left: 160px; }
+body.folded.toplevel_page_paymentform #wpcontent { margin-left: 36px; }
+body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
+body.toplevel_page_paymentform #wpbody-content { padding-bottom: 0 !important; }
+body.toplevel_page_paymentform .wrap { margin: 0 !important; padding: 0 !important; }
+body.toplevel_page_paymentform #wpfooter { display: none !important; }
+body.toplevel_page_paymentform #paymentform-admin-root,
+body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 32px); }
+@media screen and (max-width: 782px) {
+    body.toplevel_page_paymentform #wpcontent { margin-left: 0; }
+    body.toplevel_page_paymentform #paymentform-admin-root,
+    body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 46px); }
+}
+CSS;
+    }
+
     public function enqueueAdminAssets(string $hook): void
     {
         if ($hook !== 'toplevel_page_paymentform') {
@@ -188,7 +213,13 @@ final class PluginServiceProvider
                 [],
                 $version
             );
+        } else {
+            // Even without compiled CSS we still need an inline style handle.
+            wp_register_style('paymentform-admin', false, [], $version);
+            wp_enqueue_style('paymentform-admin');
         }
+
+        wp_add_inline_style('paymentform-admin', $this->adminChromeOverrides());
 
         if ($this->container === null) {
             return;

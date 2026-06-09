@@ -45,7 +45,15 @@ export function AppShell() {
   const contentStyles = css`
     padding: ${token.paddingLG}px;
     background: ${token.colorBgLayout};
-    min-height: calc(100vh - 64px);
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  `;
+
+  const innerLayoutStyles = css`
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   `;
 
   const brandText = css`
@@ -86,7 +94,7 @@ export function AppShell() {
     : __('Collapse sidebar', 'paymentform');
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100%' }}>
       <Sider
         width={220}
         collapsed={collapsed}
@@ -104,7 +112,7 @@ export function AppShell() {
           style={{ borderInlineEnd: 'none', paddingTop: token.paddingSM }}
         />
       </Sider>
-      <Layout>
+      <Layout className={innerLayoutStyles}>
         <Header className={headerStyles}>
           <Flex align="center" gap={token.marginSM}>
             <Tooltip title={toggleLabel}>
