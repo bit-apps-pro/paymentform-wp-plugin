@@ -27,25 +27,53 @@ export default function App() {
   }, [mode]);
 
   return (
-    <ErrorBoundary fallback={<ErrorFallback />}>
-      <QueryClientProvider client={queryClient}>
-        <ConfigProvider theme={getThemeConfig(mode)}>
-          <AntApp>
+    <QueryClientProvider client={queryClient}>
+      <ConfigProvider theme={getThemeConfig(mode)}>
+        <AntApp>
+          <ErrorBoundary fallback={(p) => <ErrorFallback {...p} />}>
             <QueryErrorBridge />
             <HashRouter>
               <Routes>
                 <Route element={<AppShell />}>
                   <Route index element={<RootRedirect />} />
-                  <Route path="welcome" element={<Welcome />} />
-                  <Route path="forms" element={<Forms />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="callback" element={<Callback />} />
+                  <Route
+                    path="welcome"
+                    element={
+                      <ErrorBoundary fallback={(p) => <ErrorFallback {...p} />}>
+                        <Welcome />
+                      </ErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="forms"
+                    element={
+                      <ErrorBoundary fallback={(p) => <ErrorFallback {...p} />}>
+                        <Forms />
+                      </ErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="settings"
+                    element={
+                      <ErrorBoundary fallback={(p) => <ErrorFallback {...p} />}>
+                        <Settings />
+                      </ErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="callback"
+                    element={
+                      <ErrorBoundary fallback={(p) => <ErrorFallback {...p} />}>
+                        <Callback />
+                      </ErrorBoundary>
+                    }
+                  />
                 </Route>
               </Routes>
             </HashRouter>
-          </AntApp>
-        </ConfigProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+          </ErrorBoundary>
+        </AntApp>
+      </ConfigProvider>
+    </QueryClientProvider>
   );
 }
