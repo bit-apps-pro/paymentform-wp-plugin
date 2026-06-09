@@ -20,7 +20,10 @@ function boot() {
     host.style.width = '100%';
 
     const iframe = document.createElement('iframe');
-    iframe.src = `${cfg.rendererBaseUrl.replace(/\/$/, '')}/forms/${encodeURIComponent(formId)}`;
+    // Form is served at `<tenant-base>/<form-id>` — `rendererBaseUrl` is the
+    // tenant-scoped host computed server-side (see
+    // PluginServiceProvider::resolveRendererBaseUrl), no `/forms/` prefix.
+    iframe.src = `${cfg.rendererBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(formId)}`;
     iframe.style.width = '100%';
     iframe.style.border = '0';
     iframe.style.display = 'block';

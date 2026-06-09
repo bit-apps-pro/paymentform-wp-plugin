@@ -104,7 +104,14 @@ final class PluginServiceProvider
 
     public function addModuleTypeToScripts(string $tag, string $handle): string
     {
-        $moduleHandles = ['paymentform-admin', 'paymentform-form-view-script', 'paymentform-form-editor-script'];
+        // Only the admin SPA bundle ships as an ES module (Vite emits real
+        // imports there). `paymentform-form-view-script` is a plain IIFE
+        // talking to window globals; tagging it `type="module"` causes WP
+        // to register it through its module loader pipeline, which then
+        // *omits the standard `<script src>` tag* in favour of an import
+        // map entry — leaving only the inline `-extra` localised data on
+        // the page and breaking shortcode hydration.
+        $moduleHandles = ['paymentform-admin', 'paymentform-form-editor-script'];
         if (!in_array($handle, $moduleHandles, true)) {
             return $tag;
         }
@@ -258,17 +265,55 @@ CSS;
         if ($post && has_shortcode($post->post_content, 'paymentform')) {
             $version = Config::VERSION . '.' . filemtime($view_js);
 
+            // Distinct handle from the block's auto-registered `viewScript`
+            // (block.json registers `paymentform-form-view-script` with an
+            // empty `src` because the `file:` path resolves through
+            // `register_block_type`'s loader; reusing that handle here would
+            // hit `WP_Dependencies::add()`'s already-registered guard and
+            // leave us with only the inline `-extra` localised data).
             wp_enqueue_script(
-                'paymentform-form-view-script',
+                'paymentform-shortcode-view',
                 Config::pluginUrl() . 'frontend/dist/block-view.js',
                 [],
                 $version,
                 true
             );
 
-            wp_localize_script('paymentform-form-view-script', 'paymentformView', [
-                'rendererBaseUrl' => Config::rendererBaseUrl(),
+            wp_localize_script('paymentform-shortcode-view', 'paymentformView', [
+                'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
             ]);
         }
+    }
+
+    /**
+     * Tenant subdomain owns the form render — replace the `app.` host in the
+     * configured app base URL with the connected tenant slug so the iframe
+     * lands on `<tenant>.paymentform.io/<form-id>` instead of the central
+     * app shell. Falls back to the static renderer URL when there is no
+     * active connection (e.g. the shortcode rendered before the admin
+     * connected).
+     */
+    private function resolveRendererBaseUrl(): string
+    {
+        if ($this->container === null) {
+            return Config::rendererBaseUrl();
+        }
+
+        $tenant = $this->container[TokenService::class]->getTenant();
+        if (!is_string($tenant) || $tenant === '') {
+            return Config::rendererBaseUrl();
+        }
+
+        $appBase = Config::appBaseUrl();
+        $parts = parse_url($appBase);
+        if (!is_array($parts) || empty($parts['host'])) {
+            return Config::rendererBaseUrl();
+        }
+
+        $host = preg_replace('/^app\./', $tenant . '.', $parts['host'], 1);
+        $scheme = $parts['scheme'] ?? 'https';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+
+        return sprintf('%s://%s%s', $scheme, $host, $port);
     }
 }
