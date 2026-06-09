@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Input, Select, Segmented, Button, Flex, theme } from 'antd';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { __ } from '../../lib/i18n';
 
@@ -64,8 +64,9 @@ export function FormsToolbar({ value, onChange, onRefresh, isRefreshing }: Forms
       wrap="wrap"
       style={{ marginBottom: token.marginMD }}
     >
-      <Input.Search
+      <Input
         allowClear
+        prefix={<Search size={14} color={token.colorTextTertiary} />}
         placeholder={__('Search forms', 'paymentform')}
         value={value.q}
         onChange={(e) => onChange({ ...value, q: e.target.value })}

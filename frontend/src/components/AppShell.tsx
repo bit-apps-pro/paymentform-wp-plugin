@@ -1,10 +1,12 @@
-import { Layout, theme, Menu, Flex } from 'antd';
+import { useState } from 'react';
+import { Layout, theme, Menu, Flex, Button, Tooltip } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Settings as SettingsIcon } from 'lucide-react';
+import { FileText, Settings as SettingsIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { css } from '@emotion/css';
 import { Logo } from './Logo';
 import { ConnectionPill } from './ConnectionPill';
 import { HeaderThemeToggle } from './HeaderThemeToggle';
+import { HeaderConnectButton } from './HeaderConnectButton';
 import { UserMenu } from './UserMenu';
 import { AppBreadcrumb } from './AppBreadcrumb';
 import { __ } from '../lib/i18n';
@@ -15,6 +17,7 @@ export function AppShell() {
   const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(false);
   const connected =
     window.paymentformAdmin?.connected === '1' || window.paymentformAdmin?.connected === true;
 
@@ -78,13 +81,19 @@ export function AppShell() {
 
   const activeKey = '/' + (location.pathname.replace(/^\//, '').split('/')[0] || 'welcome');
 
+  const toggleLabel = collapsed
+    ? __('Expand sidebar', 'paymentform')
+    : __('Collapse sidebar', 'paymentform');
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
         width={220}
-        collapsible
+        collapsed={collapsed}
         breakpoint="md"
         collapsedWidth={56}
+        trigger={null}
+        onBreakpoint={(broken) => setCollapsed(broken)}
         className={siderStyles}
       >
         <Menu
@@ -98,11 +107,21 @@ export function AppShell() {
       <Layout>
         <Header className={headerStyles}>
           <Flex align="center" gap={token.marginSM}>
+            <Tooltip title={toggleLabel}>
+              <Button
+                type="text"
+                shape="circle"
+                aria-label={toggleLabel}
+                icon={collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                onClick={() => setCollapsed((c) => !c)}
+              />
+            </Tooltip>
             <Logo size={28} />
             <span className={brandText}>{__('PaymentForm', 'paymentform')}</span>
           </Flex>
           <Flex align="center" gap={token.marginXS}>
             <ConnectionPill />
+            <HeaderConnectButton />
             <HeaderThemeToggle />
             <UserMenu />
           </Flex>
