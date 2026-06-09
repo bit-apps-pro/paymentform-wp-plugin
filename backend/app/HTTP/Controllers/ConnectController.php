@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Services\ConnectService;
-use WP_REST_Request;
 use WP_REST_Response;
 
 final class ConnectController
@@ -17,9 +17,9 @@ final class ConnectController
     public function show($req): WP_REST_Response
     {
         $state = $this->connectService->generateState();
-        $callbackUrl = rest_url('paymentform/v1/callback');
+        $callbackUrl = home_url('/paymentform/callback');
         $connectUrl = $this->connectService->buildConnectUrl(
-            PAYMENTFORM_APP_BASE_URL,
+            Config::appBaseUrl(),
             $callbackUrl,
             $state
         );

@@ -429,6 +429,128 @@ if (!class_exists('RedirectException')) {
     }
 }
 
+// Queue-based stub for wp_remote_request / wp_remote_retrieve_* / is_wp_error.
+// Tests push canned responses with WpHttpMock::queue(...) and inspect the
+// recorded calls afterwards.
+class WpHttpMock
+{
+    /** @var array<int, array{response: array{code: int}, headers: array<string, string>, body: string}> */
+    public static array $queue = [];
+
+    /** @var array<int, array{url: string, args: array<string, mixed>}> */
+    public static array $calls = [];
+
+    public static function reset(): void
+    {
+        self::$queue = [];
+        self::$calls = [];
+    }
+
+    public static function queue(int $status, array|string $body = '', array $headers = []): void
+    {
+        self::$queue[] = [
+            'response' => ['code' => $status],
+            'headers' => $headers,
+            'body' => is_array($body) ? (string) json_encode($body) : $body,
+        ];
+    }
+
+    public static function queueError(string $message): void
+    {
+        self::$queue[] = ['error' => new WP_Error('http_request_failed', $message)];
+    }
+
+    public static function pop(string $url, array $args): mixed
+    {
+        self::$calls[] = ['url' => $url, 'args' => $args];
+
+        if (self::$queue === []) {
+            return ['response' => ['code' => 500], 'headers' => [], 'body' => ''];
+        }
+
+        return array_shift(self::$queue);
+    }
+}
+
+if (!class_exists('WP_Error')) {
+    class WP_Error
+    {
+        public function __construct(
+            private readonly string $code = '',
+            private readonly string $message = '',
+        ) {}
+
+        public function get_error_code(): string
+        {
+            return $this->code;
+        }
+
+        public function get_error_message(): string
+        {
+            return $this->message;
+        }
+    }
+}
+
+if (!function_exists('is_wp_error')) {
+    function is_wp_error(mixed $thing): bool
+    {
+        return $thing instanceof WP_Error;
+    }
+}
+
+if (!function_exists('wp_remote_request')) {
+    function wp_remote_request(string $url, array $args = []): mixed
+    {
+        $response = WpHttpMock::pop($url, $args);
+        return $response['error'] ?? $response;
+    }
+}
+
+if (!function_exists('wp_remote_post')) {
+    function wp_remote_post(string $url, array $args = []): mixed
+    {
+        $args['method'] = 'POST';
+        return wp_remote_request($url, $args);
+    }
+}
+
+if (!function_exists('wp_remote_get')) {
+    function wp_remote_get(string $url, array $args = []): mixed
+    {
+        $args['method'] = 'GET';
+        return wp_remote_request($url, $args);
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_response_code')) {
+    function wp_remote_retrieve_response_code(mixed $response): int|string
+    {
+        return is_array($response) ? ($response['response']['code'] ?? 0) : 0;
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_body')) {
+    function wp_remote_retrieve_body(mixed $response): string
+    {
+        return is_array($response) ? (string) ($response['body'] ?? '') : '';
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_headers')) {
+    function wp_remote_retrieve_headers(mixed $response): array
+    {
+        return is_array($response) ? (array) ($response['headers'] ?? []) : [];
+    }
+}
+
+if (!function_exists('wp_json_encode')) {
+    function wp_json_encode(mixed $data, int $options = 0, int $depth = 512): string|false
+    {
+        return json_encode($data, $options, $depth);
+    }
+}
+
 // Mock WordPress database
 class TestWpDb
 {

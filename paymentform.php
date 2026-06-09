@@ -17,15 +17,9 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('PAYMENTFORM_VERSION', '0.1.0');
-define('PAYMENTFORM_PLUGIN_FILE', __FILE__);
-define('PAYMENTFORM_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMENTFORM_PLUGIN_URL', plugin_dir_url(__FILE__));
-defined('PAYMENTFORM_API_BASE_URL') || define('PAYMENTFORM_API_BASE_URL', 'https://api.paymentform.io');
-defined('PAYMENTFORM_APP_BASE_URL') || define('PAYMENTFORM_APP_BASE_URL', 'https://app.paymentform.io');
-defined('PAYMENTFORM_RENDERER_BASE_URL') || define('PAYMENTFORM_RENDERER_BASE_URL', 'https://render.paymentform.io');
+$paymentform_plugin_dir = plugin_dir_path(__FILE__);
 
-if (!file_exists(PAYMENTFORM_PLUGIN_DIR . 'vendor/autoload.php')) {
+if (!file_exists($paymentform_plugin_dir . 'vendor/autoload.php')) {
     add_action('admin_notices', function () {
         echo '<div class="notice notice-error"><p>';
         echo 'PaymentForm: Run <code>composer install</code> in the plugin directory.';
@@ -34,14 +28,15 @@ if (!file_exists(PAYMENTFORM_PLUGIN_DIR . 'vendor/autoload.php')) {
     return;
 }
 
-require_once PAYMENTFORM_PLUGIN_DIR . 'vendor/autoload.php';
+require_once $paymentform_plugin_dir . 'vendor/autoload.php';
 
-// Register activation and deactivation hooks (before bootstrap)
-// Uninstall hook is registered via uninstall.php instead
 use PaymentForm\Activation\Activator;
 use PaymentForm\Activation\Deactivator;
+use PaymentForm\Config;
 
-register_activation_hook(PAYMENTFORM_PLUGIN_FILE, [Activator::class, 'activate']);
-register_deactivation_hook(PAYMENTFORM_PLUGIN_FILE, [Deactivator::class, 'deactivate']);
+Config::bootstrap(__FILE__);
 
-require_once PAYMENTFORM_PLUGIN_DIR . 'backend/bootstrap.php';
+register_activation_hook(__FILE__, [Activator::class, 'activate']);
+register_deactivation_hook(__FILE__, [Deactivator::class, 'deactivate']);
+
+require_once $paymentform_plugin_dir . 'backend/bootstrap.php';

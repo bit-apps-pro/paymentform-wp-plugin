@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP;
 
-use Pimple\Container;
+use PaymentForm\Providers\Container;
 use PaymentForm\HTTP\Controllers\ConnectController;
-use PaymentForm\HTTP\Controllers\CallbackController;
-use PaymentForm\HTTP\Controllers\StatusController;
-use PaymentForm\HTTP\Controllers\RefreshController;
 use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\HTTP\Controllers\FormsProxyController;
-use PaymentForm\HTTP\Controllers\WebhookController;
+use PaymentForm\HTTP\Controllers\RefreshController;
+use PaymentForm\HTTP\Controllers\StatusController;
 
 final class Routes
 {
@@ -24,12 +22,9 @@ final class Routes
             'permission_callback' => self::requiresCap(),
         ]);
 
-        // GET /callback — OAuth callback handler
-        register_rest_route('paymentform/v1', '/callback', [
-            'methods'             => 'GET',
-            'callback'            => static fn($req) => $c[CallbackController::class]->handle($req),
-            'permission_callback' => self::publicCallback(),
-        ]);
+        // /callback and /webhook live on rewrite rules (see Rewrites.php) so
+        // managed-WP hosts and security plugins that block /wp-json/ can't
+        // strand the OAuth + webhook flows.
 
         // GET /status — check connection status
         register_rest_route('paymentform/v1', '/status', [
@@ -66,12 +61,6 @@ final class Routes
             'permission_callback' => self::requiresCap(),
         ]);
 
-        // POST /webhook — receive form submission webhooks
-        register_rest_route('paymentform/v1', '/webhook', [
-            'methods'             => 'POST',
-            'callback'            => static fn($req) => $c[WebhookController::class]->handle($req),
-            'permission_callback' => self::publicCallback(),
-        ]);
     }
 
     private static function requiresCap(): callable
@@ -89,8 +78,4 @@ final class Routes
         };
     }
 
-    private static function publicCallback(): callable
-    {
-        return static fn() => true;
-    }
 }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace PaymentForm\Providers;
 
-use Pimple\Container;
+use PaymentForm\Providers\Container;
+use PaymentForm\Config;
+use PaymentForm\HTTP\Rewrites;
 use PaymentForm\HTTP\Routes;
 use PaymentForm\HTTP\Shortcode;
 use PaymentForm\HTTP\Controllers\ConnectController;
@@ -41,7 +43,7 @@ final class PluginServiceProvider
         $c[ApiClient::class] = static fn($c) => new ApiClient(
             $c[TokenService::class],
             $c[TokenRefreshLock::class],
-            PAYMENTFORM_API_BASE_URL
+            Config::apiBaseUrl()
         );
 
         // OAuth-like connect flow
@@ -94,6 +96,10 @@ final class PluginServiceProvider
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
         add_filter('script_loader_tag', [$this, 'addModuleTypeToScripts'], 10, 2);
+
+        if ($this->container !== null) {
+            (new Rewrites($this->container))->register();
+        }
     }
 
     public function addModuleTypeToScripts(string $tag, string $handle): string
@@ -110,12 +116,12 @@ final class PluginServiceProvider
 
     public function loadTextdomain(): void
     {
-        load_plugin_textdomain('paymentform', false, dirname(plugin_basename(PAYMENTFORM_PLUGIN_FILE)) . '/languages');
+        load_plugin_textdomain('paymentform', false, dirname(plugin_basename(Config::pluginFile())) . '/languages');
     }
 
     public function registerBlockAndShortcode(): void
     {
-        register_block_type(PAYMENTFORM_PLUGIN_DIR . 'frontend/blocks/form-embed');
+        register_block_type(Config::pluginDir() . 'frontend/blocks/form-embed');
         (new Shortcode())->register();
     }
 
@@ -185,7 +191,7 @@ CSS;
             return;
         }
 
-        $frontend_dir = PAYMENTFORM_PLUGIN_DIR . 'frontend/dist';
+        $frontend_dir = Config::pluginDir() . 'frontend/dist';
         $js_file = $frontend_dir . '/admin.js';
         $css_file = $frontend_dir . '/admin.css';
 
@@ -193,14 +199,11 @@ CSS;
             return;
         }
 
-        $version = PAYMENTFORM_VERSION;
-        if (file_exists($js_file)) {
-            $version .= '.' . filemtime($js_file);
-        }
+        $version = Config::VERSION . '.' . filemtime($js_file);
 
         wp_enqueue_script(
             'paymentform-admin',
-            PAYMENTFORM_PLUGIN_URL . 'frontend/dist/admin.js',
+            Config::pluginUrl() . 'frontend/dist/admin.js',
             ['wp-element'],
             $version,
             true
@@ -209,7 +212,7 @@ CSS;
         if (file_exists($css_file)) {
             wp_enqueue_style(
                 'paymentform-admin',
-                PAYMENTFORM_PLUGIN_URL . 'frontend/dist/admin.css',
+                Config::pluginUrl() . 'frontend/dist/admin.css',
                 [],
                 $version
             );
@@ -238,38 +241,33 @@ CSS;
             'connected' => $token !== null,
             'expiresAt' => $expiresAt,
             'tenant' => $tenant,
-            'version' => PAYMENTFORM_VERSION,
+            'version' => Config::VERSION,
             'siteUrl' => site_url(),
         ]);
     }
 
     public function enqueueFrontendAssets(): void
     {
-        $frontend_dir = PAYMENTFORM_PLUGIN_DIR . 'frontend/dist';
-        $view_js = $frontend_dir . '/block-view.js';
+        $view_js = Config::pluginDir() . 'frontend/dist/block-view.js';
 
         if (!file_exists($view_js)) {
             return;
         }
 
-        $version = PAYMENTFORM_VERSION;
-        if (file_exists($view_js)) {
-            $version .= '.' . filemtime($view_js);
-        }
-
-        // Check if shortcode is used in current post
         global $post;
         if ($post && has_shortcode($post->post_content, 'paymentform')) {
+            $version = Config::VERSION . '.' . filemtime($view_js);
+
             wp_enqueue_script(
                 'paymentform-form-view-script',
-                PAYMENTFORM_PLUGIN_URL . 'frontend/dist/block-view.js',
+                Config::pluginUrl() . 'frontend/dist/block-view.js',
                 [],
                 $version,
                 true
             );
 
             wp_localize_script('paymentform-form-view-script', 'paymentformView', [
-                'rendererBaseUrl' => PAYMENTFORM_RENDERER_BASE_URL,
+                'rendererBaseUrl' => Config::rendererBaseUrl(),
             ]);
         }
     }

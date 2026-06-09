@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PaymentForm\Providers;
 
-use Pimple\Container;
-
 final class ServiceContainer
 {
     private static ?Container $instance = null;

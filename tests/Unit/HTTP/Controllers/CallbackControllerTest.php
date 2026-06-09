@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Psr7\Response;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
-use RedirectException;
+use PaymentForm\Tests\Support\MockWpRestRequest;
 use PHPUnit\Framework\TestCase;
+use RedirectException;
+use WpHttpMock;
 
 class CallbackControllerTest extends TestCase
 {
@@ -24,151 +22,122 @@ class CallbackControllerTest extends TestCase
     protected function setUp(): void
     {
         \TestWpFunctions::reset();
+        WpHttpMock::reset();
         $this->encryption = new EncryptionService();
         $this->tokenService = new TokenService($this->encryption);
         $this->connectService = new ConnectService();
     }
 
+    private function controller(): CallbackController
+    {
+        return new CallbackController($this->connectService, $this->tokenService);
+    }
+
     public function test_handle_missing_code_redirects_with_error(): void
     {
-        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
-            'state' => 'valid-state',
-        ]);
-
-        $controller = new CallbackController($this->connectService, $this->tokenService);
+        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', ['state' => 'valid-state']);
 
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=missing_params/');
+        $this->expectExceptionMessageMatches('/error=MISSING_PARAMS/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_missing_state_redirects_with_error(): void
     {
-        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
-            'code' => 'auth-code',
-        ]);
-
-        $controller = new CallbackController($this->connectService, $this->tokenService);
+        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', ['code' => 'auth-code']);
 
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=missing_params/');
+        $this->expectExceptionMessageMatches('/error=MISSING_PARAMS/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_invalid_state_redirects_with_error(): void
     {
-        // Generate a properly formatted state but don't store it, so consumeState fails
-        $invalidState = bin2hex(random_bytes(32)); // 64 chars, valid format, but not stored
+        $invalidState = bin2hex(random_bytes(32));
 
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => 'auth-code',
             'state' => $invalidState,
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService);
-
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=invalid_state/');
+        $this->expectExceptionMessageMatches('/error=INVALID_STATE/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_exchange_failure_redirects_with_error(): void
     {
         $state = $this->connectService->generateState();
-
-        $mockHandler = new MockHandler([
-            new Response(400, ['Content-Type' => 'application/json'], json_encode([
-                'error' => 'invalid_code'
-            ])),
-        ]);
-        $handlerStack = HandlerStack::create($mockHandler);
-        $httpClient = new Client(['handler' => $handlerStack]);
+        WpHttpMock::queue(400, ['error_code' => 'INVALID_EXCHANGE_CODE']);
 
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => 'invalid-code',
             'state' => $state,
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService, $httpClient);
-
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=exchange_failed/');
+        $this->expectExceptionMessageMatches('/error=EXCHANGE_FAILED.*upstream=INVALID_EXCHANGE_CODE/');
 
-        $controller->handle($req);
-
-        $this->assertNull($this->tokenService->get());
+        $this->controller()->handle($req);
     }
 
     public function test_handle_successful_exchange_stores_token_and_webhook_secret_then_redirects(): void
     {
         $state = $this->connectService->generateState();
-
-        $mockHandler = new MockHandler([
-            new Response(200, ['Content-Type' => 'application/json'], json_encode([
-                'status' => true,
-                'data' => [
-                    'token' => 'plaintext-token',
-                    'expires_at' => '2026-07-08T09:43:46+00:00',
-                    'webhook_secret' => 'hex-secret',
-                    'tenant' => 'ws-test',
-                ]
-            ])),
+        WpHttpMock::queue(200, [
+            'status' => true,
+            'data' => [
+                'token' => 'plaintext-token',
+                'expires_at' => '2026-07-08T09:43:46+00:00',
+                'webhook_secret' => 'hex-secret',
+                'tenant' => 'ws-test',
+            ],
         ]);
-        $handlerStack = HandlerStack::create($mockHandler);
-        $httpClient = new Client(['handler' => $handlerStack]);
 
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => 'auth-code',
             'state' => $state,
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService, $httpClient);
-
         $this->expectException(RedirectException::class);
         $this->expectExceptionMessageMatches('/connected=1/');
 
-        $controller->handle($req);
-
-        $this->assertSame('plaintext-token', $this->tokenService->get());
-        $this->assertSame('hex-secret', $this->tokenService->getWebhookSecret());
-        $this->assertSame('ws-test', $this->tokenService->getTenant());
+        try {
+            $this->controller()->handle($req);
+        } finally {
+            $this->assertSame('plaintext-token', $this->tokenService->get());
+            $this->assertSame('hex-secret', $this->tokenService->getWebhookSecret());
+            $this->assertSame('ws-test', $this->tokenService->getTenant());
+        }
     }
 
     public function test_handle_rejects_empty_code(): void
     {
-        $state = $this->connectService->generateState();
-
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => '',
-            'state' => $state,
+            'state' => $this->connectService->generateState(),
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService);
-
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=missing_params/');
+        $this->expectExceptionMessageMatches('/error=MISSING_PARAMS/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_rejects_oversized_code(): void
     {
-        $state = $this->connectService->generateState();
-
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => str_repeat('a', 129),
-            'state' => $state,
+            'state' => $this->connectService->generateState(),
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService);
-
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=missing_params/');
+        $this->expectExceptionMessageMatches('/error=MISSING_PARAMS/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_rejects_empty_state(): void
@@ -178,62 +147,73 @@ class CallbackControllerTest extends TestCase
             'state' => '',
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService);
-
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=missing_params/');
+        $this->expectExceptionMessageMatches('/error=MISSING_PARAMS/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_rejects_wrongly_sized_state(): void
     {
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => 'auth-code',
-            'state' => str_repeat('a', 63),  // Should be 64
+            'state' => str_repeat('a', 63),
         ]);
 
-        $controller = new CallbackController($this->connectService, $this->tokenService);
-
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=missing_params/');
+        $this->expectExceptionMessageMatches('/error=MISSING_PARAMS/');
 
-        $controller->handle($req);
+        $this->controller()->handle($req);
     }
 
     public function test_handle_storage_failure_clears_token_and_redirects_with_error(): void
     {
         $state = $this->connectService->generateState();
-
-        $mockHandler = new MockHandler([
-            new Response(200, ['Content-Type' => 'application/json'], json_encode([
-                'status' => true,
-                'data' => [
-                    'token' => 'plaintext-token',
-                    'expires_at' => '2026-07-08T09:43:46+00:00',
-                    'webhook_secret' => 'hex-secret',
-                ]
-            ])),
+        WpHttpMock::queue(200, [
+            'status' => true,
+            'data' => [
+                'token' => 'plaintext-token',
+                'expires_at' => '2026-07-08T09:43:46+00:00',
+                'webhook_secret' => 'hex-secret',
+            ],
         ]);
-        $handlerStack = HandlerStack::create($mockHandler);
-        $httpClient = new Client(['handler' => $handlerStack]);
 
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => 'auth-code',
             'state' => $state,
         ]);
 
-        // Use a mock TokenService that throws on store
         $tokenServiceMock = $this->createMock(\PaymentForm\Services\TokenServiceInterface::class);
         $tokenServiceMock->expects($this->once())->method('storeWebhookSecret');
         $tokenServiceMock->expects($this->once())->method('store')->willThrowException(new \RuntimeException('storage_error'));
         $tokenServiceMock->expects($this->once())->method('clear');
 
-        $controller = new CallbackController($this->connectService, $tokenServiceMock, $httpClient);
+        $controller = new CallbackController($this->connectService, $tokenServiceMock);
 
         $this->expectException(RedirectException::class);
-        $this->expectExceptionMessageMatches('/error=storage_failed/');
+        $this->expectExceptionMessageMatches('/error=STORAGE_FAILED/');
 
         $controller->handle($req);
+    }
+
+    public function test_handle_drops_attacker_controlled_upstream_value(): void
+    {
+        $state = $this->connectService->generateState();
+        WpHttpMock::queue(400, ['error_code' => '<script>alert(1)</script>']);
+
+        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
+            'code' => 'invalid-code',
+            'state' => $state,
+        ]);
+
+        $this->expectException(RedirectException::class);
+        $this->expectExceptionMessageMatches('/error=EXCHANGE_FAILED/');
+
+        try {
+            $this->controller()->handle($req);
+        } catch (RedirectException $e) {
+            $this->assertStringNotContainsString('upstream=', $e->location);
+            throw $e;
+        }
     }
 }
