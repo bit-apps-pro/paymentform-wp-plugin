@@ -1,8 +1,13 @@
-import { Layout, theme, Space, Menu } from 'antd';
+import { Layout, theme, Space, Menu, Flex } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { FileText, Settings as SettingsIcon } from 'lucide-react';
 import { css } from '@emotion/css';
 import { Logo } from './Logo';
+import { ConnectionPill } from './ConnectionPill';
+import { HeaderThemeToggle } from './HeaderThemeToggle';
+import { UserMenu } from './UserMenu';
+import { AppBreadcrumb } from './AppBreadcrumb';
+import { __ } from '../lib/i18n';
 
 const { Header, Sider, Content } = Layout;
 
@@ -18,6 +23,7 @@ export function AppShell() {
     border-bottom: 1px solid ${token.colorBorder};
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 ${token.paddingLG}px;
     height: 64px;
   `;
@@ -27,18 +33,47 @@ export function AppShell() {
     border-inline-end: 1px solid ${token.colorBorder};
   `;
 
+  const breadcrumbBar = css`
+    padding: ${token.paddingSM}px ${token.paddingLG}px;
+    background: ${token.colorBgContainer};
+    border-bottom: 1px solid ${token.colorBorderSecondary};
+  `;
+
   const contentStyles = css`
     padding: ${token.paddingLG}px;
-    background: ${token.colorBgElevated};
-    min-height: 100vh;
+    background: ${token.colorBgLayout};
+    min-height: calc(100vh - 64px);
+  `;
+
+  const brandText = css`
+    font-size: ${token.fontSizeLG}px;
+    font-weight: ${token.fontWeightStrong};
+    color: ${token.colorText};
   `;
 
   const menuItems = connected
     ? [
-        { key: '/forms', icon: <FileText size={16} />, label: 'Forms' },
-        { key: '/settings', icon: <SettingsIcon size={16} />, label: 'Settings' },
+        {
+          key: '/forms',
+          icon: <FileText size={16} />,
+          label: __('Forms', 'paymentform'),
+          title: __('Forms', 'paymentform'),
+        },
+        {
+          key: '/settings',
+          icon: <SettingsIcon size={16} />,
+          label: __('Settings', 'paymentform'),
+          title: __('Settings', 'paymentform'),
+        },
       ]
-    : [{ key: '/welcome', icon: <FileText size={16} />, label: 'Welcome' }];
+    : [
+        {
+          key: '/welcome',
+          icon: <FileText size={16} />,
+          label: __('Welcome', 'paymentform'),
+          title: __('Welcome', 'paymentform'),
+        },
+      ];
 
   const activeKey = '/' + (location.pathname.replace(/^\//, '').split('/')[0] || 'welcome');
 
@@ -63,11 +98,17 @@ export function AppShell() {
         <Header className={headerStyles}>
           <Space>
             <Logo size={28} />
-            <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong }}>
-              PaymentForm
-            </span>
+            <span className={brandText}>{__('PaymentForm', 'paymentform')}</span>
           </Space>
+          <Flex align="center" gap={token.marginXS}>
+            <ConnectionPill />
+            <HeaderThemeToggle />
+            <UserMenu />
+          </Flex>
         </Header>
+        <div className={breadcrumbBar}>
+          <AppBreadcrumb />
+        </div>
         <Content className={contentStyles}>
           <Outlet />
         </Content>

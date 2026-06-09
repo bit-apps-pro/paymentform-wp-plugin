@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, App as AntApp } from 'antd';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -6,7 +7,8 @@ import { ErrorFallback } from './components/ErrorFallback';
 import { AppShell } from './components/AppShell';
 import { QueryErrorBridge } from './components/QueryErrorBridge';
 import { queryClient } from './lib/queryClient';
-import { antdTheme } from './theme/antdTheme';
+import { getThemeConfig } from './theme/antdTheme';
+import { useThemeMode } from './theme/themeMode';
 import { Welcome } from './pages/Welcome';
 import { Callback } from './pages/Callback';
 import { Forms } from './pages/Forms';
@@ -18,10 +20,16 @@ function RootRedirect() {
 }
 
 export default function App() {
+  const mode = useThemeMode((s) => s.mode);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = mode;
+  }, [mode]);
+
   return (
     <ErrorBoundary fallback={<ErrorFallback />}>
       <QueryClientProvider client={queryClient}>
-        <ConfigProvider theme={antdTheme}>
+        <ConfigProvider theme={getThemeConfig(mode)}>
           <AntApp>
             <QueryErrorBridge />
             <HashRouter>
