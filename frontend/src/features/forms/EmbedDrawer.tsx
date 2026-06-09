@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Drawer, Tabs, Typography, Flex, Skeleton, theme } from 'antd';
+import { Drawer, Tabs, Typography, Flex, Skeleton, theme, Button } from 'antd';
+import { X } from 'lucide-react';
 import type { Form } from './useFormsList';
 import { getEmbedUrl, getShortcode, getGutenbergBlock } from './embedUrl';
 import { __ } from '../../lib/i18n';
@@ -33,7 +34,24 @@ export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
       open={open}
       onClose={handleClose}
       destroyOnHidden
-      styles={{ wrapper: { width: 520 } }}
+      closeIcon={null}
+      extra={
+        <Button
+          type="text"
+          shape="circle"
+          aria-label={__('Close', 'paymentform')}
+          icon={<X size={18} />}
+          onClick={handleClose}
+        />
+      }
+      styles={{
+        wrapper: { width: 520 },
+        header: {
+          padding: `${token.paddingMD}px ${token.paddingLG}px`,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        },
+        body: { padding: token.paddingLG },
+      }}
     >
       <Tabs
         activeKey={activeTab}

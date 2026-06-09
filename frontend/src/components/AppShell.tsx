@@ -1,4 +1,4 @@
-import { Layout, theme, Space, Menu, Flex } from 'antd';
+import { Layout, theme, Menu, Flex } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { FileText, Settings as SettingsIcon } from 'lucide-react';
 import { css } from '@emotion/css';
@@ -48,6 +48,7 @@ export function AppShell() {
   const brandText = css`
     font-size: ${token.fontSizeLG}px;
     font-weight: ${token.fontWeightStrong};
+    line-height: 1;
     color: ${token.colorText};
   `;
 
@@ -96,10 +97,10 @@ export function AppShell() {
       </Sider>
       <Layout>
         <Header className={headerStyles}>
-          <Space>
+          <Flex align="center" gap={token.marginSM}>
             <Logo size={28} />
             <span className={brandText}>{__('PaymentForm', 'paymentform')}</span>
-          </Space>
+          </Flex>
           <Flex align="center" gap={token.marginXS}>
             <ConnectionPill />
             <HeaderThemeToggle />
