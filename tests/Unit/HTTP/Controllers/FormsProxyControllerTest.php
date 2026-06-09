@@ -36,7 +36,7 @@ class FormsProxyControllerTest extends TestCase
         $this->assertSame(400, $response->get_status());
         $data = $response->get_data();
         $this->assertFalse($data['status']);
-        $this->assertSame('invalid_id', $data['code']);
+        $this->assertSame('INVALID_FORM_ID', $data['error_code']);
     }
 
     public function test_show_returns_400_for_non_positive_id(): void
@@ -48,6 +48,6 @@ class FormsProxyControllerTest extends TestCase
         $this->assertSame(400, $response->get_status());
         $data = $response->get_data();
         $this->assertFalse($data['status']);
-        $this->assertSame('invalid_id', $data['code']);
+        $this->assertSame('INVALID_FORM_ID', $data['error_code']);
     }
 }

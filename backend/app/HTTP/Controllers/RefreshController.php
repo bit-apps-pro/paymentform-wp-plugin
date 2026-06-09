@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Enums\ErrorCode;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
@@ -22,7 +23,7 @@ final class RefreshController
         if ($token === null) {
             return new WP_REST_Response([
                 'status' => false,
-                'code' => 'not_connected',
+                'error_code' => ErrorCode::NOT_CONNECTED->value,
             ], 400);
         }
 
@@ -43,7 +44,7 @@ final class RefreshController
         } catch (RuntimeException $e) {
             return new WP_REST_Response([
                 'status' => false,
-                'code' => 'refresh_failed',
+                'error_code' => ErrorCode::REFRESH_FAILED->value,
                 'message' => $e->getMessage(),
             ], 502);
         }

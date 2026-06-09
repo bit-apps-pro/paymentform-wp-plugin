@@ -34,7 +34,7 @@ class WebhookControllerTest extends TestCase
         $this->assertSame(401, $response->get_status());
         $data = $response->get_data();
         $this->assertFalse($data['status']);
-        $this->assertSame('unauthorized', $data['code']);
+        $this->assertSame('UNAUTHORIZED', $data['error_code']);
     }
 
     public function test_handle_returns_401_when_no_webhook_secret(): void
@@ -49,7 +49,7 @@ class WebhookControllerTest extends TestCase
         $this->assertSame(401, $response->get_status());
         $data = $response->get_data();
         $this->assertFalse($data['status']);
-        $this->assertSame('unauthorized', $data['code']);
+        $this->assertSame('UNAUTHORIZED', $data['error_code']);
     }
 
     public function test_handle_returns_401_for_invalid_signature(): void
@@ -67,7 +67,7 @@ class WebhookControllerTest extends TestCase
         $this->assertSame(401, $response->get_status());
         $data = $response->get_data();
         $this->assertFalse($data['status']);
-        $this->assertSame('unauthorized', $data['code']);
+        $this->assertSame('UNAUTHORIZED', $data['error_code']);
     }
 
     public function test_handle_returns_200_with_valid_signature(): void

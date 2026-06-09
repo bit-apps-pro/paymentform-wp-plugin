@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Enums\ErrorCode;
 use PaymentForm\Services\TokenServiceInterface;
 use PaymentForm\Services\WebhookService;
 use WP_REST_Response;
@@ -36,7 +37,7 @@ final class WebhookController
             }
             return new WP_REST_Response([
                 'status' => false,
-                'code' => 'unauthorized',
+                'error_code' => ErrorCode::UNAUTHORIZED->value,
             ], 401);
         }
 

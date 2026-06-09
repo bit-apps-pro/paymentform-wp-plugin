@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Enums\ErrorCode;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\DisconnectedException;
 use RuntimeException;
@@ -21,16 +22,9 @@ final class FormsProxyController
             $response = $this->apiClient->request('GET', '/form');
             return new WP_REST_Response($response, 200);
         } catch (DisconnectedException) {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'disconnected',
-            ], 401);
+            return $this->errorResponse(ErrorCode::DISCONNECTED, 401);
         } catch (RuntimeException $e) {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'api_error',
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse(ErrorCode::API_ERROR, 500, $e->getMessage());
         }
     }
 
@@ -39,26 +33,27 @@ final class FormsProxyController
         $id = $req['id'];
 
         if (!is_numeric($id) || (int) $id <= 0) {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'invalid_id',
-            ], 400);
+            return $this->errorResponse(ErrorCode::INVALID_FORM_ID, 400);
         }
 
         try {
             $response = $this->apiClient->request('GET', '/form/' . (int) $id);
             return new WP_REST_Response($response, 200);
         } catch (DisconnectedException) {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'disconnected',
-            ], 401);
+            return $this->errorResponse(ErrorCode::DISCONNECTED, 401);
         } catch (RuntimeException $e) {
-            return new WP_REST_Response([
-                'status' => false,
-                'code' => 'api_error',
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse(ErrorCode::API_ERROR, 500, $e->getMessage());
         }
+    }
+
+    private function errorResponse(ErrorCode $errorCode, int $status, ?string $message = null): WP_REST_Response
+    {
+        $body = ['status' => false, 'error_code' => $errorCode->value];
+
+        if ($message !== null) {
+            $body['message'] = $message;
+        }
+
+        return new WP_REST_Response($body, $status);
     }
 }

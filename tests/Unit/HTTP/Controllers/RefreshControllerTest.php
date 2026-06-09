@@ -38,6 +38,6 @@ class RefreshControllerTest extends TestCase
         $this->assertSame(400, $response->get_status());
         $data = $response->get_data();
         $this->assertFalse($data['status']);
-        $this->assertSame('not_connected', $data['code']);
+        $this->assertSame('NOT_CONNECTED', $data['error_code']);
     }
 }
