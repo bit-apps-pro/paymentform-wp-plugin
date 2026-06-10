@@ -6,10 +6,21 @@ declare global {
   }
 }
 
-const cfg = window.paymentformView ?? { rendererBaseUrl: 'https://render.paymentform.io' };
-const rendererOrigin = new URL(cfg.rendererBaseUrl).origin;
+/**
+ * Build the iframe src for a given form id. Exported so the test suite can
+ * assert the exact URL shape without re-implementing it.
+ */
+export function buildFormSrc(rendererBaseUrl: string, formId: string): string {
+  // `?embedded=true` flips the renderer into iframe mode: it strips its own
+  // page chrome and starts emitting `paymentform:height` postMessages so the
+  // host can auto-fit the iframe to form content (seamless embed).
+  return `${rendererBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(formId)}?embedded=true`;
+}
 
-function boot() {
+export function bootBlockView(): void {
+  const cfg = window.paymentformView ?? { rendererBaseUrl: 'https://render.paymentform.io' };
+  const rendererOrigin = new URL(cfg.rendererBaseUrl).origin;
+
   document.querySelectorAll<HTMLElement>('.paymentform-embed[data-form-id]').forEach((host) => {
     if (host.dataset.paymentformInitialized === '1') return;
     const formId = host.dataset.formId;
@@ -23,7 +34,7 @@ function boot() {
     // Form is served at `<tenant-base>/<form-id>` — `rendererBaseUrl` is the
     // tenant-scoped host computed server-side (see
     // PluginServiceProvider::resolveRendererBaseUrl), no `/forms/` prefix.
-    iframe.src = `${cfg.rendererBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(formId)}`;
+    iframe.src = buildFormSrc(cfg.rendererBaseUrl, formId);
     iframe.style.width = '100%';
     iframe.style.border = '0';
     iframe.style.display = 'block';
@@ -32,14 +43,22 @@ function boot() {
     iframe.setAttribute('title', 'Payment form');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.setAttribute('allow', 'payment');
+    // Seamless embed: renderer auto-reports height via postMessage so the host
+    // grows to fit content. Disable the iframe's own scrollbar to avoid double
+    // scroll regions on long forms.
+    iframe.setAttribute('scrolling', 'no');
     iframe.dataset.formId = formId;
     host.appendChild(iframe);
 
     const onMessage = (ev: MessageEvent) => {
+      // Defence in depth: origin pins the sender to the configured renderer
+      // host; source pins it to *this* iframe's window so multiple embeds on
+      // the same page (or unrelated postMessage chatter from same-origin
+      // frames) can't cross-resize each other.
       if (ev.origin !== rendererOrigin) return;
-      const data = ev.data as { type?: string; formId?: string; height?: number };
-      if (data?.type !== 'paymentform:resize') return;
-      if (data.formId !== formId) return;
+      if (ev.source !== iframe.contentWindow) return;
+      const data = ev.data as { type?: string; height?: number };
+      if (data?.type !== 'paymentform:height') return;
       if (typeof data.height !== 'number' || data.height <= 0 || data.height > 10000) return;
       iframe.style.height = `${data.height}px`;
     };
@@ -47,8 +66,15 @@ function boot() {
   });
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot, { once: true });
-} else {
-  boot();
+// Auto-boot only in the real browser bundle. Tests import `bootBlockView` directly
+// and run it explicitly per case; auto-booting at import-time inside vitest would
+// attach to a half-built happy-dom and leak across test cases. The Vitest flag is
+// set by `vitest.setup.ts`.
+const isVitest = (globalThis as unknown as { __VITEST__?: boolean }).__VITEST__ === true;
+if (typeof document !== 'undefined' && !isVitest) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootBlockView, { once: true });
+  } else {
+    bootBlockView();
+  }
 }

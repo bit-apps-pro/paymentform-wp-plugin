@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Drawer, Tabs, Typography, Flex, Skeleton, theme, Button } from 'antd';
+import { useEffect, useState } from 'react';
+import { Drawer, Tabs, Typography, Flex, Segmented, Skeleton, theme, Button } from 'antd';
 import { X } from 'lucide-react';
+import { css } from '@emotion/css';
 import type { Form } from './useFormsList';
 import { getEmbedUrl, getShortcode, getGutenbergBlock } from './embedUrl';
 import { __ } from '../../lib/i18n';
@@ -10,22 +11,70 @@ interface EmbedDrawerProps {
   onClose: () => void;
 }
 
+type SnippetKind = 'shortcode' | 'block' | 'iframe';
+
+const FLEX_FILL: React.CSSProperties = {
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+/**
+ * Tabs ship a fixed three-layer DOM (nav, content-holder, content) where each
+ * inner level defaults to height:auto, so a `style={FLEX_FILL}` on the root
+ * Tabs element doesn't reach the tabpane — the preview iframe collapses.
+ * Override the inner layers so the active tabpane fills the drawer body.
+ */
+const TABS_FILL = css`
+  .ant-tabs-content-holder,
+  .ant-tabs-content,
+  .ant-tabs-tabpane-active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+`;
+
+function snippetHint(kind: SnippetKind): string {
+  switch (kind) {
+    case 'shortcode':
+      return __('Paste this shortcode into any post or page.', 'paymentform');
+    case 'block':
+      return __('Paste this block markup into the Code Editor of any post or page.', 'paymentform');
+    case 'iframe':
+      return __('Embed this URL in any HTML page outside WordPress.', 'paymentform');
+  }
+}
+
 export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
   const { token } = theme.useToken();
   const [activeTab, setActiveTab] = useState<string>('embed');
+  const [snippet, setSnippet] = useState<SnippetKind>('shortcode');
   const [previewLoaded, setPreviewLoaded] = useState(false);
 
   const open = !!form;
   const formId = form?.id ?? '';
-  const embedUrl = formId ? getEmbedUrl(formId) : '';
+  const embedUrl = formId ? (getEmbedUrl(formId) ?? '') : '';
   const shortcode = formId ? getShortcode(formId) : '';
   const block = formId ? getGutenbergBlock(formId) : '';
 
+  // Reset transient state when the drawer opens OR the selected form changes
+  // (parent may swap `form` without closing the drawer between row clicks).
+  useEffect(() => {
+    if (open) {
+      setSnippet('shortcode');
+      setActiveTab('embed');
+      setPreviewLoaded(false);
+    }
+  }, [open, formId]);
+
   const handleClose = () => {
-    setActiveTab('embed');
-    setPreviewLoaded(false);
     onClose();
   };
+
+  const snippetValue = snippet === 'shortcode' ? shortcode : snippet === 'block' ? block : embedUrl;
+  const isIframeMissing = snippet === 'iframe' && !embedUrl;
 
   return (
     <Drawer
@@ -50,46 +99,51 @@ export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
           padding: `${token.paddingMD}px ${token.paddingLG}px`,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         },
-        body: { padding: token.paddingLG },
+        body: {
+          padding: token.paddingLG,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+        },
       }}
     >
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
+        style={FLEX_FILL}
+        className={TABS_FILL}
         items={[
           {
             key: 'embed',
             label: __('Embed', 'paymentform'),
             children: (
-              <Flex vertical gap={token.marginMD} style={{ width: '100%' }}>
-                <div>
-                  <Typography.Text strong>
-                    {__('Shortcode', 'paymentform')}
-                  </Typography.Text>
-                  <Typography.Paragraph copyable code style={{ marginTop: token.marginXS }}>
-                    {shortcode}
+              <Flex
+                vertical
+                gap={token.marginSM}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+              >
+                <Segmented<SnippetKind>
+                  value={snippet}
+                  onChange={setSnippet}
+                  options={[
+                    { label: __('Shortcode', 'paymentform'), value: 'shortcode' },
+                    { label: __('Block', 'paymentform'), value: 'block' },
+                    { label: __('Iframe URL', 'paymentform'), value: 'iframe' },
+                  ]}
+                />
+                <Typography.Text type="secondary">{snippetHint(snippet)}</Typography.Text>
+                {isIframeMissing ? (
+                  <Typography.Paragraph type="secondary" style={{ marginTop: token.marginXS }}>
+                    {__(
+                      'Connect this site to PaymentForm to get an iframe URL.',
+                      'paymentform'
+                    )}
                   </Typography.Paragraph>
-                </div>
-                <div>
-                  <Typography.Text strong>
-                    {__('Gutenberg block', 'paymentform')}
-                  </Typography.Text>
+                ) : (
                   <Typography.Paragraph copyable code style={{ marginTop: token.marginXS }}>
-                    {block}
+                    {snippetValue}
                   </Typography.Paragraph>
-                </div>
-                <div>
-                  <Typography.Text strong>{__('Iframe URL', 'paymentform')}</Typography.Text>
-                  <Typography.Paragraph copyable code style={{ marginTop: token.marginXS }}>
-                    {embedUrl}
-                  </Typography.Paragraph>
-                </div>
-                <Typography.Text type="secondary">
-                  {__(
-                    'Paste the shortcode in any post or page, or insert the PaymentForm block in the editor.',
-                    'paymentform'
-                  )}
-                </Typography.Text>
+                )}
               </Flex>
             ),
           },
@@ -98,26 +152,51 @@ export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
             label: __('Preview', 'paymentform'),
             children:
               activeTab === 'preview' && formId ? (
-                <div style={{ position: 'relative', minHeight: 600 }}>
-                  {!previewLoaded && (
-                    <Skeleton
-                      active
-                      paragraph={{ rows: 8 }}
-                      style={{ position: 'absolute', inset: 0 }}
-                    />
-                  )}
-                  <iframe
-                    src={embedUrl}
-                    title={form?.name ?? __('Preview', 'paymentform')}
+                embedUrl ? (
+                  <div
                     style={{
-                      border: 'none',
-                      width: '100%',
-                      height: 600,
-                      background: token.colorBgContainer,
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      minHeight: 0,
+                      position: 'relative',
                     }}
-                    onLoad={() => setPreviewLoaded(true)}
-                  />
-                </div>
+                  >
+                    {!previewLoaded && (
+                      <Skeleton
+                        active
+                        paragraph={{ rows: 8 }}
+                        style={{ position: 'absolute', inset: 0 }}
+                      />
+                    )}
+                    <div style={{ flex: 1, minHeight: 0 }}>
+                      <iframe
+                        src={embedUrl}
+                        title={form?.name ?? __('Preview', 'paymentform')}
+                        // Sandbox so the preview can't submit a real payment or
+                        // navigate the wp-admin tab. Matches the block-editor
+                        // preview iframe.
+                        sandbox="allow-scripts allow-same-origin"
+                        referrerPolicy="no-referrer"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          border: 'none',
+                          display: 'block',
+                          background: token.colorBgContainer,
+                        }}
+                        onLoad={() => setPreviewLoaded(true)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <Typography.Text type="secondary">
+                    {__(
+                      'Connect this site to PaymentForm to preview forms here.',
+                      'paymentform'
+                    )}
+                  </Typography.Text>
+                )
               ) : null,
           },
         ]}

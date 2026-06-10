@@ -3,46 +3,24 @@ import {
   Card,
   Descriptions,
   Button,
-  Space,
-  Popconfirm,
-  Skeleton,
   Typography,
   theme,
-  Row,
-  Col,
-  Statistic,
-  Tag,
   Segmented,
   Flex,
+  Tag,
   App as AntApp,
 } from 'antd';
-import { dateI18n } from '@wordpress/date';
-import { sprintf, _n } from '@wordpress/i18n';
 import { css } from '@emotion/css';
-import { CheckCircle, XCircle, RefreshCw } from 'lucide-react';
-import { useConnection } from '../features/auth/useConnection';
-import { useRefreshToken } from '../features/auth/useRefreshToken';
-import { useDisconnect } from '../features/auth/useDisconnect';
+import { sprintf } from '@wordpress/i18n';
+import { CheckCircle, XCircle } from 'lucide-react';
 import { useThemeMode } from '../theme/themeMode';
-import { ExpiresCountdown } from '../components/ExpiresCountdown';
 import { request } from '../lib/request/request';
 import { __ } from '../lib/i18n';
-import { useQueryClient } from '@tanstack/react-query';
 
 type HealthRow = { endpoint: string; ok: boolean; ms: number; error?: string };
 
-function expiryTag(days: number): { color: string; text: string } {
-  if (days > 14) return { color: 'success', text: __('Healthy', 'paymentform') };
-  if (days > 3) return { color: 'warning', text: __('Renew soon', 'paymentform') };
-  return { color: 'error', text: __('Expiring', 'paymentform') };
-}
-
 export function Settings() {
   const { token } = theme.useToken();
-  const queryClient = useQueryClient();
-  const { data: connection, isLoading } = useConnection();
-  const { mutate: refresh, isPending: isRefreshing } = useRefreshToken();
-  const { mutate: disconnect, isPending: isDisconnecting } = useDisconnect();
   const themeMode = useThemeMode((s) => s.mode);
   const explicit = useThemeMode((s) => s.explicit);
   const setMode = useThemeMode((s) => s.setMode);
@@ -60,32 +38,6 @@ export function Settings() {
   const cardStyles = css`
     margin-bottom: ${token.marginLG}px;
   `;
-
-  if (isLoading) {
-    return (
-      <div className={containerStyles}>
-        <Card className={cardStyles}>
-          <Skeleton active paragraph={{ rows: 4 }} />
-        </Card>
-      </div>
-    );
-  }
-
-  const isConnected = !!connection?.connected;
-
-  const expiresAtText = connection?.expiresAt
-    ? dateI18n('F j, Y g:i A', connection.expiresAt)
-    : __('Unknown', 'paymentform');
-
-  const expiresInDays = connection?.expiresIn
-    ? Math.ceil(connection.expiresIn / (24 * 60 * 60))
-    : 0;
-  const tag = expiryTag(expiresInDays);
-
-  const connectionState = queryClient.getQueryState(['connection']);
-  const lastRefreshed = connectionState?.dataUpdatedAt
-    ? dateI18n('g:i A', new Date(connectionState.dataUpdatedAt).toISOString())
-    : '—';
 
   const segmentedValue: 'light' | 'dark' | 'system' = explicit ? themeMode : 'system';
 
@@ -122,11 +74,10 @@ export function Settings() {
 
   const onCopyDiagnostic = async () => {
     const info = {
-      version: window.paymentformAdmin?.version,
-      siteUrl: window.paymentformAdmin?.siteUrl,
-      tenant: connection?.tenant?.name,
-      user: connection?.user?.email,
-      expiresAt: connection?.expiresAt,
+      timestamp: new Date().toISOString(),
+      pluginVersion: window.paymentformAdmin?.version ?? 'unknown',
+      siteUrl: window.location.origin,
+      userAgent: navigator.userAgent,
     };
     await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
     message.success(__('Copied diagnostic info', 'paymentform'));
@@ -134,91 +85,6 @@ export function Settings() {
 
   return (
     <div className={containerStyles}>
-      {isConnected ? (
-      <Card
-        title={__('Connection', 'paymentform')}
-        extra={
-          <Space.Compact>
-            <Button
-              icon={<RefreshCw size={14} />}
-              loading={isRefreshing}
-              onClick={() => refresh()}
-            >
-              {__('Refresh token', 'paymentform')}
-            </Button>
-            <Popconfirm
-              title={__('Disconnect from PaymentForm?', 'paymentform')}
-              description={__('You will need to reconnect to manage forms.', 'paymentform')}
-              onConfirm={() => disconnect()}
-              okText={__('Disconnect', 'paymentform')}
-              cancelText={__('Cancel', 'paymentform')}
-              okButtonProps={{ danger: true }}
-            >
-              <Button danger loading={isDisconnecting}>
-                {__('Disconnect', 'paymentform')}
-              </Button>
-            </Popconfirm>
-          </Space.Compact>
-        }
-        className={cardStyles}
-      >
-        <Row gutter={[token.marginLG, token.marginMD]}>
-          <Col xs={24} sm={12} md={6}>
-            <Statistic
-              title={__('User', 'paymentform')}
-              value={connection?.user?.email ?? '—'}
-              styles={{ content: { fontSize: token.fontSizeLG } }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Statistic
-              title={__('Workspace', 'paymentform')}
-              value={connection.tenant?.name ?? '—'}
-              styles={{ content: { fontSize: token.fontSizeLG } }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <ExpiresCountdown
-              value={connection?.expiresAt}
-              title={__('Token expires in', 'paymentform')}
-            />
-            <Space size="small" style={{ marginTop: token.marginXS }}>
-              <Tag color={tag.color}>{tag.text}</Tag>
-              <Typography.Text type="secondary">
-                {connection?.expiresAt
-                  ? sprintf(
-                      _n('%d day left', '%d days left', expiresInDays, 'paymentform'),
-                      expiresInDays
-                    )
-                  : __('Unknown', 'paymentform')}
-              </Typography.Text>
-            </Space>
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                {expiresAtText}
-              </Typography.Text>
-            </div>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Statistic
-              title={__('Last refreshed', 'paymentform')}
-              value={lastRefreshed}
-              styles={{ content: { fontSize: token.fontSizeLG } }}
-            />
-          </Col>
-        </Row>
-      </Card>
-      ) : (
-        <Card className={cardStyles}>
-          <Typography.Text type="secondary">
-            {__(
-              'Not connected. Open the Welcome page to connect this site to PaymentForm.',
-              'paymentform'
-            )}
-          </Typography.Text>
-        </Card>
-      )}
-
       <Card title={__('Appearance', 'paymentform')} className={cardStyles}>
         <Segmented
           value={segmentedValue}
@@ -249,7 +115,7 @@ export function Settings() {
           </Descriptions.Item>
           <Descriptions.Item label={__('Support', 'paymentform')}>
             <a
-              href="https://paymentform.io/support"
+              href="https://paymentform.io/contact"
               target="_blank"
               rel="noopener noreferrer"
             >

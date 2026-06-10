@@ -158,6 +158,7 @@ final class PluginServiceProvider
      * to register (e.g. block.json malformed).
      */
     private string $blockEditorScriptHandle = 'paymentform-form-editor-script';
+    private string $blockViewScriptHandle = 'paymentform-form-view-script';
 
     public function registerBlockAndShortcode(): void
     {
@@ -166,6 +167,9 @@ final class PluginServiceProvider
             $this->blockEditorScriptHandle = (string) $blockType->editor_script_handles[0];
         } else {
             error_log('PaymentForm: register_block_type returned no editor_script_handles; falling back to default handle name. Block editor localize may target a stale handle.');
+        }
+        if ($blockType && !empty($blockType->view_script_handles)) {
+            $this->blockViewScriptHandle = (string) $blockType->view_script_handles[0];
         }
         (new Shortcode())->register();
     }
@@ -384,7 +388,19 @@ CSS;
         }
 
         global $post;
-        if ($post && has_shortcode($post->post_content, 'paymentform')) {
+        $hasShortcode = $post && has_shortcode($post->post_content, 'paymentform');
+        $hasBlock = $post && has_block('paymentform/form', $post);
+
+        // Block runtime: auto-enqueued by register_block_type via
+        // block.json viewScript. We only need to attach the renderer config
+        // so view.ts can build the iframe src against the tenant origin.
+        if ($hasBlock) {
+            wp_localize_script($this->blockViewScriptHandle, 'paymentformView', [
+                'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
+            ]);
+        }
+
+        if ($hasShortcode) {
             $version = Config::VERSION . '.' . filemtime($view_js);
 
             // Distinct handle from the block's auto-registered `viewScript`

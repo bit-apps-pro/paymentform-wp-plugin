@@ -6,6 +6,7 @@ import {
   Space,
   Badge,
   Skeleton,
+  Tooltip,
   Typography,
   theme,
   Row,
@@ -14,12 +15,13 @@ import {
   Statistic,
 } from 'antd';
 import type { BadgeProps } from 'antd';
-import { Code2, ExternalLink } from 'lucide-react';
+import { Code2, Pencil, Plus } from 'lucide-react';
 import { css } from '@emotion/css';
 import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { FormsToolbar, useFormsToolbarState } from '../features/forms/FormsToolbar';
 import { EmbedDrawer } from '../features/forms/EmbedDrawer';
 import { __ } from '../lib/i18n';
+import { appBaseUrl } from '../lib/appBaseUrl';
 
 const ACTIVE_STATUSES = new Set(['enabled', 'active', 'published']);
 
@@ -34,6 +36,7 @@ export function Forms() {
   const { data: forms = [], isLoading, isFetching, refetch } = useFormsList();
   const { value: toolbar, setValue: setToolbar } = useFormsToolbarState();
   const [openForm, setOpenForm] = useState<Form | null>(null);
+  const baseUrl = appBaseUrl();
 
   const containerStyles = css`
     max-width: 1200px;
@@ -106,15 +109,17 @@ export function Forms() {
             icon={<Code2 size={16} />}
             onClick={() => setOpenForm(record)}
           />
-          <Button
-            type="text"
-            size="small"
-            aria-label={__('Open in app', 'paymentform')}
-            icon={<ExternalLink size={16} />}
-            href={`https://app.paymentform.io/forms/${encodeURIComponent(record.id)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          />
+          <Tooltip title={__('Edit form', 'paymentform')}>
+            <Button
+              type="text"
+              size="small"
+              aria-label={__('Edit form', 'paymentform')}
+              icon={<Pencil size={16} />}
+              href={`${baseUrl}/build/${encodeURIComponent(record.id)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -163,6 +168,18 @@ export function Forms() {
     );
   }
 
+  const createFormButton = (
+    <Button
+      type="primary"
+      icon={<Plus size={16} />}
+      href={`${baseUrl}/myforms`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {__('Create form', 'paymentform')}
+    </Button>
+  );
+
   return (
     <div className={containerStyles}>
       {summaryRow}
@@ -172,6 +189,7 @@ export function Forms() {
           onChange={setToolbar}
           onRefresh={() => refetch()}
           isRefreshing={isFetching}
+          extra={createFormButton}
         />
         {filtered.length === 0 ? (
           <Empty
@@ -184,11 +202,12 @@ export function Forms() {
           >
             <Button
               type="primary"
-              href="https://app.paymentform.io/myforms"
+              icon={<Plus size={16} />}
+              href={`${baseUrl}/myforms`}
               target="_blank"
               rel="noopener noreferrer"
             >
-              {__('Create a form', 'paymentform')}
+              {__('Create form', 'paymentform')}
             </Button>
           </Empty>
         ) : (
