@@ -13,6 +13,6 @@
   },
   "supports": { "html": false, "align": ["wide", "full"] },
   "textdomain": "paymentform",
-  "editorScript": "file:../../../dist/block-editor.js",
-  "viewScript": "file:../../../dist/block-view.js"
+  "editorScript": "file:../../dist/block-editor.js",
+  "viewScript": "file:../../dist/block-view.js"
 }

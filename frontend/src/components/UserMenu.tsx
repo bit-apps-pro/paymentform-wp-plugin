@@ -18,16 +18,14 @@ export function UserMenu() {
 
   if (!data?.connected) return null;
 
+  const appBaseUrl = window.paymentformAdmin?.appBaseUrl ?? 'https://app.paymentform.io';
+
   const items: MenuProps['items'] = [
     {
       key: 'open',
       icon: <ExternalLink size={14} />,
       label: (
-        <a
-          href="https://app.paymentform.io"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={appBaseUrl} target="_blank" rel="noopener noreferrer">
           {__('Open paymentform.io', 'paymentform')}
         </a>
       ),

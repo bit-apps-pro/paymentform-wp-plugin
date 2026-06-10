@@ -1,12 +1,15 @@
 import { Card, Button, Spin, Flex, Typography, List, theme } from 'antd';
 import { CheckCircle } from 'lucide-react';
 import { css } from '@emotion/css';
+import { useState } from 'react';
 import { Logo } from '../components/Logo';
 import { useConnect } from '../features/auth/useConnect';
+import { CreateWizardModal } from '../features/setup/CreateWizardModal';
 import { __ } from '../lib/i18n';
 
 export function Welcome() {
   const { token } = theme.useToken();
+  const [createOpen, setCreateOpen] = useState(false);
   const { mutate: connect, isPending } = useConnect();
 
   const containerStyles = css`
@@ -47,7 +50,7 @@ export function Welcome() {
         <Flex vertical align="center" gap={token.marginMD} style={{ textAlign: 'center' }}>
           <Logo size={72} />
           <Typography.Title level={2} style={{ margin: 0 }}>
-            {__('Connect your site to PaymentForm', 'paymentform')}
+            {__('Get started with PaymentForm', 'paymentform')}
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
             {__(
@@ -69,12 +72,17 @@ export function Welcome() {
             </List.Item>
           )}
         />
-        <Flex justify="center" style={{ marginTop: token.marginLG }}>
+        <Flex justify="center" gap={token.marginSM} wrap style={{ marginTop: token.marginLG }}>
           <Button type="primary" size="large" loading={isPending} onClick={() => connect()}>
-            {__('Connect to paymentform.io', 'paymentform')}
+            {__('Connect existing account', 'paymentform')}
+          </Button>
+          <Button size="large" onClick={() => setCreateOpen(true)}>
+            {__('Create new account', 'paymentform')}
           </Button>
         </Flex>
       </Card>
+
+      <CreateWizardModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }
