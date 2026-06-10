@@ -335,16 +335,34 @@ CSS;
         $token = $tokenService->get();
         $expiresAt = is_array($raw) ? ($raw['expires_at'] ?? null) : null;
         $tenant = is_array($raw) ? ($raw['tenant'] ?? null) : null;
+        $emailVerified = is_array($raw) ? ($raw['email_verified'] ?? null) : null;
+
+        $currentUser = function_exists('wp_get_current_user') ? wp_get_current_user() : null;
+        $adminEmail = ($currentUser && $currentUser->exists()) ? (string) $currentUser->user_email : '';
+
+        // Best-effort Cloudflare country hint for the wizard's default country.
+        // Absent outside a CF edge → empty string; wizard falls back to its own default.
+        $cfCountry = isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? (string) $_SERVER['HTTP_CF_IPCOUNTRY'] : '';
+        if (!preg_match('/^[A-Z]{2}$/', $cfCountry)) {
+            $cfCountry = '';
+        }
 
         wp_localize_script('paymentform-admin', 'paymentformAdmin', [
             'nonce' => wp_create_nonce('wp_rest'),
             'restUrl' => rest_url('paymentform/v1/'),
             'adminUrl' => admin_url('admin.php?page=paymentform'),
             'connected' => $token !== null,
+            'hasConnection' => $token !== null,
             'expiresAt' => $expiresAt,
             'tenant' => $tenant,
             'version' => Config::VERSION,
             'siteUrl' => site_url(),
+            // Wizard pre-fill: current admin email + CF-country hint. Banner reads
+            // `emailVerified === false` so `null` keeps it hidden until the value
+            // is populated by the next /me round-trip.
+            'adminEmail' => $adminEmail,
+            'cfCountry' => $cfCountry,
+            'emailVerified' => $emailVerified,
             // Central app shell host (`app.<base>`). Used by admin SPA links that
             // point at the form editor / dashboard on app.paymentform.io. NOT
             // tenant-scoped — same host regardless of which tenant is connected.

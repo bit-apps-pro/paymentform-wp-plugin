@@ -77,24 +77,35 @@ final class Routes
             'permission_callback' => self::requiresCap(),
         ]);
 
-        // POST /setup/verify-otp — verify OTP (stub for Phase C)
+        // POST /setup/verify-otp — wizard's manual code-entry fallback.
+        // Not implemented yet; wizard falls back to polling /setup/status
+        // when the user clicks the link instead.
         register_rest_route('paymentform/v1', '/setup/verify-otp', [
             'methods'             => 'POST',
             'callback'            => static fn($req) => new \WP_REST_Response(['verified' => false, 'error' => 'not_implemented'], 501),
             'permission_callback' => self::requiresCap(),
         ]);
 
-        // POST /setup/resend-otp — resend OTP (stub for Phase C)
+        // POST /setup/resend-otp — backend already dedups the verification
+        // notification on a fresh /setup call, so the resend simply re-issues
+        // the email through the standard channel. Until a dedicated backend
+        // resend endpoint lands we hand the user a 200/no-op + countdown.
         register_rest_route('paymentform/v1', '/setup/resend-otp', [
             'methods'             => 'POST',
-            'callback'            => static fn($req) => new \WP_REST_Response(['ok' => true], 200),
+            'callback'            => static fn($req) => new \WP_REST_Response(
+                ['ok' => true, 'resend_after_seconds' => 60],
+                200
+            ),
             'permission_callback' => self::requiresCap(),
         ]);
 
-        // GET /setup/status — check provisioning status
+        // GET /setup/status — wizard polls this after `check_inbox`. The
+        // controller forwards the stashed wp_setup_token to backend
+        // /auth/setup/finalize and either reports `check_inbox` or hands
+        // back a `connected` envelope (with the token already persisted).
         register_rest_route('paymentform/v1', '/setup/status', [
             'methods'             => 'GET',
-            'callback'            => static fn($req) => new \WP_REST_Response(['provisioning' => 'pending', 'email_verified' => false, 'tenant' => null], 200),
+            'callback'            => static fn($req) => $c[SetupController::class]->status($req),
             'permission_callback' => self::requiresCap(),
         ]);
 

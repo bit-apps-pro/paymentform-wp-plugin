@@ -54,10 +54,11 @@ final class SetupProofController
             $this->respondAndExit(['error' => 'setup_token_expired'], 410);
         }
 
-        // Site URL in token must match the request param.
-        $normalizedSite = rtrim($site, '/');
-        $normalizedTokenSite = rtrim($tokenSiteUrl, '/');
-        if ($normalizedSite !== $normalizedTokenSite) {
+        // Site URL host comparison is case-insensitive per RFC 3986 §3.2.2;
+        // the rest of the URL stays case-sensitive. Normalising both sides
+        // through `parse_url` lets a mixed-case WP install match a lower-case
+        // backend payload without 401-ing.
+        if ($this->normalizeUrl($site) !== $this->normalizeUrl($tokenSiteUrl)) {
             $this->respondAndExit(['error' => 'site_mismatch'], 401);
         }
 
@@ -70,8 +71,7 @@ final class SetupProofController
         }
 
         // Defense-in-depth: stored site_url should also match the token payload.
-        $normalizedRowSite = rtrim((string) ($row['site_url'] ?? ''), '/');
-        if ($normalizedRowSite !== $normalizedTokenSite) {
+        if ($this->normalizeUrl((string) ($row['site_url'] ?? '')) !== $this->normalizeUrl($tokenSiteUrl)) {
             $this->respondAndExit(['error' => 'site_mismatch'], 401);
         }
 
@@ -107,7 +107,11 @@ final class SetupProofController
         $payloadB64 = $parts[1];
         $hmac = $parts[2];
 
-        $payload = base64_decode($payloadB64, true);
+        // Accept both standard and URL-safe base64. SetupController mints
+        // url-safe; older callers (if any) may still emit standard.
+        $normalized = strtr($payloadB64, '-_', '+/');
+        $padded = $normalized . str_repeat('=', (4 - strlen($normalized) % 4) % 4);
+        $payload = base64_decode($padded, true);
         if ($payload === false) {
             return null;
         }
@@ -127,6 +131,25 @@ final class SetupProofController
         }
 
         return [$siteUrl, $nonce, $tokenExpiresAt, $hmac];
+    }
+
+    /**
+     * Lower-case the host while preserving scheme + path so two URLs that
+     * differ only in host casing or trailing slash compare equal per RFC 3986.
+     */
+    private function normalizeUrl(string $url): string
+    {
+        $parts = parse_url($url);
+        if ($parts === false) {
+            return rtrim(strtolower($url), '/');
+        }
+
+        $scheme = strtolower($parts['scheme'] ?? '');
+        $host = strtolower($parts['host'] ?? '');
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        $path = rtrim($parts['path'] ?? '', '/');
+
+        return $scheme . '://' . $host . $port . $path;
     }
 
     private function respondAndExit(array $body, int $statusCode): void

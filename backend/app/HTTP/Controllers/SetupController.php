@@ -77,10 +77,15 @@ final class SetupController
         $nonce = bin2hex(random_bytes(16));
         $tokenExpiresAt = time() + 600; // 10 min TTL
 
-        // Build wp_setup_token with HMAC under SECURE_AUTH_KEY.
+        // Build wp_setup_token with HMAC under SECURE_AUTH_KEY. Payload is
+        // base64url-encoded (no padding, `+`/`/` swapped for `-`/`_`) so the token
+        // survives URL-encoding by proxies / curl handlers without round-trip
+        // ambiguity — backend hands the token back in an HTTP header but any
+        // intermediary that touches the value mustn't break decode.
         $payload = site_url() . ':' . $nonce . ':' . $tokenExpiresAt;
         $hmac = hash_hmac('sha256', $payload, SECURE_AUTH_KEY);
-        $wpSetupToken = 'v1.' . base64_encode($payload) . '.' . $hmac;
+        $payloadB64 = rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
+        $wpSetupToken = 'v1.' . $payloadB64 . '.' . $hmac;
 
         // Persist setup row (both per-nonce and per-email).
         $emailMd5 = md5($effectiveEmail);
@@ -147,6 +152,7 @@ final class SetupController
                             'next' => 'failed',
                             'code' => 'service_unavailable',
                             'message' => 'PaymentForm signup is temporarily unavailable. Please try again later.',
+                            'retry_after_seconds' => $retryAfter,
                         ],
                         503
                     );
@@ -157,6 +163,26 @@ final class SetupController
             return new WP_REST_Response(
                 ['next' => 'failed', 'code' => 'network', 'message' => 'Backend service unavailable.'],
                 503
+            );
+        }
+
+        // Handle 429 rate-limit explicitly so the wizard can render a
+        // "try again in N seconds" message instead of a generic error.
+        if ($status === 429) {
+            $retryAfter = 0;
+            $retryHeader = wp_remote_retrieve_header($response, 'retry-after');
+            if (is_string($retryHeader) && ctype_digit($retryHeader)) {
+                $retryAfter = (int) $retryHeader;
+            }
+
+            return new WP_REST_Response(
+                [
+                    'next' => 'failed',
+                    'code' => 'rate_limited',
+                    'message' => 'Too many requests. Please wait a moment before retrying.',
+                    'retry_after_seconds' => $retryAfter,
+                ],
+                429
             );
         }
 
@@ -171,8 +197,17 @@ final class SetupController
                 );
             }
 
-            // Backend wraps payload in `{ status: true, data: {...} }`. Unwrap it.
-            $data = is_array($body['data'] ?? null) ? $body['data'] : $body;
+            // Backend wraps payload in `{ status: true, data: {...} }`. Hard
+            // require the envelope so a contract drift surfaces as a clear
+            // `invalid_response` rather than silently falling back to the
+            // outer body (which would mis-route `status: false` errors).
+            if (! is_array($body) || ! array_key_exists('data', $body) || ! is_array($body['data'])) {
+                return new WP_REST_Response(
+                    ['next' => 'failed', 'code' => 'invalid_response', 'message' => 'Invalid backend response.'],
+                    502
+                );
+            }
+            $data = $body['data'];
             $responseStatus = $data['status'] ?? null;
 
             // Branch C: brand new user, token created.
@@ -204,6 +239,33 @@ final class SetupController
                         );
                     }
                 }
+            }
+
+            // Deferred-token: backend created the user but is waiting on the
+            // email-verification click before issuing the access token. Stash
+            // the wp_setup_token under the current WP admin so /setup/status
+            // can post it to /auth/setup/finalize without exposing it to JS.
+            if ($responseStatus === 'check_inbox') {
+                $userId = get_current_user_id();
+                if ($userId > 0) {
+                    set_transient(
+                        $this->pendingTransientKey($userId),
+                        $wpSetupToken,
+                        15 * MINUTE_IN_SECONDS
+                    );
+                }
+
+                // Per-nonce row is no longer needed once the handshake completed.
+                delete_option('paymentform_setup_by_nonce_' . $nonce);
+
+                return new WP_REST_Response(
+                    [
+                        'next' => 'check_inbox',
+                        'email_masked' => is_string($data['email_masked'] ?? null) ? $data['email_masked'] : null,
+                        'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
+                    ],
+                    200
+                );
             }
 
             // Branch A: existing email, redirect to Connect.
@@ -268,6 +330,127 @@ final class SetupController
             ['next' => 'failed', 'code' => 'unknown_error', 'message' => 'An unexpected error occurred.'],
             500
         );
+    }
+
+    /**
+     * Poll the deferred-token finalize endpoint. The wp_setup_token never
+     * crosses the wire to JS — it lives in a per-admin transient that we
+     * forward to /auth/setup/finalize on the wizard's behalf.
+     *
+     * Mirrors `handle()` response shape so the wizard can keep using the
+     * same `next:` branching it already has for the initial /setup call.
+     */
+    public function status(WP_REST_Request $req): WP_REST_Response
+    {
+        $userId = get_current_user_id();
+        if ($userId <= 0) {
+            return new WP_REST_Response(['next' => 'failed', 'code' => 'unauthenticated'], 401);
+        }
+
+        $wpSetupToken = get_transient($this->pendingTransientKey($userId));
+        if (! is_string($wpSetupToken) || $wpSetupToken === '') {
+            return new WP_REST_Response(
+                ['next' => 'failed', 'code' => 'setup_expired', 'message' => 'Your setup link has expired. Please start over.'],
+                410
+            );
+        }
+
+        $response = wp_remote_request(Config::apiBaseUrl() . '/auth/setup/finalize', [
+            'method' => 'POST',
+            'timeout' => self::TIMEOUT_SECONDS,
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode(['wp_setup_token' => $wpSetupToken]),
+        ]);
+
+        if (is_wp_error($response)) {
+            return new WP_REST_Response(['next' => 'failed', 'code' => 'network', 'message' => 'Could not reach paymentform.io.'], 503);
+        }
+
+        $statusCode = (int) wp_remote_retrieve_response_code($response);
+        $raw = (string) wp_remote_retrieve_body($response);
+
+        // 410 (or any 4xx) means the cache row is gone server-side — drop
+        // the transient so a retry doesn't keep hammering the dead key.
+        if ($statusCode === 410) {
+            delete_transient($this->pendingTransientKey($userId));
+
+            return new WP_REST_Response(
+                ['next' => 'failed', 'code' => 'setup_expired', 'message' => 'Your setup link has expired. Please start over.'],
+                410
+            );
+        }
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            return new WP_REST_Response(['next' => 'failed', 'code' => 'finalize_failed'], $statusCode);
+        }
+
+        try {
+            $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return new WP_REST_Response(['next' => 'failed', 'code' => 'invalid_response'], 502);
+        }
+
+        if (! is_array($body) || ! isset($body['data']) || ! is_array($body['data'])) {
+            return new WP_REST_Response(['next' => 'failed', 'code' => 'invalid_response'], 502);
+        }
+
+        $data = $body['data'];
+        $responseStatus = $data['status'] ?? null;
+
+        if ($responseStatus === 'connected') {
+            $token = $data['token'] ?? null;
+            $expiresAt = $data['expires_at'] ?? null;
+            $webhookSecret = $data['webhook_secret'] ?? null;
+
+            if (! is_string($token) || ! is_string($expiresAt)) {
+                return new WP_REST_Response(['next' => 'failed', 'code' => 'invalid_response'], 502);
+            }
+
+            try {
+                if (is_string($webhookSecret) && $webhookSecret !== '') {
+                    $this->tokenService->storeWebhookSecret($webhookSecret);
+                }
+                $this->tokenService->store($token, $expiresAt, is_string($data['tenant'] ?? null) ? $data['tenant'] : null);
+                $this->tokenService->storeCreatedVia('setup');
+            } catch (Throwable $e) {
+                $this->tokenService->clear();
+
+                return new WP_REST_Response(['next' => 'failed', 'code' => 'storage_failed'], 500);
+            }
+
+            // Consume the transient — the access token has superseded the
+            // setup token and a replay would be wasted server work.
+            delete_transient($this->pendingTransientKey($userId));
+
+            return new WP_REST_Response(
+                ['next' => 'connected', 'has_workspace' => true, 'email_verified' => true],
+                200
+            );
+        }
+
+        // Still pending — wizard keeps polling.
+        return new WP_REST_Response(
+            [
+                'next' => 'check_inbox',
+                'email_verified' => (bool) ($data['email_verified'] ?? false),
+                'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
+            ],
+            200
+        );
+    }
+
+    /**
+     * Per-admin transient key used to stash the wp_setup_token between the
+     * initial /setup call and the wizard's polling of /setup/status. Tied to
+     * the WP user_id so a second admin on the same install can't pick up
+     * another admin's in-progress flow.
+     */
+    private function pendingTransientKey(int $userId): string
+    {
+        return 'paymentform_setup_pending_' . $userId;
     }
 
     /**
