@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymentForm\HTTP;
 
 use PaymentForm\HTTP\Controllers\CallbackController;
+use PaymentForm\HTTP\Controllers\SetupProofController;
 use PaymentForm\HTTP\Controllers\WebhookController;
 use PaymentForm\Providers\Container;
 use WP;
@@ -25,7 +26,7 @@ final class Rewrites
      * Bump whenever rules change so `maybeFlush()` can auto-flush after an
      * upgrade without forcing the admin to manually visit Permalinks.
      */
-    private const RULES_VERSION = '1';
+    private const RULES_VERSION = '2';
 
     private const RULES_OPTION = 'paymentform_rewrite_rules_version';
 
@@ -41,9 +42,9 @@ final class Rewrites
 
     public function addRules(): void
     {
-        add_rewrite_tag('%' . self::ROUTE_QUERY_VAR . '%', '([a-z_]+)');
+        add_rewrite_tag('%' . self::ROUTE_QUERY_VAR . '%', '([a-z_-]+)');
         add_rewrite_rule(
-            '^paymentform/(callback|webhook)/?$',
+            '^paymentform/(callback|webhook|setup-proof)/?$',
             'index.php?' . self::ROUTE_QUERY_VAR . '=$matches[1]',
             'top'
         );
@@ -83,6 +84,7 @@ final class Rewrites
             'webhook' => $this->respondAndExit(
                 $this->container[WebhookController::class]->handle($this->buildRequest($wp))
             ),
+            'setup-proof' => $this->container[SetupProofController::class]->handle($this->buildRequest($wp)),
             default => null,
         };
     }

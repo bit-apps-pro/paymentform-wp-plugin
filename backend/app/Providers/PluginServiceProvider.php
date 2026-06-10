@@ -15,6 +15,9 @@ use PaymentForm\HTTP\Controllers\StatusController;
 use PaymentForm\HTTP\Controllers\RefreshController;
 use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\HTTP\Controllers\FormsProxyController;
+use PaymentForm\HTTP\Controllers\SetupController;
+use PaymentForm\HTTP\Controllers\SetupDiagnoseController;
+use PaymentForm\HTTP\Controllers\SetupProofController;
 use PaymentForm\HTTP\Controllers\WebhookController;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
@@ -22,6 +25,7 @@ use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\WebhookService;
+use PaymentForm\Cron\PurgeExpiredSetupOptions;
 
 final class PluginServiceProvider
 {
@@ -85,21 +89,41 @@ final class PluginServiceProvider
             $c[TokenService::class],
             $c[WebhookService::class]
         );
+
+        // Setup flow controllers
+        $c[SetupController::class] = static fn($c) => new SetupController(
+            $c[ApiClient::class],
+            $c[TokenService::class]
+        );
+
+        $c[SetupDiagnoseController::class] = static fn($c) => new SetupDiagnoseController();
+
+        $c[SetupProofController::class] = static fn($c) => new SetupProofController();
     }
 
     public function boot(): void
     {
         add_action('init', [$this, 'loadTextdomain']);
         add_action('init', [$this, 'registerBlockAndShortcode']);
+        add_action('init', [$this, 'registerCronSchedules']);
         add_action('rest_api_init', [$this, 'registerRoutes']);
         add_action('admin_menu', [$this, 'registerAdminMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
+        add_action('enqueue_block_editor_assets', [$this, 'enqueueBlockEditorAssets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
         add_filter('script_loader_tag', [$this, 'addModuleTypeToScripts'], 10, 2);
 
         if ($this->container !== null) {
             (new Rewrites($this->container))->register();
         }
+    }
+
+    public function registerCronSchedules(): void
+    {
+        if (!wp_next_scheduled('paymentform_setup_purge')) {
+            wp_schedule_event(time(), 'daily', 'paymentform_setup_purge');
+        }
+        add_action('paymentform_setup_purge', [new PurgeExpiredSetupOptions(), 'run']);
     }
 
     public function addModuleTypeToScripts(string $tag, string $handle): string
@@ -126,10 +150,64 @@ final class PluginServiceProvider
         load_plugin_textdomain('paymentform', false, dirname(plugin_basename(Config::pluginFile())) . '/languages');
     }
 
+    /**
+     * The auto-generated editor-script handle for the form-embed block. Captured
+     * from `register_block_type`'s return value so we don't depend on WP's
+     * `<block>-editor-script` convention (which has shifted across WP versions
+     * for namespaced block names). Falls back to the historical name if WP fails
+     * to register (e.g. block.json malformed).
+     */
+    private string $blockEditorScriptHandle = 'paymentform-form-editor-script';
+
     public function registerBlockAndShortcode(): void
     {
-        register_block_type(Config::pluginDir() . 'frontend/blocks/form-embed');
+        $blockType = register_block_type(Config::pluginDir() . 'frontend/blocks/form-embed');
+        if ($blockType && !empty($blockType->editor_script_handles)) {
+            $this->blockEditorScriptHandle = (string) $blockType->editor_script_handles[0];
+        } else {
+            error_log('PaymentForm: register_block_type returned no editor_script_handles; falling back to default handle name. Block editor localize may target a stale handle.');
+        }
         (new Shortcode())->register();
+    }
+
+    /**
+     * Inject the tenant-scoped `paymentformAdmin` globals into the block editor
+     * so the form-embed block's Edit component can build a preview iframe against
+     * the connected tenant's renderer host.
+     *
+     * Runs on `enqueue_block_editor_assets` — fires on every Gutenberg editor.
+     * Cheap: one `wp_localize_script` + a single TokenService::getRaw() round
+     * (the local cache halves what would otherwise be three DB hits).
+     */
+    public function enqueueBlockEditorAssets(): void
+    {
+        if ($this->container === null) {
+            return;
+        }
+
+        // Skip localize on editor screens that don't actually use the block to
+        // avoid a TokenService::getRaw() DB lookup + nonce generation per page.
+        // `has_block()` returns false for FSE/site-editor (no post context) which
+        // is fine — those screens don't render the form-embed block edit UI.
+        global $post;
+        if ($post && ! has_block('paymentform/form', $post)) {
+            return;
+        }
+
+        $raw = $this->container[TokenService::class]->getRaw();
+        $isArr = is_array($raw);
+        $tenant = $isArr ? ($raw['tenant'] ?? null) : null;
+        $connected = $isArr && !empty($raw['access_token']);
+
+        wp_localize_script($this->blockEditorScriptHandle, 'paymentformAdmin', [
+            'connected' => $connected,
+            'tenant' => $tenant,
+            'siteUrl' => site_url(),
+            'appBaseUrl' => Config::appBaseUrl(),
+            'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
+            'restUrl' => rest_url('paymentform/v1/'),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ]);
     }
 
     public function registerRoutes(): void
@@ -142,14 +220,20 @@ final class PluginServiceProvider
 
     public function registerAdminMenu(): void
     {
-        $iconSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnL'
-            . 'jAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHJ4PSI3IiBmaWxsPSIjNkU2MkU1Ii8+PHBhdGggZD0iTTExIDI1VjhIMTguNzY0NUMyMC4wMzQ1IDggMjEu'
-            . 'MTExNiA4LjIxNzAyIDIxLjk5NTcgOC42NTEwNkMyMi44Nzk5IDkuMDg1MTEgMjMuNTQ3IDkuNzA0MDIgMjMuOTk3MiAxMC41MDc4QzI0LjQ2MzQgMTEuMzExNiAyNC42OTY1IDEyLj'
-            . 'I4NDIgMjQuNjk2NSAxMy40MjU1QzI0LjY5NjUgMTQuNTY2OSAyNC40NjM0IDE1LjU0NzUgMjMuOTk3MiAxNi4zNjc0QzIzLjU0NyAxNy4xNzEyIDIyLjg3OTkgMTcuNzkwMSAyMS45'
-            . 'OTU3IDE4LjIyNDFDMjEuMTExNiAxOC42NTgyIDIwLjAzNDUgMTguODc1MiAxOC43NjQ1IDE4Ljg3NTJIMTQuNzM3NlYyMkwxMSAyNVpNMTQuNzM3NiAxNS45ODE2SDE4LjEzNzZDMT'
-            . 'kuMTAyMSAxNS45ODE2IDE5LjgzMzYgMTUuNzY0NSAyMC4zMzE5IDE1LjMzMDVDMjAuODQ2MyAxNC44OTY1IDIxLjEwMzUgMTQuMjYxNSAyMS4xMDM1IDEzLjQyNTVDMjEuMTAzNSAx'
-            . 'Mi41ODk2IDIwLjg0NjMgMTEuOTYyNiAyMC4zMzE5IDExLjU0NDdDMTkuODMzNiAxMS4xMjY3IDE5LjEwMjEgMTAuOTE3NyAxOC4xMzc2IDEwLjkxNzdIMTQuNzM3NlYxNS45ODE2WiIg'
-            . 'ZmlsbD0id2hpdGUiLz48L3N2Zz4=';
+        // WP applies a CSS filter to admin menu icons that maps the entire color
+        // surface to a single neutral tone (then re-colors on hover/active). Any SVG
+        // with a fill — including a colored background rect — gets flattened to
+        // black-on-black, which renders invisible against the dark sidebar. Ship a
+        // monochrome path with `fill="currentColor"` so WP's recolor pipeline owns
+        // the tint.
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor">'
+            . '<path d="M11 25V8H18.7645C20.0345 8 21.1116 8.21702 21.9957 8.65106C22.8799 9.08511 23.547 9.70402 23.9972 10.5078'
+            . 'C24.4634 11.3116 24.6965 12.2842 24.6965 13.4255C24.6965 14.5669 24.4634 15.5475 23.9972 16.3674'
+            . 'C23.547 17.1712 22.8799 17.7901 21.9957 18.2241C21.1116 18.6582 20.0345 18.8752 18.7645 18.8752'
+            . 'H14.7376V22L11 25ZM14.7376 15.9816H18.1376C19.1021 15.9816 19.8336 15.7645 20.3319 15.3305'
+            . 'C20.8463 14.8965 21.1035 14.2615 21.1035 13.4255C21.1035 12.5896 20.8463 11.9626 20.3319 11.5447'
+            . 'C19.8336 11.1267 19.1021 10.9177 18.1376 10.9177H14.7376V15.9816Z"/></svg>';
+        $iconSvg = 'data:image/svg+xml;base64,' . base64_encode($svg);
 
         add_menu_page(
             'PaymentForm',
@@ -201,17 +285,28 @@ CSS;
         $frontend_dir = Config::pluginDir() . 'frontend/dist';
         $js_file = $frontend_dir . '/admin.js';
         $css_file = $frontend_dir . '/admin.css';
+        $asset_file = $frontend_dir . '/admin.asset.php';
 
         if (!file_exists($js_file)) {
             return;
         }
 
-        $version = Config::VERSION . '.' . filemtime($js_file);
+        // Vite plugin emits `admin.asset.php` with the deps + content-hash version so
+        // we enqueue the exact `wp-*` script handles the bundle externalizes against.
+        // Fall back to filemtime + wp-element if the asset file isn't present (e.g.
+        // someone shipped a partial build).
+        $asset = file_exists($asset_file) ? require $asset_file : null;
+        $version = is_array($asset) && isset($asset['version'])
+            ? (string) $asset['version']
+            : Config::VERSION . '.' . filemtime($js_file);
+        $deps = is_array($asset) && isset($asset['dependencies']) && is_array($asset['dependencies'])
+            ? $asset['dependencies']
+            : ['wp-element'];
 
         wp_enqueue_script(
             'paymentform-admin',
             Config::pluginUrl() . 'frontend/dist/admin.js',
-            ['wp-element'],
+            $deps,
             $version,
             true
         );
@@ -250,6 +345,15 @@ CSS;
             'tenant' => $tenant,
             'version' => Config::VERSION,
             'siteUrl' => site_url(),
+            // Central app shell host (`app.<base>`). Used by admin SPA links that
+            // point at the form editor / dashboard on app.paymentform.io. NOT
+            // tenant-scoped — same host regardless of which tenant is connected.
+            'appBaseUrl' => Config::appBaseUrl(),
+            // Tenant-scoped renderer base — same host-swap that powers the
+            // shortcode `<tenant>.paymentform.io/<form-id>` embed. The admin SPA's
+            // EmbedDrawer uses this to render the "Iframe URL" + preview iframe
+            // against the correct subdomain instead of the static `app.` host.
+            'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
         ]);
     }
 

@@ -44,8 +44,10 @@ final class StatusController
             'connected' => true,
             'user' => $response['data']['user'] ?? null,
             'tenant' => $response['data']['tenant'] ?? null,
-            'expires_at' => $expiresAt,
-            'expires_in' => $expiresIn,
+            // Camel-cased to match the React `ConnectionStatus` type the SPA reads
+            // (useConnection.ts). REST layer does NOT auto-convert.
+            'expiresAt' => $expiresAt,
+            'expiresIn' => $expiresIn,
         ], 200);
     }
 }

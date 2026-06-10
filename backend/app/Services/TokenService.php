@@ -52,6 +52,22 @@ final class TokenService implements TokenServiceInterface
         update_option(self::OPTION_NAME, $data, false);
     }
 
+    /**
+     * Store the creation path marker for this connection. Used to track
+     * whether the token was issued via the Connect flow ('connect') or
+     * the Create flow ('setup'). Defaults to 'connect' on legacy rows.
+     */
+    public function storeCreatedVia(string $via): void
+    {
+        if ($via !== 'setup' && $via !== 'connect') {
+            return;
+        }
+
+        $data = $this->getRaw() ?? [];
+        $data['created_via'] = $via;
+        update_option(self::OPTION_NAME, $data, false);
+    }
+
     public function clear(): void
     {
         delete_option(self::OPTION_NAME);

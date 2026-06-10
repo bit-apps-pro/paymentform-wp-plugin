@@ -9,6 +9,8 @@ use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\HTTP\Controllers\FormsProxyController;
 use PaymentForm\HTTP\Controllers\RefreshController;
+use PaymentForm\HTTP\Controllers\SetupController;
+use PaymentForm\HTTP\Controllers\SetupDiagnoseController;
 use PaymentForm\HTTP\Controllers\StatusController;
 
 final class Routes
@@ -58,6 +60,41 @@ final class Routes
         register_rest_route('paymentform/v1', '/forms/(?P<id>\d+)', [
             'methods'             => 'GET',
             'callback'            => static fn($req) => $c[FormsProxyController::class]->show($req),
+            'permission_callback' => self::requiresCap(),
+        ]);
+
+        // POST /setup — initiate Create flow
+        register_rest_route('paymentform/v1', '/setup', [
+            'methods'             => 'POST',
+            'callback'            => static fn($req) => $c[SetupController::class]->handle($req),
+            'permission_callback' => self::requiresCap(),
+        ]);
+
+        // POST /setup/diagnose — pre-flight health check
+        register_rest_route('paymentform/v1', '/setup/diagnose', [
+            'methods'             => 'POST',
+            'callback'            => static fn($req) => $c[SetupDiagnoseController::class]->handle($req),
+            'permission_callback' => self::requiresCap(),
+        ]);
+
+        // POST /setup/verify-otp — verify OTP (stub for Phase C)
+        register_rest_route('paymentform/v1', '/setup/verify-otp', [
+            'methods'             => 'POST',
+            'callback'            => static fn($req) => new \WP_REST_Response(['verified' => false, 'error' => 'not_implemented'], 501),
+            'permission_callback' => self::requiresCap(),
+        ]);
+
+        // POST /setup/resend-otp — resend OTP (stub for Phase C)
+        register_rest_route('paymentform/v1', '/setup/resend-otp', [
+            'methods'             => 'POST',
+            'callback'            => static fn($req) => new \WP_REST_Response(['ok' => true], 200),
+            'permission_callback' => self::requiresCap(),
+        ]);
+
+        // GET /setup/status — check provisioning status
+        register_rest_route('paymentform/v1', '/setup/status', [
+            'methods'             => 'GET',
+            'callback'            => static fn($req) => new \WP_REST_Response(['provisioning' => 'pending', 'email_verified' => false, 'tenant' => null], 200),
             'permission_callback' => self::requiresCap(),
         ]);
 
