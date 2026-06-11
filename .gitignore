@@ -15,3 +15,6 @@ build/
 /coverage/
 /tests/__output__/
 /frontend/port
+/frontend/e2e/.auth/
+/frontend/playwright-report/
+/frontend/test-results/
