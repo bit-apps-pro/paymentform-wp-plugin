@@ -26,7 +26,16 @@ final class NonceCheckerMiddleware
         // get_header() is delegated to the wrapped WP_REST_Request via
         // Request::__call(); RouteRegister sets the rest request before any
         // middleware runs, so the delegation target always exists here.
-        $nonce = (string) ($request->get_header('X-WP-Nonce') ?: $request->get('_wpnonce', ''));
+        //
+        // _wpnonce must be a string: a client can send `_wpnonce[]=x` which
+        // makes Request::get() return an array. Cast or coerce only after an
+        // explicit is_string() guard so no "Array to string conversion" warning
+        // is emitted on attacker-controlled input before the 401 fires.
+        $headerNonce = $request->get_header('X-WP-Nonce');
+        $paramNonce  = $request->get('_wpnonce', '');
+        $nonce       = is_string($headerNonce) && $headerNonce !== ''
+            ? $headerNonce
+            : (is_string($paramNonce) ? $paramNonce : '');
 
         if ($nonce === '' || wp_verify_nonce(sanitize_text_field($nonce), 'wp_rest') === false) {
             return Response::error([], 401)

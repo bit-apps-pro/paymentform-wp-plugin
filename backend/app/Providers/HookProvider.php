@@ -52,9 +52,11 @@ final class HookProvider
         // Without this call, Router::getRegisteredMiddleware() returns null
         // for every name and the middleware chain is silently skipped (the
         // file-manager reference plugin omits this on its API router —
-        // do not copy that). Plugin::load() always precedes construction of
-        // this provider, so the instance is guaranteed here.
-        $router->setMiddlewares(Plugin::instance()->middlewares());
+        // do not copy that). Plugin::load() must precede construction of
+        // this provider; the null-coalescing throw below enforces that contract.
+        $plugin = Plugin::instance()
+            ?? throw new \LogicException('Plugin::load() must run before HookProvider registers routes.');
+        $router->setMiddlewares($plugin->middlewares());
 
         $router->registerFile($routeFile);
         $router->register();

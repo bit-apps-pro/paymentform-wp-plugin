@@ -80,4 +80,18 @@ final class NonceCheckerMiddlewareTest extends TestCase
 
         $this->assertSame('wp_rest', $seenAction);
     }
+
+    public function test_array_wpnonce_param_returns_401_without_php_warning(): void
+    {
+        // phpunit.xml.dist converts warnings to exceptions; passing an array
+        // where a string is expected must not trigger "Array to string
+        // conversion" before the 401 fires.
+        $request = $this->makeWpKitRequest([], ['_wpnonce' => ['injected']]);
+
+        $result = $this->middleware->handle($request);
+
+        $this->assertInstanceOf(Response::class, $result);
+        $this->assertSame(401, Response::getHttpStatusCode());
+        $this->assertSame('INVALID_NONCE', Response::getCode());
+    }
 }
