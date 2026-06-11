@@ -10,6 +10,12 @@ if (!defined('AUTH_KEY')) {
 if (!defined('AUTH_SALT')) {
     define('AUTH_SALT', 'test-auth-salt-' . str_repeat('b', 32));
 }
+if (!defined('SECURE_AUTH_KEY')) {
+    define('SECURE_AUTH_KEY', 'test-secure-auth-key-' . str_repeat('c', 32));
+}
+if (!defined('MINUTE_IN_SECONDS')) {
+    define('MINUTE_IN_SECONDS', 60);
+}
 if (!defined('PAYMENTFORM_API_BASE_URL')) {
     define('PAYMENTFORM_API_BASE_URL', 'https://api.paymentform.io');
 }
@@ -185,6 +191,20 @@ if (!function_exists('wp_get_current_user')) {
     function wp_get_current_user(): object
     {
         return TestWpFunctions::getCurrentUser();
+    }
+}
+
+if (!function_exists('get_current_user_id')) {
+    function get_current_user_id(): int
+    {
+        return (int) (TestWpFunctions::getCurrentUser()->ID ?? 0);
+    }
+}
+
+if (!function_exists('is_email')) {
+    function is_email(string $email): string|false
+    {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : false;
     }
 }
 
@@ -387,6 +407,13 @@ if (!function_exists('register_block_type')) {
     }
 }
 
+// SetupController / SetupDiagnoseController / SetupProofController type-hint
+// WP_REST_Request natively; alias the shared test double so MockWpRestRequest
+// instances satisfy that hint in unit tests.
+if (!class_exists('WP_REST_Request')) {
+    class_alias(\PaymentForm\Tests\Support\MockWpRestRequest::class, 'WP_REST_Request');
+}
+
 // Mock WP_REST_Response
 if (!class_exists('WP_REST_Response')) {
     class WP_REST_Response
@@ -541,6 +568,23 @@ if (!function_exists('wp_remote_retrieve_headers')) {
     function wp_remote_retrieve_headers(mixed $response): array
     {
         return is_array($response) ? (array) ($response['headers'] ?? []) : [];
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_header')) {
+    function wp_remote_retrieve_header(mixed $response, string $header): string|array
+    {
+        if (!is_array($response)) {
+            return '';
+        }
+
+        foreach ((array) ($response['headers'] ?? []) as $name => $value) {
+            if (strtolower((string) $name) === strtolower($header)) {
+                return $value;
+            }
+        }
+
+        return '';
     }
 }
 
