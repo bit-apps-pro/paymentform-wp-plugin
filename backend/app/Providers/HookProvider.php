@@ -39,8 +39,15 @@ final class HookProvider
      */
     public function loadApiRoutes(): void
     {
+        if (!RequestType::is(RequestType::API)) {
+            return;
+        }
+
         $routeFile = Config::pluginDir() . 'backend/hooks/api.php';
-        if (!RequestType::is(RequestType::API) || !is_readable($routeFile)) {
+        if (!is_readable($routeFile)) {
+            // Fail closed (no routes → REST 404s) but leave an operational
+            // trace; a silent return here makes a broken deployment invisible.
+            error_log('PaymentForm: REST route file missing: ' . $routeFile);
             return;
         }
 

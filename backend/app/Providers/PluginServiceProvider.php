@@ -91,14 +91,21 @@ final class PluginServiceProvider
 
     public function addModuleTypeToScripts(string $tag, string $handle): string
     {
-        // Only the admin SPA bundle ships as an ES module (Vite emits real
-        // imports there). `paymentform-form-view-script` is a plain IIFE
-        // talking to window globals; tagging it `type="module"` causes WP
-        // to register it through its module loader pipeline, which then
-        // *omits the standard `<script src>` tag* in favour of an import
+        // Only the admin SPA and block-editor bundles ship as ES modules
+        // (Vite emits real imports there). `paymentform-form-view-script` is
+        // a plain IIFE talking to window globals; tagging it `type="module"`
+        // causes WP to register it through its module loader pipeline, which
+        // then *omits the standard `<script src>` tag* in favour of an import
         // map entry — leaving only the inline `-extra` localised data on
         // the page and breaking shortcode hydration.
-        $moduleHandles = ['paymentform-admin', 'paymentform-form-editor-script'];
+        //
+        // The editor handle is the one captured by registerBlockAndShortcode
+        // (init), not a hard-coded literal — WP's `<block>-editor-script`
+        // naming convention has shifted across versions, and a mismatch here
+        // would print the module bundle as a classic script (SyntaxError on
+        // its top-level `import`, dead editor). `script_loader_tag` fires at
+        // print time, after init populated the property.
+        $moduleHandles = ['paymentform-admin', $this->blockEditorScriptHandle];
         if (!in_array($handle, $moduleHandles, true)) {
             return $tag;
         }

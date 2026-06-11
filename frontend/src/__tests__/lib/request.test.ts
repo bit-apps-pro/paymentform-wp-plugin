@@ -90,6 +90,15 @@ describe('request utility', () => {
     expect(result).toEqual({ id: '123', name: 'Test' });
   });
 
+  it('does not unwrap a payload with data+code but no envelope status', async () => {
+    const body = { data: { id: '123' }, code: 'COUPON10' };
+    stubFetch({ ok: true, body });
+
+    const result = await request('/test');
+
+    expect(result).toEqual(body);
+  });
+
   it('parses error responses with error_code', async () => {
     stubFetch({
       ok: false,

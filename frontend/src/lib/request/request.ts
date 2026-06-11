@@ -75,8 +75,10 @@ export async function request<T>(path: string, init: FetchInit = {}): Promise<T>
   }
 
   // wp-kit wraps payloads as { status, code, data, message? }. Unwrap to the
-  // bare payload so call sites keep their existing response types.
-  if (res.ok && body && typeof body === 'object' && 'data' in body && 'code' in body) {
+  // bare payload so call sites keep their existing response types. Requiring
+  // all three envelope keys (status is always 'success' | 'error') avoids
+  // wrongly unwrapping a non-enveloped payload that happens to carry data+code.
+  if (res.ok && body && typeof body === 'object' && 'status' in body && 'code' in body && 'data' in body) {
     return (body as { data: T }).data
   }
   return body as T
