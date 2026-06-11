@@ -159,29 +159,33 @@ final class PluginServiceProvider
             return;
         }
 
-        // Skip localize on editor screens that don't actually use the block to
-        // avoid a TokenService::getRaw() DB lookup + nonce generation per page.
-        // `has_block()` returns false for FSE/site-editor (no post context) which
-        // is fine — those screens don't render the form-embed block edit UI.
-        global $post;
-        if ($post && ! has_block('paymentform/form', $post)) {
-            return;
-        }
-
-        $raw = $this->container[TokenService::class]->getRaw();
-        $isArr = is_array($raw);
-        $tenant = $isArr ? ($raw['tenant'] ?? null) : null;
-        $connected = $isArr && !empty($raw['access_token']);
-
-        wp_localize_script($this->blockEditorScriptHandle, 'paymentformAdmin', [
-            'connected' => $connected,
-            'tenant' => $tenant,
+        // Always localize the request-layer essentials: the block's Edit
+        // component fetches /forms through the SPA `request()` helper, which
+        // needs `restUrl` + `nonce` even on a brand-new post where the block
+        // is inserted for the first time. These are computed without DB hits.
+        $config = [
             'siteUrl' => site_url(),
             'appBaseUrl' => Config::appBaseUrl(),
-            'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
             'restUrl' => rest_url('paymentform/v1/'),
             'nonce' => wp_create_nonce('wp_rest'),
-        ]);
+        ];
+
+        // Connection-derived fields cost a TokenService::getRaw() DB lookup, so
+        // only resolve them when the post already uses the block (the preview
+        // iframe needs the tenant renderer host). `has_block()` returns false
+        // for FSE/site-editor (no post context) which is fine — those screens
+        // don't render the form-embed block edit UI; consumers handle absence.
+        global $post;
+        if (! $post || has_block('paymentform/form', $post)) {
+            $raw = $this->container[TokenService::class]->getRaw();
+            $isArr = is_array($raw);
+
+            $config['connected'] = $isArr && !empty($raw['access_token']);
+            $config['tenant'] = $isArr ? ($raw['tenant'] ?? null) : null;
+            $config['rendererBaseUrl'] = $this->resolveRendererBaseUrl();
+        }
+
+        wp_localize_script($this->blockEditorScriptHandle, 'paymentformAdmin', $config);
     }
 
     public function registerAdminMenu(): void
