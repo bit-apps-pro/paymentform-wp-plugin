@@ -6,11 +6,15 @@ namespace PaymentForm;
 
 use PaymentForm\HTTP\Middleware\CapabilityCheckerMiddleware;
 use PaymentForm\HTTP\Middleware\NonceCheckerMiddleware;
+use PaymentForm\Providers\HookProvider;
+use PaymentForm\Providers\PluginServiceProvider;
+use PaymentForm\Providers\ServiceContainer;
 
 /**
- * Plugin singleton and middleware registry for the wp-kit router.
+ * Plugin singleton: entrypoint wiring + middleware registry for the wp-kit
+ * router. `backend/bootstrap.php` calls {@see load()} at include time.
  *
- * Composition-root split (intentional, relied on from Phase 2 onwards):
+ * Composition-root split (intentional):
  *
  *  - REST controllers (the targets wired in `backend/hooks/api.php`) are
  *    instantiated by wp-kit's RouteRegister via `new $class()` with ZERO
@@ -22,11 +26,6 @@ use PaymentForm\HTTP\Middleware\NonceCheckerMiddleware;
  *
  * Both sides read services from the same ServiceContainer/Container
  * singleton, so there is exactly one composition root.
- *
- * Phase 1 (current): `load()` only records the singleton — the wp-kit routing
- * stack is dormant and exercised by unit tests only. Phase 2 will extend
- * `load()` to drive PluginServiceProvider register/boot and construct
- * HookProvider on `plugins_loaded`.
  */
 final class Plugin
 {
@@ -40,9 +39,17 @@ final class Plugin
     }
 
     /**
-     * Loads the plugin singleton.
+     * Loads the plugin singleton and wires the WordPress integration.
      *
-     * @return bool false when the plugin was already loaded
+     * Ordering mirrors the pre-wp-kit bootstrap exactly: service bindings are
+     * registered into the container at include time (early consumers — e.g.
+     * the activation request — can resolve them before any hook fires), while
+     * the provider's hook registrations are deferred to `plugins_loaded`.
+     * HookProvider's constructor only adds the `rest_api_init` listener, so
+     * constructing it here at include time is always early enough for the
+     * wp-kit router (migration-spec Risk #10).
+     *
+     * @return bool false when the plugin was already loaded (no-op)
      */
     public static function load(): bool
     {
@@ -51,8 +58,19 @@ final class Plugin
         }
 
         self::$instance = new self();
+        self::$instance->wire();
 
         return true;
+    }
+
+    private function wire(): void
+    {
+        $provider = new PluginServiceProvider();
+        $provider->register(ServiceContainer::instance());
+
+        add_action('plugins_loaded', [$provider, 'boot']);
+
+        new HookProvider();
     }
 
     public static function instance(): ?Plugin

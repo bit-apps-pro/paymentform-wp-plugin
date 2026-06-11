@@ -12,7 +12,8 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Response;
  *
  * The admin SPA sends the nonce in the `X-WP-Nonce` header; a `_wpnonce`
  * query/body param is accepted as a fallback for parity with the legacy
- * Routes.php permission callback. Returning anything other than `true` makes
+ * permission callback this middleware replaced. Returning anything other
+ * than `true` makes
  * RouteRegister::handleMiddleware() short-circuit: the returned Response is
  * emitted (HTTP 401 here) and the controller action never runs.
  */

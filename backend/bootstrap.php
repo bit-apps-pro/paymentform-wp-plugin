@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace PaymentForm;
 
-use PaymentForm\Providers\PluginServiceProvider;
-use PaymentForm\Providers\ServiceContainer;
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -19,10 +16,4 @@ if (!defined('PAYMENTFORM_APP_BASE_URL')) {
     define('PAYMENTFORM_APP_BASE_URL', 'https://app.paymentform.io');
 }
 
-$container = ServiceContainer::instance();
-$provider  = new PluginServiceProvider();
-$provider->register($container);
-
-add_action('plugins_loaded', static function () use ($provider) {
-    $provider->boot();
-});
+Plugin::load();

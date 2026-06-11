@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use InvalidArgumentException;
 use JsonException;
 use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
@@ -449,17 +450,25 @@ final class SetupController
      * and its `code`/`message` are mirrored onto the envelope so the SPA's
      * error parser recovers the same semantic values (migration-spec MAJOR-2).
      *
-     * @param array<string, mixed> $body legacy error body; `code` required
+     * The message is set unconditionally: wp-kit's Response is an all-static
+     * singleton, so a message-less body must explicitly clear any message a
+     * previous response left behind. `message(null)` stores null verbatim
+     * (getMessage() returns the raw property) and RouteRegister::setResponse()
+     * omits falsy messages from the emitted body, so nothing stale leaks.
+     *
+     * @param array<string, mixed> $body legacy error body; string `code` required
+     *
+     * @throws InvalidArgumentException when the body carries no string `code`
      */
     private function failure(array $body, int $httpStatus): Response
     {
-        $response = Response::error($body, $httpStatus)->code($body['code']);
-
-        if (isset($body['message'])) {
-            $response->message($body['message']);
+        if (!isset($body['code']) || !is_string($body['code'])) {
+            throw new InvalidArgumentException('Setup failure body must declare a string `code`.');
         }
 
-        return $response;
+        return Response::error($body, $httpStatus)
+            ->code($body['code'])
+            ->message($body['message'] ?? null);
     }
 
     /**

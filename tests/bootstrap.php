@@ -61,6 +61,8 @@ class TestWpFunctions
     private static ?array $grantedCaps = null;
     /** @var array<string, list<callable>> */
     private static array $filters = [];
+    /** @var array<string, list<callable>> */
+    private static array $actions = [];
 
     public static function reset(): void
     {
@@ -71,6 +73,7 @@ class TestWpFunctions
         self::$nonceValidator = null;
         self::$grantedCaps = null;
         self::$filters = [];
+        self::$actions = [];
     }
 
     public static function getOption(string $option, mixed $default = false): mixed
@@ -199,6 +202,22 @@ class TestWpFunctions
         }
 
         return $value;
+    }
+
+    public static function addAction(string $tag, callable $callback): void
+    {
+        self::$actions[$tag][] = $callback;
+    }
+
+    /**
+     * Callbacks recorded by the add_action() stub, in registration order.
+     * The harness never fires hooks — tests invoke callbacks explicitly.
+     *
+     * @return list<callable>
+     */
+    public static function getActions(string $tag): array
+    {
+        return self::$actions[$tag] ?? [];
     }
 }
 
@@ -429,7 +448,9 @@ if (!function_exists('plugin_basename')) {
 if (!function_exists('add_action')) {
     function add_action(string $hook, callable $function_to_add, int $priority = 10, int $accepted_args = 1): bool
     {
-        // No-op in tests
+        // Recorded but never fired; priority/accepted_args are ignored.
+        // Inspect via TestWpFunctions::getActions().
+        TestWpFunctions::addAction($hook, $function_to_add);
         return true;
     }
 }

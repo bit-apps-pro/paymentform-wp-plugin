@@ -35,9 +35,7 @@ final class FormsProxyController
     public function index(Request $req): array|Response
     {
         try {
-            $response = $this->apiClient->request('GET', '/form');
-
-            return $response['data'] ?? $response;
+            return $this->flatten($this->apiClient->request('GET', '/form'));
         } catch (DisconnectedException) {
             return $this->errorResponse(ErrorCode::DISCONNECTED, 401);
         } catch (RuntimeException $e) {
@@ -59,14 +57,29 @@ final class FormsProxyController
         }
 
         try {
-            $response = $this->apiClient->request('GET', '/form/' . (int) $id);
-
-            return $response['data'] ?? $response;
+            return $this->flatten($this->apiClient->request('GET', '/form/' . (int) $id));
         } catch (DisconnectedException) {
             return $this->errorResponse(ErrorCode::DISCONNECTED, 401);
         } catch (RuntimeException $e) {
             return $this->errorResponse(ErrorCode::API_ERROR, 500, $e->getMessage());
         }
+    }
+
+    /**
+     * Strips the backend's `{ data: ... }` wrapper. Only an *array* payload
+     * is unwrapped — a scalar/null `data` (or a response with no wrapper at
+     * all) falls back to the full upstream response so a success path never
+     * returns a non-array to wp-kit's envelope.
+     *
+     * @param array<int|string, mixed> $response
+     *
+     * @return array<int|string, mixed>
+     */
+    private function flatten(array $response): array
+    {
+        $data = $response['data'] ?? $response;
+
+        return is_array($data) ? $data : $response;
     }
 
     /**

@@ -705,4 +705,31 @@ class SetupControllerTest extends TestCase
         $this->assertSame('POST', $call['args']['method']);
         $this->assertSame(['setup_token' => 'v1.stashed-token'], $this->lastRequestJson());
     }
+
+    // ---------------------------------------------------------------
+    // failure() transport invariants (wp-kit Response singleton)
+    // ---------------------------------------------------------------
+
+    public function test_message_less_failure_clears_a_stale_singleton_message(): void
+    {
+        // Response is all-static: a previous response within the same PHP
+        // request may have set a message. A message-less failure body must
+        // clear it, not inherit it.
+        Response::message('stale message from an earlier response');
+        \TestWpFunctions::setCurrentUser((object) ['ID' => 0]);
+
+        $result = $this->pollStatus(); // S1: unauthenticated, body has no message
+
+        $this->assertFailure($result, 401, ['next' => 'failed', 'code' => 'unauthenticated']);
+        $this->assertNull(Response::getMessage());
+    }
+
+    public function test_failure_throws_when_body_lacks_a_code(): void
+    {
+        $failure = new \ReflectionMethod(SetupController::class, 'failure');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $failure->invoke($this->controller(), ['next' => 'failed'], 500);
+    }
 }

@@ -97,6 +97,30 @@ class FormsProxyControllerTest extends TestCase
         $this->assertSame($form, $data);
     }
 
+    public function test_index_falls_back_to_full_response_when_data_is_not_an_array(): void
+    {
+        // A scalar `data` must not be returned bare (wp-kit success payloads
+        // are arrays); the full upstream response is the safe fallback.
+        $this->connect();
+        $body = ['status' => true, 'data' => 'unexpected-scalar'];
+        WpHttpMock::queue(200, $body);
+
+        $data = (new FormsProxyController())->index($this->makeWpKitRequest());
+
+        $this->assertSame($body, $data);
+    }
+
+    public function test_show_falls_back_to_full_response_when_data_is_missing(): void
+    {
+        $this->connect();
+        $body = ['status' => true, 'message' => 'no data wrapper'];
+        WpHttpMock::queue(200, $body);
+
+        $data = (new FormsProxyController())->show($this->makeWpKitRequest(params: ['id' => '5']));
+
+        $this->assertSame($body, $data);
+    }
+
     public function test_index_returns_401_disconnected_when_token_revoked(): void
     {
         $this->connect();

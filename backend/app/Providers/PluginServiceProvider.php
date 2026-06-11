@@ -7,7 +7,6 @@ namespace PaymentForm\Providers;
 use PaymentForm\Providers\Container;
 use PaymentForm\Config;
 use PaymentForm\HTTP\Rewrites;
-use PaymentForm\HTTP\Routes;
 use PaymentForm\HTTP\Shortcode;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\SetupProofController;
@@ -71,7 +70,6 @@ final class PluginServiceProvider
         add_action('init', [$this, 'loadTextdomain']);
         add_action('init', [$this, 'registerBlockAndShortcode']);
         add_action('init', [$this, 'registerCronSchedules']);
-        add_action('rest_api_init', [$this, 'registerRoutes']);
         add_action('admin_menu', [$this, 'registerAdminMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
         add_action('enqueue_block_editor_assets', [$this, 'enqueueBlockEditorAssets']);
@@ -177,14 +175,6 @@ final class PluginServiceProvider
             'restUrl' => rest_url('paymentform/v1/'),
             'nonce' => wp_create_nonce('wp_rest'),
         ]);
-    }
-
-    public function registerRoutes(): void
-    {
-        if ($this->container === null) {
-            return;
-        }
-        Routes::register($this->container);
     }
 
     public function registerAdminMenu(): void
