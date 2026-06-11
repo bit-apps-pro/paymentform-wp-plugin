@@ -53,8 +53,8 @@ class StatusControllerTest extends TestCase
         $this->assertSame(1, $data['user']['id']);
         $this->assertSame('foo@bar', $data['user']['email']);
         $this->assertSame('t1', $data['tenant']);
-        $this->assertSame(1000, $data['expires_in']);
-        $this->assertNotNull($data['expires_at']);
+        $this->assertSame(1000, $data['expiresIn']);
+        $this->assertNotNull($data['expiresAt']);
     }
 
     public function test_show_returns_disconnected_on_token_revoked(): void
