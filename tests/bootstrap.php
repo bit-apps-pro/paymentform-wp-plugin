@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// backend/hooks/*.php route files guard on ABSPATH; define it so tests can
+// include them through the wp-kit Router (Router::registerFile()).
+if (!defined('ABSPATH')) {
+    define('ABSPATH', sys_get_temp_dir() . '/wordpress/');
+}
 if (!defined('AUTH_KEY')) {
     define('AUTH_KEY', 'test-auth-key-' . str_repeat('a', 32));
 }
@@ -51,6 +56,11 @@ class TestWpFunctions
     private static array $transients = [];
     private static object $currentUser;
     private static array $roles = [];
+    private static ?Closure $nonceValidator = null;
+    /** null = legacy default: every capability check passes. */
+    private static ?array $grantedCaps = null;
+    /** @var array<string, list<callable>> */
+    private static array $filters = [];
 
     public static function reset(): void
     {
@@ -58,6 +68,9 @@ class TestWpFunctions
         self::$transients = [];
         self::$currentUser = (object) ['ID' => 1, 'user_login' => 'test_user'];
         self::$roles = ['administrator' => new TestWpRole()];
+        self::$nonceValidator = null;
+        self::$grantedCaps = null;
+        self::$filters = [];
     }
 
     public static function getOption(string $option, mixed $default = false): mixed
@@ -135,6 +148,57 @@ class TestWpFunctions
     public static function getRole(string $roleName): ?TestWpRole
     {
         return self::$roles[$roleName] ?? null;
+    }
+
+    /**
+     * Overrides wp_verify_nonce() behaviour for a single test. Pass null to
+     * restore the default (any non-empty nonce verifies).
+     *
+     * @param null|callable(?string, string): (int|false) $validator
+     */
+    public static function setNonceValidator(?callable $validator): void
+    {
+        self::$nonceValidator = $validator === null ? null : Closure::fromCallable($validator);
+    }
+
+    public static function verifyNonce(?string $nonce, string $action): int|false
+    {
+        if (self::$nonceValidator !== null) {
+            return (self::$nonceValidator)($nonce, $action);
+        }
+
+        // Default mirrors the historical stub: any non-empty nonce verifies.
+        return $nonce ? 1 : false;
+    }
+
+    /**
+     * Restricts current_user_can() to the given capabilities. Pass null to
+     * restore the default (every capability check passes).
+     *
+     * @param null|list<string> $caps
+     */
+    public static function setGrantedCaps(?array $caps): void
+    {
+        self::$grantedCaps = $caps;
+    }
+
+    public static function userCan(string $cap): bool
+    {
+        return self::$grantedCaps === null || in_array($cap, self::$grantedCaps, true);
+    }
+
+    public static function addFilter(string $tag, callable $callback): void
+    {
+        self::$filters[$tag][] = $callback;
+    }
+
+    public static function applyFilters(string $tag, mixed $value, mixed ...$args): mixed
+    {
+        foreach (self::$filters[$tag] ?? [] as $callback) {
+            $value = $callback($value, ...$args);
+        }
+
+        return $value;
     }
 }
 
@@ -299,16 +363,59 @@ if (!function_exists('wp_safe_redirect')) {
 if (!function_exists('wp_verify_nonce')) {
     function wp_verify_nonce(?string $nonce, string $action = ''): int|false
     {
-        // In tests, return 1 (valid) if nonce is not null; false otherwise
-        return $nonce ? 1 : false;
+        // Default: valid for any non-empty nonce; override per-test via
+        // TestWpFunctions::setNonceValidator().
+        return TestWpFunctions::verifyNonce($nonce, $action);
     }
 }
 
 if (!function_exists('current_user_can')) {
     function current_user_can(string $cap, mixed ...$args): bool
     {
-        // In tests, default to true; tests can override by mocking
+        // Default: every check passes; restrict per-test via
+        // TestWpFunctions::setGrantedCaps().
+        return TestWpFunctions::userCan($cap);
+    }
+}
+
+if (!function_exists('add_filter')) {
+    function add_filter(string $tag, callable $callback, int $priority = 10, int $accepted_args = 1): bool
+    {
+        // Minimal harness: priority/accepted_args are ignored.
+        TestWpFunctions::addFilter($tag, $callback);
         return true;
+    }
+}
+
+if (!function_exists('apply_filters')) {
+    function apply_filters(string $tag, mixed $value, mixed ...$args): mixed
+    {
+        return TestWpFunctions::applyFilters($tag, $value, ...$args);
+    }
+}
+
+if (!function_exists('sanitize_text_field')) {
+    function sanitize_text_field(string $str): string
+    {
+        return trim((string) preg_replace('/[\r\n\t ]+/', ' ', strip_tags($str)));
+    }
+}
+
+if (!function_exists('wp_unslash')) {
+    function wp_unslash(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map('wp_unslash', $value);
+        }
+
+        return is_string($value) ? stripslashes($value) : $value;
+    }
+}
+
+if (!function_exists('__')) {
+    function __(string $text, string $domain = 'default'): string
+    {
+        return $text;
     }
 }
 
@@ -414,12 +521,14 @@ if (!class_exists('WP_REST_Request')) {
     class_alias(\PaymentForm\Tests\Support\MockWpRestRequest::class, 'WP_REST_Request');
 }
 
-// Mock WP_REST_Response
+// Mock WP_REST_Response. The set_* methods mirror WordPress core; wp-kit's
+// RouteRegister::sendApiResponse() builds responses through them.
 if (!class_exists('WP_REST_Response')) {
     class WP_REST_Response
     {
         private array $data;
         private int $status;
+        private array $headers = [];
 
         public function __construct(mixed $data = null, int $status = 200)
         {
@@ -435,6 +544,26 @@ if (!class_exists('WP_REST_Response')) {
         public function get_status(): int
         {
             return $this->status;
+        }
+
+        public function set_data(mixed $data): void
+        {
+            $this->data = (array) $data;
+        }
+
+        public function set_status(int $status): void
+        {
+            $this->status = $status;
+        }
+
+        public function set_headers(array $headers): void
+        {
+            $this->headers = $headers;
+        }
+
+        public function get_headers(): array
+        {
+            return $this->headers;
         }
     }
 }

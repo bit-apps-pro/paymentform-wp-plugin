@@ -1,0 +1,62 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PaymentForm\Providers;
+
+use PaymentForm\Config;
+use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
+use PaymentForm\Deps\BitApps\WPKit\Http\RequestType;
+use PaymentForm\Deps\BitApps\WPKit\Http\Router\Router;
+use PaymentForm\Plugin;
+
+/**
+ * Wires the wp-kit REST router.
+ *
+ * The constructor is deliberately lightweight: it only registers the
+ * `rest_api_init` listener. The Router is constructed inside the callback
+ * and only on REST requests, so constructing this provider on
+ * `plugins_loaded` (from Plugin::load(), Phase 2) is always early enough
+ * and costs nothing on non-REST requests.
+ *
+ * Forward-looking constraint: wp-kit's Router keeps a single static
+ * instance; constructing a second Router (e.g. an AJAX one) would clobber
+ * it. Only this API router may exist.
+ */
+final class HookProvider
+{
+    private const REST_NAMESPACE = 'paymentform';
+
+    private const REST_VERSION = 'v1';
+
+    public function __construct()
+    {
+        Hooks::addAction('rest_api_init', [$this, 'loadApiRoutes']);
+    }
+
+    /**
+     * Registers the declarative route table under `paymentform/v1`.
+     */
+    public function loadApiRoutes(): void
+    {
+        $routeFile = Config::pluginDir() . 'backend/hooks/api.php';
+        if (!RequestType::is(RequestType::API) || !is_readable($routeFile)) {
+            return;
+        }
+
+        $router = new Router(RequestType::API, self::REST_NAMESPACE, self::REST_VERSION);
+
+        // SECURITY — the auth-parity gate. wp-kit registers all routes with
+        // `permission_callback => '__return_true'`, so the nonce + capability
+        // middleware attached in hooks/api.php are the ONLY auth layer.
+        // Without this call, Router::getRegisteredMiddleware() returns null
+        // for every name and the middleware chain is silently skipped (the
+        // file-manager reference plugin omits this on its API router —
+        // do not copy that). Plugin::load() always precedes construction of
+        // this provider, so the instance is guaranteed here.
+        $router->setMiddlewares(Plugin::instance()->middlewares());
+
+        $router->registerFile($routeFile);
+        $router->register();
+    }
+}

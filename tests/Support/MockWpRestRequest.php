@@ -71,6 +71,33 @@ final class MockWpRestRequest implements \ArrayAccess
         $this->headers[$key] = $value;
     }
 
+    // The four accessors below are read by the wp-kit
+    // Request::setApiRequest() hydration. The single $params bag doubles as
+    // the query params; body/url params stay separate and empty by default
+    // (url params would require a live RouteRegister to receive them).
+
+    public function get_query_params(): array
+    {
+        return $this->params;
+    }
+
+    public function get_body_params(): array
+    {
+        return [];
+    }
+
+    public function get_json_params(): array
+    {
+        $decoded = json_decode($this->body, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    public function get_url_params(): array
+    {
+        return [];
+    }
+
     // ArrayAccess for $req['id'] syntax
     public function offsetExists(mixed $offset): bool
     {
