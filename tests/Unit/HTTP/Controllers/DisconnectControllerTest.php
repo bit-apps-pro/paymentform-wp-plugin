@@ -5,39 +5,46 @@ declare(strict_types=1);
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
 use PaymentForm\HTTP\Controllers\DisconnectController;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
+use PaymentForm\Tests\Support\InteractsWithWpKit;
+use PaymentForm\Tests\Support\SeedsServiceContainer;
 use PHPUnit\Framework\TestCase;
 
 class DisconnectControllerTest extends TestCase
 {
+    use InteractsWithWpKit;
+    use SeedsServiceContainer;
+
     private TokenService $tokenService;
-    private EncryptionService $encryption;
-    private ApiClient $apiClient;
 
     protected function setUp(): void
     {
         \TestWpFunctions::reset();
-        $this->encryption = new EncryptionService();
-        $this->tokenService = new TokenService($this->encryption);
-        $this->apiClient = new ApiClient(
-            $this->tokenService,
-            new TokenRefreshLock(),
-            PAYMENTFORM_API_BASE_URL
-        );
+        $this->tokenService = new TokenService(new EncryptionService());
+        $this->seedContainer([
+            TokenService::class => $this->tokenService,
+            ApiClient::class => new ApiClient(
+                $this->tokenService,
+                new TokenRefreshLock(),
+                PAYMENTFORM_API_BASE_URL
+            ),
+        ]);
     }
 
-    public function test_disconnect_returns_200_when_already_disconnected(): void
+    protected function tearDown(): void
     {
-        $controller = new DisconnectController($this->tokenService, $this->apiClient);
-        $req = new MockWpRestRequest('POST', '/paymentform/v1/disconnect');
-        $response = $controller->disconnect($req);
+        ServiceContainer::reset();
+    }
 
-        $this->assertSame(200, $response->get_status());
-        $data = $response->get_data();
-        $this->assertTrue($data['status']);
+    public function test_disconnect_returns_success_when_already_disconnected(): void
+    {
+        $data = (new DisconnectController())->disconnect($this->makeWpKitRequest(method: 'POST'));
+
+        $this->assertSame(['status' => true], $data);
     }
 
     public function test_disconnect_clears_token(): void
@@ -45,11 +52,9 @@ class DisconnectControllerTest extends TestCase
         $this->tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
         $this->assertSame('test-token', $this->tokenService->get());
 
-        $controller = new DisconnectController($this->tokenService, $this->apiClient);
-        $req = new MockWpRestRequest('POST', '/paymentform/v1/disconnect');
-        $response = $controller->disconnect($req);
+        $data = (new DisconnectController())->disconnect($this->makeWpKitRequest(method: 'POST'));
 
-        $this->assertSame(200, $response->get_status());
+        $this->assertSame(['status' => true], $data);
         $this->assertNull($this->tokenService->get());
     }
 }

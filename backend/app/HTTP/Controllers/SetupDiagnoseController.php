@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use JsonException;
 use PaymentForm\Config;
+use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Services\SetupOptionsStore;
-use WP_REST_Request;
-use WP_REST_Response;
 
 /**
  * Pre-flight diagnostic endpoint for the setup flow.
@@ -16,16 +16,23 @@ use WP_REST_Response;
  * /paymentform/setup-proof endpoint is reachable from the outside before
  * the user spends time in the wizard. Catches firewall / CDN blocks early.
  *
+ * Soft-pass by design: every branch returns a bare array (HTTP 200 via the
+ * wp-kit success envelope); only an explicit backend failure verdict
+ * surfaces as { next: 'failed' }.
+ *
  * SSRF scope note: this endpoint does NOT accept caller-supplied URLs.
  * The target is always site_url('/paymentform/setup-proof'). The site_url
- * is already a WP-internal value; trust boundary is the WP admin (via
- * manage_options capability check in Routes.php).
+ * is already a WP-internal value; trust boundary is the WP admin (nonce +
+ * paymentform_manage middleware on the route).
  */
 final class SetupDiagnoseController
 {
     private const TIMEOUT_SECONDS = 10;
 
-    public function handle(WP_REST_Request $req): WP_REST_Response
+    /**
+     * @return array<string, mixed>
+     */
+    public function handle(Request $req): array
     {
         // Build stub token + nonce for the diagnose call.
         $nonce = bin2hex(random_bytes(16));
@@ -66,7 +73,7 @@ final class SetupDiagnoseController
 
         // Network error or 404 → soft pass (backend endpoint may not exist yet).
         if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) === 404) {
-            return new WP_REST_Response(['next' => 'ok'], 200);
+            return ['next' => 'ok'];
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
@@ -76,21 +83,22 @@ final class SetupDiagnoseController
             try {
                 $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
                 if (isset($body['next']) && $body['next'] === 'ok') {
-                    return new WP_REST_Response(['next' => 'ok'], 200);
+                    return ['next' => 'ok'];
                 }
-                // If backend returned a sub-code, surface it.
+                // If backend returned a sub-code, surface it (still HTTP 200).
                 if (isset($body['next']) && $body['next'] === 'failed') {
-                    return new WP_REST_Response(
-                        ['next' => 'failed', 'code' => $body['code'] ?? 'unknown', 'message' => $body['message'] ?? 'Diagnosis failed.'],
-                        200
-                    );
+                    return [
+                        'next' => 'failed',
+                        'code' => $body['code'] ?? 'unknown',
+                        'message' => $body['message'] ?? 'Diagnosis failed.',
+                    ];
                 }
-            } catch (\JsonException) {
+            } catch (JsonException) {
                 // Fall through to soft pass.
             }
         }
 
         // Any other response → soft pass.
-        return new WP_REST_Response(['next' => 'ok'], 200);
+        return ['next' => 'ok'];
     }
 }

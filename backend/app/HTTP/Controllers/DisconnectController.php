@@ -4,19 +4,29 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
+use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
-use WP_REST_Response;
 
 final class DisconnectController
 {
-    public function __construct(
-        private readonly TokenServiceInterface $tokenService,
-        private readonly ApiClient $apiClient,
-    ) {}
+    private readonly TokenServiceInterface $tokenService;
 
-    public function disconnect($req): WP_REST_Response
+    private readonly ApiClient $apiClient;
+
+    public function __construct()
+    {
+        $this->tokenService = ServiceContainer::get(TokenService::class);
+        $this->apiClient = ServiceContainer::get(ApiClient::class);
+    }
+
+    /**
+     * @return array{status: bool}
+     */
+    public function disconnect(Request $req): array
     {
         $token = $this->tokenService->get();
 
@@ -31,6 +41,6 @@ final class DisconnectController
 
         $this->tokenService->clear();
 
-        return new WP_REST_Response(['status' => true], 200);
+        return ['status' => true];
     }
 }

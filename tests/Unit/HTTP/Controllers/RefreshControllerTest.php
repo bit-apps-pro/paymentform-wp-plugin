@@ -4,40 +4,52 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\RefreshController;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
+use PaymentForm\Tests\Support\InteractsWithWpKit;
+use PaymentForm\Tests\Support\SeedsServiceContainer;
 use PHPUnit\Framework\TestCase;
 
 class RefreshControllerTest extends TestCase
 {
+    use InteractsWithWpKit;
+    use SeedsServiceContainer;
+
     private TokenService $tokenService;
-    private EncryptionService $encryption;
-    private ApiClient $apiClient;
 
     protected function setUp(): void
     {
         \TestWpFunctions::reset();
-        $this->encryption = new EncryptionService();
-        $this->tokenService = new TokenService($this->encryption);
-        $this->apiClient = new ApiClient(
-            $this->tokenService,
-            new TokenRefreshLock(),
-            PAYMENTFORM_API_BASE_URL
-        );
+        $this->resetWpKitResponse();
+        $this->tokenService = new TokenService(new EncryptionService());
+        $this->seedContainer([
+            TokenService::class => $this->tokenService,
+            ApiClient::class => new ApiClient(
+                $this->tokenService,
+                new TokenRefreshLock(),
+                PAYMENTFORM_API_BASE_URL
+            ),
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        ServiceContainer::reset();
+        $this->resetWpKitResponse();
     }
 
     public function test_refresh_returns_400_when_not_connected(): void
     {
-        $controller = new RefreshController($this->tokenService, $this->apiClient);
-        $req = new MockWpRestRequest('POST', '/paymentform/v1/refresh');
-        $response = $controller->refresh($req);
+        $response = (new RefreshController())->refresh($this->makeWpKitRequest(method: 'POST'));
 
-        $this->assertSame(400, $response->get_status());
-        $data = $response->get_data();
-        $this->assertFalse($data['status']);
-        $this->assertSame('NOT_CONNECTED', $data['error_code']);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(400, Response::getHttpStatusCode());
+        $this->assertSame('NOT_CONNECTED', Response::getCode());
+        $this->assertSame(['status' => false, 'error_code' => 'NOT_CONNECTED'], Response::getData());
     }
 }

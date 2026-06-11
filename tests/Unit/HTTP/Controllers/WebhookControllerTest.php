@@ -8,6 +8,7 @@ use PaymentForm\HTTP\Controllers\WebhookController;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\WebhookService;
+use PaymentForm\Tests\Support\MockWpRestRequest;
 use PHPUnit\Framework\TestCase;
 
 class WebhookControllerTest extends TestCase

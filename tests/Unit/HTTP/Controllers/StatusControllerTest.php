@@ -5,49 +5,60 @@ declare(strict_types=1);
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
 use PaymentForm\HTTP\Controllers\StatusController;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
-use PaymentForm\Tests\Support\MockWpRestRequest;
+use PaymentForm\Tests\Support\InteractsWithWpKit;
+use PaymentForm\Tests\Support\SeedsServiceContainer;
 use PHPUnit\Framework\TestCase;
 use WpHttpMock;
 
 class StatusControllerTest extends TestCase
 {
-    private EncryptionService $encryption;
+    use InteractsWithWpKit;
+    use SeedsServiceContainer;
+
+    private TokenService $tokenService;
 
     protected function setUp(): void
     {
         \TestWpFunctions::reset();
         WpHttpMock::reset();
-        $this->encryption = new EncryptionService();
+        $this->tokenService = new TokenService(new EncryptionService());
+        $this->seedContainer([
+            TokenService::class => $this->tokenService,
+            ApiClient::class => new ApiClient(
+                $this->tokenService,
+                new TokenRefreshLock(),
+                PAYMENTFORM_API_BASE_URL
+            ),
+        ]);
     }
 
-    private function apiClient(TokenService $tokenService): ApiClient
+    protected function tearDown(): void
     {
-        return new ApiClient($tokenService, new TokenRefreshLock(), PAYMENTFORM_API_BASE_URL);
+        ServiceContainer::reset();
+    }
+
+    /** @return array<string, mixed> */
+    private function show(): array
+    {
+        return (new StatusController())->show($this->makeWpKitRequest());
     }
 
     public function test_show_returns_not_connected_when_no_token(): void
     {
-        $tokenService = new TokenService($this->encryption);
-        $controller = new StatusController($tokenService, $this->apiClient($tokenService));
-
-        $response = $controller->show(new MockWpRestRequest('GET', '/paymentform/v1/status'));
-
-        $this->assertSame(200, $response->get_status());
-        $this->assertFalse($response->get_data()['connected']);
+        $this->assertSame(['connected' => false], $this->show());
     }
 
     public function test_show_returns_connected_when_api_succeeds(): void
     {
-        $tokenService = new TokenService($this->encryption);
-        $tokenService->store('test-token', (new \DateTime('+1000 seconds'))->format(\DateTimeInterface::ATOM));
+        $this->tokenService->store('test-token', (new \DateTime('+1000 seconds'))->format(\DateTimeInterface::ATOM));
         WpHttpMock::queue(200, ['data' => ['user' => ['id' => 1, 'email' => 'foo@bar'], 'tenant' => 't1']]);
 
-        $controller = new StatusController($tokenService, $this->apiClient($tokenService));
-        $data = $controller->show(new MockWpRestRequest('GET', '/paymentform/v1/status'))->get_data();
+        $data = $this->show();
 
         $this->assertTrue($data['connected']);
         $this->assertSame(1, $data['user']['id']);
@@ -59,28 +70,24 @@ class StatusControllerTest extends TestCase
 
     public function test_show_returns_disconnected_on_token_revoked(): void
     {
-        $tokenService = new TokenService($this->encryption);
-        $tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
+        $this->tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
         WpHttpMock::queue(401, 'Unauthorized');
         WpHttpMock::queue(200, ['data' => ['token' => 'new-token', 'expires_at' => (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM)]]);
         WpHttpMock::queue(401, 'Unauthorized');
 
-        $controller = new StatusController($tokenService, $this->apiClient($tokenService));
-        $data = $controller->show(new MockWpRestRequest('GET', '/paymentform/v1/status'))->get_data();
+        $data = $this->show();
 
         $this->assertFalse($data['connected']);
         $this->assertSame('token_revoked', $data['error']);
-        $this->assertNull($tokenService->get());
+        $this->assertNull($this->tokenService->get());
     }
 
     public function test_show_returns_disconnected_on_other_api_error(): void
     {
-        $tokenService = new TokenService($this->encryption);
-        $tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
+        $this->tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
         WpHttpMock::queue(500, 'Internal Server Error');
 
-        $controller = new StatusController($tokenService, $this->apiClient($tokenService));
-        $data = $controller->show(new MockWpRestRequest('GET', '/paymentform/v1/status'))->get_data();
+        $data = $this->show();
 
         $this->assertFalse($data['connected']);
         $this->assertSame('token_revoked', $data['error']);

@@ -4,27 +4,38 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
+use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\Enums\ErrorCode;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
+use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
-use WP_REST_Response;
 
 final class RefreshController
 {
-    public function __construct(
-        private readonly TokenServiceInterface $tokenService,
-        private readonly ApiClient $apiClient,
-    ) {}
+    private readonly TokenServiceInterface $tokenService;
 
-    public function refresh($req): WP_REST_Response
+    private readonly ApiClient $apiClient;
+
+    public function __construct()
+    {
+        $this->tokenService = ServiceContainer::get(TokenService::class);
+        $this->apiClient = ServiceContainer::get(ApiClient::class);
+    }
+
+    /**
+     * @return array<string, mixed>|Response
+     */
+    public function refresh(Request $req): array|Response
     {
         $token = $this->tokenService->get();
         if ($token === null) {
-            return new WP_REST_Response([
+            return Response::error([
                 'status' => false,
                 'error_code' => ErrorCode::NOT_CONNECTED->value,
-            ], 400);
+            ], 400)->code(ErrorCode::NOT_CONNECTED->value);
         }
 
         try {
@@ -34,15 +45,16 @@ final class RefreshController
             $rawData = $this->tokenService->getRaw();
             $expiresAt = $rawData['expires_at'] ?? null;
 
-            return new WP_REST_Response([
+            return [
                 'status' => true,
                 'data' => [
                     'expires_at' => $expiresAt,
                     'expires_in' => $expiresIn,
-                ]
-            ], 200);
+                ],
+            ];
         } catch (RuntimeException $e) {
-            return new WP_REST_Response($this->failureBody($e), 502);
+            return Response::error($this->failureBody($e), 502)
+                ->code(ErrorCode::REFRESH_FAILED->value);
         }
     }
 

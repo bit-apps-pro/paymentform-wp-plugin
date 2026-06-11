@@ -6,12 +6,14 @@ namespace PaymentForm\HTTP\Controllers;
 
 use JsonException;
 use PaymentForm\Config;
+use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
+use PaymentForm\Deps\BitApps\WPKit\Http\Response;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\SetupOptionsStore;
+use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use Throwable;
-use WP_REST_Request;
-use WP_REST_Response;
 
 /**
  * REST controller for POST /paymentform/v1/setup — orchestrates the
@@ -29,37 +31,50 @@ use WP_REST_Response;
  *    - 422 + error_code: 'PROOF_FAILED' → return { next: 'failed', code: <sub_code> }
  *    - 422 + error_code: 'INVALID_PROOF_HOST' → return { next: 'failed', code: 'invalid_proof_host' }
  *    - Network/5xx error → return { next: 'failed', code: 'network' }
+ *
+ * Response transport: 2xx branches return bare arrays (wp-kit success
+ * envelope); every non-2xx branch goes through {@see failure()}, which keeps
+ * the full legacy body under `data` and mirrors its `code`/`message` onto the
+ * wp-kit envelope per the migration-spec return-point mapping (MAJOR-2).
  */
 final class SetupController
 {
     private const TIMEOUT_SECONDS = 30;
 
-    public function __construct(
-        private readonly ApiClient $apiClient,
-        private readonly TokenServiceInterface $tokenService,
-    ) {}
+    private readonly ApiClient $apiClient;
 
-    public function handle(WP_REST_Request $req): WP_REST_Response
+    private readonly TokenServiceInterface $tokenService;
+
+    public function __construct()
+    {
+        $this->apiClient = ServiceContainer::get(ApiClient::class);
+        $this->tokenService = ServiceContainer::get(TokenService::class);
+    }
+
+    /**
+     * @return array<string, mixed>|Response
+     */
+    public function handle(Request $req): array|Response
     {
         // Parse and validate input.
-        $email = (string) ($req->get_param('email') ?? '');
-        $country = (string) ($req->get_param('country') ?? '');
-        $locale = (string) ($req->get_param('locale') ?? '');
-        $emailOverride = (string) ($req->get_param('email_override') ?? '');
+        $email = (string) $req->get('email', '');
+        $country = (string) $req->get('country', '');
+        $locale = (string) $req->get('locale', '');
+        $emailOverride = (string) $req->get('email_override', '');
 
         // Validate email format.
         if (!$email || strlen($email) > 256 || !is_email($email)) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid email address.'], 400);
+            return $this->failure(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid email address.'], 400);
         }
 
         // Validate country (ISO 3166-1 alpha-2, uppercase).
         if (!$country || strlen($country) !== 2 || !preg_match('/^[A-Z]{2}$/', $country)) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid country code.'], 400);
+            return $this->failure(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid country code.'], 400);
         }
 
         // Validate optional locale (format: xx_YY).
         if ($locale && strlen($locale) !== 5) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid locale format.'], 400);
+            return $this->failure(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid locale format.'], 400);
         }
 
         // Cap string lengths before hashing/persisting.
@@ -128,7 +143,7 @@ final class SetupController
 
         // Handle network errors.
         if (is_wp_error($response)) {
-            return new WP_REST_Response(
+            return $this->failure(
                 [
                     'next' => 'failed',
                     'code' => 'network',
@@ -147,7 +162,8 @@ final class SetupController
                 $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
                 if (isset($body['error_code']) && $body['error_code'] === 'FEATURE_DISABLED') {
                     $retryAfter = (int) ($body['retry_after'] ?? 3600);
-                    return new WP_REST_Response(
+
+                    return $this->failure(
                         [
                             'next' => 'failed',
                             'code' => 'service_unavailable',
@@ -160,7 +176,8 @@ final class SetupController
             } catch (JsonException) {
                 // Fall through to generic network error.
             }
-            return new WP_REST_Response(
+
+            return $this->failure(
                 ['next' => 'failed', 'code' => 'network', 'message' => 'Backend service unavailable.'],
                 503
             );
@@ -175,7 +192,7 @@ final class SetupController
                 $retryAfter = (int) $retryHeader;
             }
 
-            return new WP_REST_Response(
+            return $this->failure(
                 [
                     'next' => 'failed',
                     'code' => 'rate_limited',
@@ -191,7 +208,7 @@ final class SetupController
             try {
                 $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
             } catch (JsonException) {
-                return new WP_REST_Response(
+                return $this->failure(
                     ['next' => 'failed', 'code' => 'invalid_response', 'message' => 'Invalid backend response.'],
                     502
                 );
@@ -202,7 +219,7 @@ final class SetupController
             // `invalid_response` rather than silently falling back to the
             // outer body (which would mis-route `status: false` errors).
             if (! is_array($body) || ! array_key_exists('data', $body) || ! is_array($body['data'])) {
-                return new WP_REST_Response(
+                return $this->failure(
                     ['next' => 'failed', 'code' => 'invalid_response', 'message' => 'Invalid backend response.'],
                     502
                 );
@@ -227,13 +244,11 @@ final class SetupController
                         // Wipe per-nonce row; keep per-email for OTP-resend reference.
                         delete_option('paymentform_setup_by_nonce_' . $nonce);
 
-                        return new WP_REST_Response(
-                            ['next' => 'connected', 'has_workspace' => true],
-                            200
-                        );
-                    } catch (Throwable $e) {
+                        return ['next' => 'connected', 'has_workspace' => true];
+                    } catch (Throwable) {
                         $this->tokenService->clear();
-                        return new WP_REST_Response(
+
+                        return $this->failure(
                             ['next' => 'failed', 'code' => 'storage_failed', 'message' => 'Failed to store connection.'],
                             500
                         );
@@ -258,14 +273,11 @@ final class SetupController
                 // Per-nonce row is no longer needed once the handshake completed.
                 delete_option('paymentform_setup_by_nonce_' . $nonce);
 
-                return new WP_REST_Response(
-                    [
-                        'next' => 'check_inbox',
-                        'email_masked' => is_string($data['email_masked'] ?? null) ? $data['email_masked'] : null,
-                        'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
-                    ],
-                    200
-                );
+                return [
+                    'next' => 'check_inbox',
+                    'email_masked' => is_string($data['email_masked'] ?? null) ? $data['email_masked'] : null,
+                    'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
+                ];
             }
 
             // Branch A: existing email, redirect to Connect.
@@ -275,10 +287,7 @@ final class SetupController
                     // Wipe per-nonce row.
                     delete_option('paymentform_setup_by_nonce_' . $nonce);
 
-                    return new WP_REST_Response(
-                        ['next' => 'redirect_connect', 'connect_url' => $connectUrl, 'has_workspace' => false],
-                        200
-                    );
+                    return ['next' => 'redirect_connect', 'connect_url' => $connectUrl, 'has_workspace' => false];
                 }
             }
         }
@@ -288,35 +297,27 @@ final class SetupController
             try {
                 $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
             } catch (JsonException) {
-                return new WP_REST_Response(
-                    ['next' => 'failed', 'code' => 'invalid_response'],
-                    502
-                );
+                return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);
             }
 
             $errorCode = $body['error_code'] ?? null;
 
             // Proof failed with sub-code.
             if ($errorCode === 'PROOF_FAILED') {
-                $errors = $body['errors'] ?? [];
-                $subCode = is_array($errors) ? (current($errors) ?? 'proof_failed') : 'proof_failed';
-
+                $subCode = $this->extractProofSubCode($body['errors'] ?? null);
                 $message = $this->mapProofErrorMessage($subCode);
 
                 // Wipe per-nonce row.
                 delete_option('paymentform_setup_by_nonce_' . $nonce);
 
-                return new WP_REST_Response(
-                    ['next' => 'failed', 'code' => $subCode, 'message' => $message],
-                    422
-                );
+                return $this->failure(['next' => 'failed', 'code' => $subCode, 'message' => $message], 422);
             }
 
             // Proof host mismatch.
             if ($errorCode === 'INVALID_PROOF_HOST') {
                 delete_option('paymentform_setup_by_nonce_' . $nonce);
 
-                return new WP_REST_Response(
+                return $this->failure(
                     ['next' => 'failed', 'code' => 'invalid_proof_host', 'message' => 'Site URL host mismatch.'],
                     422
                 );
@@ -326,7 +327,7 @@ final class SetupController
         // Generic error response.
         delete_option('paymentform_setup_by_nonce_' . $nonce);
 
-        return new WP_REST_Response(
+        return $this->failure(
             ['next' => 'failed', 'code' => 'unknown_error', 'message' => 'An unexpected error occurred.'],
             500
         );
@@ -339,17 +340,19 @@ final class SetupController
      *
      * Mirrors `handle()` response shape so the wizard can keep using the
      * same `next:` branching it already has for the initial /setup call.
+     *
+     * @return array<string, mixed>|Response
      */
-    public function status(WP_REST_Request $req): WP_REST_Response
+    public function status(Request $req): array|Response
     {
         $userId = get_current_user_id();
         if ($userId <= 0) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'unauthenticated'], 401);
+            return $this->failure(['next' => 'failed', 'code' => 'unauthenticated'], 401);
         }
 
         $wpSetupToken = get_transient($this->pendingTransientKey($userId));
         if (! is_string($wpSetupToken) || $wpSetupToken === '') {
-            return new WP_REST_Response(
+            return $this->failure(
                 ['next' => 'failed', 'code' => 'setup_expired', 'message' => 'Your setup link has expired. Please start over.'],
                 410
             );
@@ -366,7 +369,10 @@ final class SetupController
         ]);
 
         if (is_wp_error($response)) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'network', 'message' => 'Could not reach paymentform.io.'], 503);
+            return $this->failure(
+                ['next' => 'failed', 'code' => 'network', 'message' => 'Could not reach paymentform.io.'],
+                503
+            );
         }
 
         $statusCode = (int) wp_remote_retrieve_response_code($response);
@@ -377,24 +383,25 @@ final class SetupController
         if ($statusCode === 410) {
             delete_transient($this->pendingTransientKey($userId));
 
-            return new WP_REST_Response(
+            return $this->failure(
                 ['next' => 'failed', 'code' => 'setup_expired', 'message' => 'Your setup link has expired. Please start over.'],
                 410
             );
         }
 
         if ($statusCode < 200 || $statusCode >= 300) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'finalize_failed'], $statusCode);
+            // Dynamic passthrough of the backend's own status (mapping S5).
+            return $this->failure(['next' => 'failed', 'code' => 'finalize_failed'], $statusCode);
         }
 
         try {
             $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'invalid_response'], 502);
+            return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);
         }
 
         if (! is_array($body) || ! isset($body['data']) || ! is_array($body['data'])) {
-            return new WP_REST_Response(['next' => 'failed', 'code' => 'invalid_response'], 502);
+            return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);
         }
 
         $data = $body['data'];
@@ -406,7 +413,7 @@ final class SetupController
             $webhookSecret = $data['webhook_secret'] ?? null;
 
             if (! is_string($token) || ! is_string($expiresAt)) {
-                return new WP_REST_Response(['next' => 'failed', 'code' => 'invalid_response'], 502);
+                return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);
             }
 
             try {
@@ -415,31 +422,58 @@ final class SetupController
                 }
                 $this->tokenService->store($token, $expiresAt, is_string($data['tenant'] ?? null) ? $data['tenant'] : null);
                 $this->tokenService->storeCreatedVia('setup');
-            } catch (Throwable $e) {
+            } catch (Throwable) {
                 $this->tokenService->clear();
 
-                return new WP_REST_Response(['next' => 'failed', 'code' => 'storage_failed'], 500);
+                return $this->failure(['next' => 'failed', 'code' => 'storage_failed'], 500);
             }
 
             // Consume the transient — the access token has superseded the
             // setup token and a replay would be wasted server work.
             delete_transient($this->pendingTransientKey($userId));
 
-            return new WP_REST_Response(
-                ['next' => 'connected', 'has_workspace' => true, 'email_verified' => true],
-                200
-            );
+            return ['next' => 'connected', 'has_workspace' => true, 'email_verified' => true];
         }
 
         // Still pending — wizard keeps polling.
-        return new WP_REST_Response(
-            [
-                'next' => 'check_inbox',
-                'email_verified' => (bool) ($data['email_verified'] ?? false),
-                'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
-            ],
-            200
-        );
+        return [
+            'next' => 'check_inbox',
+            'email_verified' => (bool) ($data['email_verified'] ?? false),
+            'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
+        ];
+    }
+
+    /**
+     * Wraps a legacy error body in the wp-kit error envelope: the full body
+     * stays under `data` (so `next`/`message`/`retry_after_seconds` survive)
+     * and its `code`/`message` are mirrored onto the envelope so the SPA's
+     * error parser recovers the same semantic values (migration-spec MAJOR-2).
+     *
+     * @param array<string, mixed> $body legacy error body; `code` required
+     */
+    private function failure(array $body, int $httpStatus): Response
+    {
+        $response = Response::error($body, $httpStatus)->code($body['code']);
+
+        if (isset($body['message'])) {
+            $response->message($body['message']);
+        }
+
+        return $response;
+    }
+
+    /**
+     * First entry of the backend's PROOF_FAILED `errors` array, defaulting to
+     * `proof_failed` when the array is missing, empty, non-array, or carries
+     * a non-string first element. The empty-array case used to slip
+     * `current([]) === false` past a `?? 'proof_failed'` null-only fallback
+     * and crash mapProofErrorMessage() under strict_types.
+     */
+    private function extractProofSubCode(mixed $errors): string
+    {
+        $first = is_array($errors) && $errors !== [] ? current($errors) : null;
+
+        return is_string($first) && $first !== '' ? $first : 'proof_failed';
     }
 
     /**

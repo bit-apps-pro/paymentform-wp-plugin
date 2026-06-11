@@ -5,16 +5,23 @@ declare(strict_types=1);
 namespace PaymentForm\HTTP\Controllers;
 
 use PaymentForm\Config;
+use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ConnectService;
-use WP_REST_Response;
 
 final class ConnectController
 {
-    public function __construct(
-        private readonly ConnectService $connectService,
-    ) {}
+    private readonly ConnectService $connectService;
 
-    public function show($req): WP_REST_Response
+    public function __construct()
+    {
+        $this->connectService = ServiceContainer::get(ConnectService::class);
+    }
+
+    /**
+     * @return array{url: string}
+     */
+    public function show(Request $req): array
     {
         $state = $this->connectService->generateState();
         $callbackUrl = home_url('/paymentform/callback');
@@ -24,6 +31,6 @@ final class ConnectController
             $state
         );
 
-        return new WP_REST_Response(['url' => $connectUrl], 200);
+        return ['url' => $connectUrl];
     }
 }

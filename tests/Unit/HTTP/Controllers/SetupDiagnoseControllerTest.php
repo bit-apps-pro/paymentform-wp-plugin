@@ -5,29 +5,33 @@ declare(strict_types=1);
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
 use PaymentForm\HTTP\Controllers\SetupDiagnoseController;
-use PaymentForm\Tests\Support\MockWpRestRequest;
+use PaymentForm\Tests\Support\InteractsWithWpKit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use WpHttpMock;
 
 /**
- * Characterization tests locking the current JSON contract of
- * SetupDiagnoseController::handle() ahead of the routing migration.
- * The endpoint is soft-pass by design: every return is HTTP 200, and only
- * an explicit backend failure verdict surfaces as { next: 'failed' }.
+ * Characterization tests locking the JSON contract of
+ * SetupDiagnoseController::handle() across the routing migration.
+ * The endpoint is soft-pass by design: every return is a bare array (HTTP
+ * 200 via the wp-kit success envelope), and only an explicit backend
+ * failure verdict surfaces as { next: 'failed' }.
  */
 class SetupDiagnoseControllerTest extends TestCase
 {
+    use InteractsWithWpKit;
+
     protected function setUp(): void
     {
         \TestWpFunctions::reset();
         WpHttpMock::reset();
     }
 
-    private function diagnose(): \WP_REST_Response
+    /** @return array<string, mixed> */
+    private function diagnose(): array
     {
         return (new SetupDiagnoseController())
-            ->handle(new MockWpRestRequest('POST', '/paymentform/v1/setup/diagnose'));
+            ->handle($this->makeWpKitRequest(method: 'POST'));
     }
 
     public static function softPassProvider(): array
@@ -46,32 +50,23 @@ class SetupDiagnoseControllerTest extends TestCase
     {
         WpHttpMock::queue($status, $body);
 
-        $response = $this->diagnose();
-
-        $this->assertSame(200, $response->get_status());
-        $this->assertSame(['next' => 'ok'], $response->get_data());
+        $this->assertSame(['next' => 'ok'], $this->diagnose());
     }
 
     public function test_handle_soft_passes_on_transport_error(): void
     {
         WpHttpMock::queueError('timeout');
 
-        $response = $this->diagnose();
-
-        $this->assertSame(200, $response->get_status());
-        $this->assertSame(['next' => 'ok'], $response->get_data());
+        $this->assertSame(['next' => 'ok'], $this->diagnose());
     }
 
     public function test_handle_surfaces_backend_failure_verdict_with_200(): void
     {
         WpHttpMock::queue(200, ['next' => 'failed', 'code' => 'proof_unreachable', 'message' => 'Site not reachable.']);
 
-        $response = $this->diagnose();
-
-        $this->assertSame(200, $response->get_status());
         $this->assertSame(
             ['next' => 'failed', 'code' => 'proof_unreachable', 'message' => 'Site not reachable.'],
-            $response->get_data()
+            $this->diagnose()
         );
     }
 
@@ -79,12 +74,9 @@ class SetupDiagnoseControllerTest extends TestCase
     {
         WpHttpMock::queue(200, ['next' => 'failed']);
 
-        $response = $this->diagnose();
-
-        $this->assertSame(200, $response->get_status());
         $this->assertSame(
             ['next' => 'failed', 'code' => 'unknown', 'message' => 'Diagnosis failed.'],
-            $response->get_data()
+            $this->diagnose()
         );
     }
 

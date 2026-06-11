@@ -76,6 +76,20 @@ final class ApiRouteRegistrationTest extends TestCase
         $this->assertSame(self::EXPECTED_ROUTES, $actual);
     }
 
+    public function test_every_route_action_method_exists(): void
+    {
+        // A typo'd [class, method] pair would only surface as a runtime
+        // fatal when wp-kit reflects the action mid-request; fail here instead.
+        foreach (self::$router->getRoutes() as $route) {
+            [$class, $method] = $route->getAction();
+
+            $this->assertTrue(
+                method_exists($class, $method),
+                sprintf("route '%s' targets missing action %s::%s()", $route->getPath(), $class, $method)
+            );
+        }
+    }
+
     public function test_every_route_carries_nonce_then_capability_middleware(): void
     {
         $routes = self::$router->getRoutes();

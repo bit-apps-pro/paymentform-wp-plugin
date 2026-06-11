@@ -4,33 +4,46 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
+use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\DisconnectedException;
+use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
-use WP_REST_Response;
 
 final class StatusController
 {
-    public function __construct(
-        private readonly TokenServiceInterface $tokenService,
-        private readonly ApiClient $apiClient,
-    ) {}
+    private readonly TokenServiceInterface $tokenService;
 
-    public function show($req): WP_REST_Response
+    private readonly ApiClient $apiClient;
+
+    public function __construct()
+    {
+        $this->tokenService = ServiceContainer::get(TokenService::class);
+        $this->apiClient = ServiceContainer::get(ApiClient::class);
+    }
+
+    /**
+     * Every branch (including token-revoked) answers 200 with a plain array;
+     * "not connected" is a state, not an error.
+     *
+     * @return array<string, mixed>
+     */
+    public function show(Request $req): array
     {
         $token = $this->tokenService->get();
         if ($token === null) {
-            return new WP_REST_Response(['connected' => false], 200);
+            return ['connected' => false];
         }
 
         try {
             $response = $this->apiClient->request('GET', '/me');
-        } catch (DisconnectedException|RuntimeException $e) {
-            return new WP_REST_Response([
+        } catch (DisconnectedException|RuntimeException) {
+            return [
                 'connected' => false,
                 'error' => 'token_revoked',
-            ], 200);
+            ];
         }
 
         $expiresIn = $this->tokenService->expiresIn();
@@ -40,7 +53,7 @@ final class StatusController
             $expiresAt = $rawData['expires_at'];
         }
 
-        return new WP_REST_Response([
+        return [
             'connected' => true,
             'user' => $response['data']['user'] ?? null,
             'tenant' => $response['data']['tenant'] ?? null,
@@ -48,6 +61,6 @@ final class StatusController
             // (useConnection.ts). REST layer does NOT auto-convert.
             'expiresAt' => $expiresAt,
             'expiresIn' => $expiresIn,
-        ], 200);
+        ];
     }
 }

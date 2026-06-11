@@ -9,14 +9,7 @@ use PaymentForm\Config;
 use PaymentForm\HTTP\Rewrites;
 use PaymentForm\HTTP\Routes;
 use PaymentForm\HTTP\Shortcode;
-use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\HTTP\Controllers\CallbackController;
-use PaymentForm\HTTP\Controllers\StatusController;
-use PaymentForm\HTTP\Controllers\RefreshController;
-use PaymentForm\HTTP\Controllers\DisconnectController;
-use PaymentForm\HTTP\Controllers\FormsProxyController;
-use PaymentForm\HTTP\Controllers\SetupController;
-use PaymentForm\HTTP\Controllers\SetupDiagnoseController;
 use PaymentForm\HTTP\Controllers\SetupProofController;
 use PaymentForm\HTTP\Controllers\WebhookController;
 use PaymentForm\Services\EncryptionService;
@@ -56,47 +49,19 @@ final class PluginServiceProvider
         // Webhook signature verification
         $c[WebhookService::class] = static fn() => new WebhookService();
 
-        // HTTP Controllers
-        $c[ConnectController::class] = static fn($c) => new ConnectController(
-            $c[ConnectService::class]
-        );
-
+        // Non-REST controllers, dispatched by Rewrites.php from the
+        // container. REST controllers are NOT bound here: wp-kit instantiates
+        // them with zero args and they pull services from ServiceContainer
+        // (see Plugin.php docblock for the composition-root split).
         $c[CallbackController::class] = static fn($c) => new CallbackController(
             $c[ConnectService::class],
             $c[TokenService::class]
-        );
-
-        $c[StatusController::class] = static fn($c) => new StatusController(
-            $c[TokenService::class],
-            $c[ApiClient::class]
-        );
-
-        $c[RefreshController::class] = static fn($c) => new RefreshController(
-            $c[TokenService::class],
-            $c[ApiClient::class]
-        );
-
-        $c[DisconnectController::class] = static fn($c) => new DisconnectController(
-            $c[TokenService::class],
-            $c[ApiClient::class]
-        );
-
-        $c[FormsProxyController::class] = static fn($c) => new FormsProxyController(
-            $c[ApiClient::class]
         );
 
         $c[WebhookController::class] = static fn($c) => new WebhookController(
             $c[TokenService::class],
             $c[WebhookService::class]
         );
-
-        // Setup flow controllers
-        $c[SetupController::class] = static fn($c) => new SetupController(
-            $c[ApiClient::class],
-            $c[TokenService::class]
-        );
-
-        $c[SetupDiagnoseController::class] = static fn($c) => new SetupDiagnoseController();
 
         $c[SetupProofController::class] = static fn($c) => new SetupProofController();
     }
