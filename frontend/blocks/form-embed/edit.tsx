@@ -1,8 +1,11 @@
 import { useBlockProps } from '@wordpress/block-editor';
 import { SelectControl, Placeholder, Spinner, Button } from '@wordpress/components';
 import { useState, useEffect } from '@wordpress/element';
-import apiFetch from '@wordpress/api-fetch';
 import { __ } from '@wordpress/i18n';
+// Cross-entry import is intentional: request() is plain fetch (no SPA-only
+// deps), attaches X-WP-Nonce from window.paymentformAdmin (localized for the
+// block editor too) and unwraps the wp-kit response envelope.
+import { request } from '../../src/lib/request/request';
 import type { CSSProperties } from 'react';
 
 type Attrs = { formId: string };
@@ -135,8 +138,8 @@ export function Edit({ attributes, setAttributes }: { attributes: Attrs; setAttr
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<{ data: FormSummary[] }>({ path: '/paymentform/v1/forms' })
-      .then((res) => setForms(res.data ?? []))
+    request<FormSummary[]>('/forms')
+      .then((forms) => setForms(forms ?? []))
       .catch((e) => setError(e?.message ?? __('Failed to load forms', 'paymentform')));
   }, []);
 

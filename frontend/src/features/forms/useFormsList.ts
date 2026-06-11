@@ -12,16 +12,14 @@ export interface Form {
   updatedAt: string;
 }
 
-interface FormsListResponse {
-  data: Form[];
-}
-
 export function useFormsList() {
   return useQuery({
     queryKey: ['forms'],
     queryFn: async () => {
-      const response = await request<FormsListResponse>('/forms', { method: 'GET' });
-      return response.data || [];
+      // The controller returns the bare forms array; request() strips the
+      // wp-kit envelope.
+      const forms = await request<Form[]>('/forms', { method: 'GET' });
+      return forms ?? [];
     },
   });
 }

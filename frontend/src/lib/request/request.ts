@@ -19,6 +19,7 @@ declare global {
 
 type ErrorBody = {
   error_code?: unknown
+  code?: unknown
   message?: unknown
 }
 
@@ -56,7 +57,12 @@ export async function request<T>(path: string, init: FetchInit = {}): Promise<T>
 
   if (!res.ok) {
     const errorBody = (body ?? {}) as ErrorBody
-    const errorCode = typeof errorBody.error_code === 'string' ? errorBody.error_code : `HTTP_${res.status}`
+    // `error_code` first (proxied-backend errors via ApiClient), then the
+    // wp-kit envelope `code`, then a synthetic HTTP fallback.
+    const errorCode =
+      typeof errorBody.error_code === 'string' ? errorBody.error_code
+      : typeof errorBody.code === 'string' ? errorBody.code
+      : `HTTP_${res.status}`
     const message = typeof errorBody.message === 'string' ? errorBody.message : res.statusText
 
     const err: ApiError = Object.assign(new Error(message), {
@@ -68,5 +74,10 @@ export async function request<T>(path: string, init: FetchInit = {}): Promise<T>
     throw err
   }
 
+  // wp-kit wraps payloads as { status, code, data, message? }. Unwrap to the
+  // bare payload so call sites keep their existing response types.
+  if (res.ok && body && typeof body === 'object' && 'data' in body && 'code' in body) {
+    return (body as { data: T }).data
+  }
   return body as T
 }
