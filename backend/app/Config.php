@@ -71,4 +71,31 @@ final class Config
     {
         return defined('PAYMENTFORM_RENDERER_BASE_URL') ? (string) PAYMENTFORM_RENDERER_BASE_URL : self::DEFAULT_RENDERER_BASE_URL;
     }
+
+    /**
+     * Dev-mode marker: the Vite dev server writes its port to `frontend/port`
+     * on boot and removes it on shutdown (see frontend/vite.config.ts,
+     * setDevServerConfig). The file's presence means "serve the admin SPA
+     * from the dev server with HMR" instead of the built `dist/` bundle.
+     */
+    public static function isDev(): bool
+    {
+        return is_readable(self::pluginDir() . 'frontend/port');
+    }
+
+    /**
+     * Origin of the running Vite dev server. Only meaningful when
+     * {@see isDev()} returns true; falls back to Vite's default port when
+     * the port file holds anything other than digits.
+     */
+    public static function devServerUrl(): string
+    {
+        $portFile = self::pluginDir() . 'frontend/port';
+        $port = is_readable($portFile) ? trim((string) file_get_contents($portFile)) : '';
+        if (!ctype_digit($port)) {
+            $port = '5173';
+        }
+
+        return 'http://localhost:' . $port;
+    }
 }

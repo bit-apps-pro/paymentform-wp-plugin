@@ -59,7 +59,7 @@ final class SetupDiagnoseController
             ],
             'body' => wp_json_encode([
                 'proof_url' => site_url('/paymentform/setup-proof'),
-                'wp_setup_token' => $wpSetupToken,
+                'setup_token' => $wpSetupToken,
                 'nonce' => $nonce,
             ]),
         ]);

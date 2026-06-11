@@ -107,7 +107,7 @@ final class SetupController
             'country' => $country,
             'site_url' => site_url(),
             'proof_url' => site_url('/paymentform/setup-proof'),
-            'wp_setup_token' => $wpSetupToken,
+            'setup_token' => $wpSetupToken,
             'client_slug' => 'wp-plugin',
             'client_type' => 'server',
         ];
@@ -362,7 +362,7 @@ final class SetupController
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
             ],
-            'body' => wp_json_encode(['wp_setup_token' => $wpSetupToken]),
+            'body' => wp_json_encode(['setup_token' => $wpSetupToken]),
         ]);
 
         if (is_wp_error($response)) {

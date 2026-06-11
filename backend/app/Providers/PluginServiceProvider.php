@@ -286,13 +286,64 @@ CSS;
             return;
         }
 
+        if (Config::isDev()) {
+            $this->enqueueDevAdminAssets();
+        } elseif (!$this->enqueueBuiltAdminAssets()) {
+            return;
+        }
+
+        wp_add_inline_style('paymentform-admin', $this->adminChromeOverrides());
+        $this->localizeAdminConfig();
+    }
+
+    /**
+     * Dev mode (Config::isDev()): serve the admin SPA straight from the Vite
+     * dev server so wp-admin gets HMR. Registers src-less stubs for the
+     * `paymentform-admin` script/style handles so the shared localize +
+     * inline-chrome-CSS plumbing works exactly as in prod, then prints the
+     * React Fast Refresh preamble, Vite client and SPA entry as
+     * `type="module"` tags. The preamble must execute before the entry
+     * module and WP's script-module API gives no ordering guarantee for
+     * inline modules, so all three print together in the admin footer.
+     */
+    private function enqueueDevAdminAssets(): void
+    {
+        $dev = Config::devServerUrl();
+
+        wp_register_script('paymentform-admin', false, [], Config::VERSION, true);
+        wp_enqueue_script('paymentform-admin');
+        wp_register_style('paymentform-admin', false, [], Config::VERSION);
+        wp_enqueue_style('paymentform-admin');
+
+        add_action('admin_print_footer_scripts', static function () use ($dev): void {
+            printf(
+                '<script type="module">import RefreshRuntime from "%s";'
+                    . 'RefreshRuntime.injectIntoGlobalHook(window);'
+                    . 'window.$RefreshReg$ = () => {};'
+                    . 'window.$RefreshSig$ = () => (type) => type;'
+                    . 'window.__vite_plugin_react_preamble_installed__ = true;'
+                    . '</script>' . "\n",
+                esc_url($dev . '/@react-refresh')
+            );
+            printf('<script type="module" src="%s"></script>' . "\n", esc_url($dev . '/@vite/client'));
+            printf('<script type="module" src="%s"></script>' . "\n", esc_url($dev . '/src/main.tsx'));
+        }, 5);
+    }
+
+    /**
+     * Production: enqueue the built `dist/` bundle. Returns false when no
+     * build exists (fresh checkout) — callers skip the localize/chrome-CSS
+     * steps entirely, matching the historical early-return behaviour.
+     */
+    private function enqueueBuiltAdminAssets(): bool
+    {
         $frontend_dir = Config::pluginDir() . 'frontend/dist';
         $js_file = $frontend_dir . '/admin.js';
         $css_file = $frontend_dir . '/admin.css';
         $asset_file = $frontend_dir . '/admin.asset.php';
 
         if (!file_exists($js_file)) {
-            return;
+            return false;
         }
 
         // Vite plugin emits `admin.asset.php` with the deps + content-hash version so
@@ -328,8 +379,15 @@ CSS;
             wp_enqueue_style('paymentform-admin');
         }
 
-        wp_add_inline_style('paymentform-admin', $this->adminChromeOverrides());
+        return true;
+    }
 
+    /**
+     * Attach the `paymentformAdmin` config object to the admin SPA handle
+     * (built bundle or dev-mode stub alike).
+     */
+    private function localizeAdminConfig(): void
+    {
         if ($this->container === null) {
             return;
         }

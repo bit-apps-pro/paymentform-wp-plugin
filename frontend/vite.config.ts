@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import detectPort from 'detect-port';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { Plugin } from 'vite';
@@ -54,6 +57,10 @@ function wpExternals(): Plugin {
   return {
     name: 'wp-externals',
     enforce: 'pre',
+    // Build-only: in dev serve the SPA must resolve `@wordpress/*` from
+    // node_modules (there is no editor page providing `wp.*` globals, and
+    // externalized ids would 404 against the dev server).
+    apply: 'build',
     resolveId(id, importer) {
       if (!(id in mapping)) return null;
       // `@wordpress/*` always externalize (same handle scheme everywhere).
@@ -168,12 +175,106 @@ function wpExternals(): Plugin {
   };
 }
 
+/**
+ * Coordinate the dev-server port with PHP through a `frontend/port` file:
+ * the plugin picks a free port (sticky across restarts via the stored file),
+ * writes it on boot and removes it on shutdown. PHP treats the file's
+ * presence as "dev mode" (Config::isDev()) and loads the admin SPA from
+ * `http://localhost:<port>` with HMR instead of the built `dist/` bundle.
+ *
+ * Adapted from the file-manager plugin's port-file pattern.
+ */
+function setDevServerConfig(): Plugin {
+  return {
+    name: 'set-dev-server-config',
+    async config(_, env) {
+      if (env.mode !== 'development') {
+        removeStoredPort();
+        return;
+      }
+      registerPortFileCleanup();
+      let port = getStoredPort();
+      if (!port) {
+        port = await detectPort(5173);
+        updateStoredPort(port);
+      }
+      return { server: { port, origin: `http://localhost:${port}` } };
+    },
+    configureServer(server) {
+      const { httpServer } = server;
+      if (!httpServer) return;
+
+      httpServer.once('listening', () => {
+        // Vite bumps to the next free port when the requested one is taken;
+        // persist the port it actually bound so PHP targets the right origin.
+        const { port } = httpServer.address() as AddressInfo;
+        if (port !== getStoredPort()) {
+          updateStoredPort(port);
+        }
+      });
+
+      // An out-of-band port-file change means `server.origin` no longer
+      // matches reality — restart so the config hook re-reads the file.
+      server.watcher.add(portFile);
+      server.watcher.on('change', (file) => {
+        if (resolve(file) === portFile) {
+          server.config.logger.warnOnce('Port file changed; restarting dev server for origin mismatch', {
+            timestamp: true,
+          });
+          void server.restart();
+        }
+      });
+
+      httpServer.once('close', () => {
+        removeStoredPort();
+        void server.watcher.close();
+      });
+    },
+  };
+}
+
+const portFile = resolve(__dirname, 'port');
+
+let portFileCleanupRegistered = false;
+
+/**
+ * Vite only closes the http server gracefully on SIGTERM / stdin end; Ctrl+C
+ * (SIGINT) terminates through Node's default handler without ever firing the
+ * httpServer 'close' hook, which would leave a stale port file behind — and
+ * PHP would keep pointing wp-admin at a dead dev server. Hook the process
+ * directly so every exit path drops the file.
+ */
+function registerPortFileCleanup(): void {
+  if (portFileCleanupRegistered) return;
+  portFileCleanupRegistered = true;
+  process.once('exit', removeStoredPort);
+  process.once('SIGINT', () => {
+    removeStoredPort();
+    process.exit(130);
+  });
+}
+
+function getStoredPort(): number {
+  return existsSync(portFile) ? Number(readFileSync(portFile, 'utf8')) : 0;
+}
+
+function updateStoredPort(port: number): void {
+  writeFileSync(portFile, String(port));
+}
+
+function removeStoredPort(): void {
+  rmSync(portFile, { force: true });
+}
+
 export default defineConfig({
   // Classic JSX runtime so block bundles emit `createElement(...)` calls that
   // map cleanly to `wp.element.createElement` (the editor's React 18 instance).
   // The automatic runtime would emit `jsx`/`jsxs` calls which `wp.element` does
   // not expose. Admin SPA also gets classic — same emotion-css JSX behavior.
-  plugins: [react({ jsxRuntime: 'classic' }), wpExternals()],
+  plugins: [react({ jsxRuntime: 'classic' }), wpExternals(), setDevServerConfig()],
+  // Expose `APP_*` vars from `frontend/.env` to the client as dev-only
+  // overrides (see src/lib/devEnv.ts); production reads window.paymentformAdmin.
+  envPrefix: 'APP_',
   // Single copy of react / react-dom / react-is across the bundle. Admin SPA is on
   // React 18 (matches WP-bundled React + emotion ecosystem). `dedupe` alone is
   // enough — no pnpm-path alias (those slugs are brittle across pnpm versions
@@ -202,7 +303,10 @@ export default defineConfig({
     sourcemap: false,
   },
   server: {
-    port: 5173,
-    open: true,
+    // Port is managed by setDevServerConfig() (free-port detection + port
+    // file). CORS + localhost HMR because the dev server is consumed from
+    // inside wp-admin (different origin), not opened directly.
+    cors: true,
+    hmr: { host: 'localhost' },
   },
 });
