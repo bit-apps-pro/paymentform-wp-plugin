@@ -2,15 +2,65 @@ import { useBlockProps } from '@wordpress/block-editor';
 import { SelectControl, Placeholder, Spinner, Button } from '@wordpress/components';
 import { useState, useEffect } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-// Cross-entry import is intentional: request() is plain fetch (no SPA-only
-// deps), attaches X-WP-Nonce from window.paymentformAdmin (localized for the
-// block editor too) and unwraps the wp-kit response envelope.
-import { request } from '../../src/lib/request/request';
+// `@wordpress/api-fetch` (not the SPA's request() helper) keeps the block bundle
+// self-contained: importing request() from src/ would re-create the cross-entry
+// `request-*.js` chunk shared with the admin SPA. apiFetch routes through the
+// REST root and sends credentials same-origin by default; the nonce + envelope
+// behavior request() provided is reproduced locally below.
+import apiFetch from '@wordpress/api-fetch';
 import type { CSSProperties } from 'react';
 
 type Attrs = { formId: string };
 type SetAttrs = (next: Partial<Attrs>) => void;
 type FormSummary = { id: string; name: string; status?: string };
+
+/**
+ * wp-kit wraps payloads as `{ status, code, data }`. apiFetch resolves to the
+ * raw body, so unwrap to `data` here exactly as the SPA's request() does:
+ * require all three envelope keys before unwrapping so a non-enveloped payload
+ * that happens to carry `data` + `code` is returned as-is.
+ */
+function unwrap<T>(body: unknown): T {
+  if (
+    body !== null &&
+    typeof body === 'object' &&
+    'status' in body &&
+    'code' in body &&
+    'data' in body
+  ) {
+    return (body as { data: T }).data;
+  }
+  return body as T;
+}
+
+/**
+ * apiFetch rejects with the parsed error body, which carries `message`/`code`/
+ * `error_code` from the wp-kit envelope. Surface the message for the editor's
+ * error placeholder, falling back to a generic string.
+ */
+function messageFrom(error: unknown): string {
+  if (error !== null && typeof error === 'object' && 'message' in error) {
+    const { message } = error as { message?: unknown };
+    if (typeof message === 'string' && message !== '') return message;
+  }
+  return __('Failed to load forms', 'paymentform');
+}
+
+/**
+ * Register the plugin's own nonce middleware once, sourced from
+ * `window.paymentformAdmin.nonce`. WP core registers a REST nonce middleware in
+ * the block editor already, but doing it ourselves makes the block robust on
+ * any editor surface (and matches the X-WP-Nonce the SPA's request() sent).
+ */
+let nonceMiddlewareRegistered = false;
+function ensureNonceMiddleware(): void {
+  if (nonceMiddlewareRegistered) return;
+  const nonce = (window as unknown as { paymentformAdmin?: { nonce?: string } }).paymentformAdmin
+    ?.nonce;
+  if (typeof nonce !== 'string' || nonce === '') return;
+  apiFetch.use(apiFetch.createNonceMiddleware(nonce));
+  nonceMiddlewareRegistered = true;
+}
 
 /**
  * Brand SVG matches the admin SPA's `src/components/Logo.tsx`. Inlined here so
@@ -138,9 +188,10 @@ export function Edit({ attributes, setAttributes }: { attributes: Attrs; setAttr
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    request<FormSummary[]>('/forms')
-      .then((forms) => setForms(forms ?? []))
-      .catch((e) => setError(e?.message ?? __('Failed to load forms', 'paymentform')));
+    ensureNonceMiddleware();
+    apiFetch({ path: 'paymentform/v1/forms' })
+      .then((body) => setForms(unwrap<FormSummary[]>(body) ?? []))
+      .catch((e) => setError(messageFrom(e)));
   }, []);
 
   if (error) {

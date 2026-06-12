@@ -7,6 +7,7 @@ namespace PaymentForm\Tests\Unit;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\DisconnectedException;
 use PaymentForm\Services\EncryptionService;
+use PaymentForm\Services\Http\HttpTransport;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
 use PHPUnit\Framework\TestCase;
@@ -31,7 +32,7 @@ class ApiClientTest extends TestCase
 
     private function client(): ApiClient
     {
-        return new ApiClient($this->tokenService, $this->refreshLock, 'https://api.test');
+        return new ApiClient($this->tokenService, $this->refreshLock, new HttpTransport('https://api.test'));
     }
 
     public function test_successful_request(): void
@@ -89,7 +90,7 @@ class ApiClientTest extends TestCase
         \TestWpFunctions::reset();
         $tokenService = new TokenService($this->encryption);
 
-        $apiClient = new ApiClient($tokenService, $this->refreshLock, 'https://api.test');
+        $apiClient = new ApiClient($tokenService, $this->refreshLock, new HttpTransport('https://api.test'));
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('NO_TOKEN');
@@ -115,7 +116,7 @@ class ApiClientTest extends TestCase
         WpHttpMock::queue(200, ['ok' => true]);
 
         $refreshLock = new TokenRefreshLock();
-        $result = (new ApiClient($this->tokenService, $refreshLock, 'https://api.test'))
+        $result = (new ApiClient($this->tokenService, $refreshLock, new HttpTransport('https://api.test')))
             ->request('GET', '/data');
 
         $this->assertSame(['ok' => true], $result);
@@ -139,7 +140,7 @@ class ApiClientTest extends TestCase
         WpHttpMock::queue(200, ['ok' => true]);
 
         $refreshLock = new TokenRefreshLock();
-        (new ApiClient($this->tokenService, $refreshLock, 'https://api.test'))->request('GET', '/data');
+        (new ApiClient($this->tokenService, $refreshLock, new HttpTransport('https://api.test')))->request('GET', '/data');
 
         $this->assertTrue($refreshLock->acquire());
     }

@@ -7,6 +7,8 @@ namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\EncryptionService;
+use PaymentForm\Services\Http\HttpTransport;
+use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Tests\Support\MockWpRestRequest;
 use PHPUnit\Framework\TestCase;
@@ -18,6 +20,7 @@ class CallbackControllerTest extends TestCase
     private ConnectService $connectService;
     private TokenService $tokenService;
     private EncryptionService $encryption;
+    private SetupApiClient $setupApi;
 
     protected function setUp(): void
     {
@@ -26,11 +29,12 @@ class CallbackControllerTest extends TestCase
         $this->encryption = new EncryptionService();
         $this->tokenService = new TokenService($this->encryption);
         $this->connectService = new ConnectService();
+        $this->setupApi = new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL));
     }
 
     private function controller(): CallbackController
     {
-        return new CallbackController($this->connectService, $this->tokenService);
+        return new CallbackController($this->connectService, $this->tokenService, $this->setupApi);
     }
 
     public function test_handle_missing_code_redirects_with_error(): void
@@ -188,7 +192,7 @@ class CallbackControllerTest extends TestCase
         $tokenServiceMock->expects($this->once())->method('store')->willThrowException(new \RuntimeException('storage_error'));
         $tokenServiceMock->expects($this->once())->method('clear');
 
-        $controller = new CallbackController($this->connectService, $tokenServiceMock);
+        $controller = new CallbackController($this->connectService, $tokenServiceMock, $this->setupApi);
 
         $this->expectException(RedirectException::class);
         $this->expectExceptionMessageMatches('/error=STORAGE_FAILED/');

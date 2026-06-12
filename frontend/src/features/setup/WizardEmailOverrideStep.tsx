@@ -2,19 +2,18 @@ import { Input, Button, Flex, Typography, theme, Space } from 'antd';
 import { useState } from 'react';
 import { __ } from '../../lib/i18n';
 import type { WizardState, WizardAction } from './state';
+import { wpModuleData } from '../../utils/wpData';
 
 interface Props {
   state: WizardState;
   dispatch: React.Dispatch<WizardAction>;
 }
 
-export function WizardEmailOverrideStep({ state, dispatch }: Props) {
+export function WizardEmailOverrideStep({ dispatch }: Props) {
   const { token } = theme.useToken();
   const [showInput, setShowInput] = useState(false);
   const [customEmail, setCustomEmail] = useState('');
-  const adminEmail =
-    (window as unknown as { paymentformAdmin?: { adminEmail?: string } })?.paymentformAdmin
-      ?.adminEmail || '';
+  const adminEmail = wpModuleData.adminEmail || '';
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 

@@ -1,4 +1,4 @@
-import { Spin, Button, Flex, Typography, theme, Space, Tag } from 'antd';
+import { Spin, Button, Flex, Typography, theme, Space } from 'antd';
 import { useEffect } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { __ } from '../../lib/i18n';
@@ -131,7 +131,7 @@ export function WizardDiagnoseStep({ state, dispatch }: Props) {
           />
         </Flex>
 
-        <Space direction="vertical" style={{ width: '100%', marginTop: token.marginLG }}>
+        <Space orientation="vertical" style={{ width: '100%', marginTop: token.marginLG }}>
           <Button type="primary" block onClick={() => dispatch({ type: 'diagnose-start' })} loading={isPending}>
             {__('Try again', 'paymentform')}
           </Button>

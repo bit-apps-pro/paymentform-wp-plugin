@@ -6,6 +6,37 @@ declare global {
   }
 }
 
+// Default module-data tag id for the block-view Script Module (matches the
+// PHP fallback `$blockViewScriptModuleId`). If WP assigns a different id at
+// runtime, the `window.paymentformView` fallback (set by the shortcode classic
+// path via wp_localize_script) covers the gap.
+const VIEW_MODULE_DATA_ID = 'wp-script-module-data-paymentform-form-view-script';
+
+/**
+ * Resolve the renderer base URL for the embed iframe.
+ *
+ * Block path: read the Script Module Data JSON tag emitted by WP.
+ * Shortcode path: fall back to `window.paymentformView` (classic
+ * `wp_localize_script`). Final fallback: the canonical public renderer.
+ *
+ * Kept value-import-free (only DOM globals) so this module works identically as
+ * both a classic script (shortcode) and a Script Module (block view).
+ */
+function readViewConfig(): { rendererBaseUrl: string } {
+  const el = document.getElementById(VIEW_MODULE_DATA_ID);
+  if (el?.textContent) {
+    try {
+      const parsed = JSON.parse(el.textContent) as { rendererBaseUrl?: string };
+      if (typeof parsed.rendererBaseUrl === 'string' && parsed.rendererBaseUrl !== '') {
+        return { rendererBaseUrl: parsed.rendererBaseUrl };
+      }
+    } catch {
+      /* fall through to the window/default fallback */
+    }
+  }
+  return window.paymentformView ?? { rendererBaseUrl: 'https://render.paymentform.io' };
+}
+
 /**
  * Build the iframe src for a given form id. Exported so the test suite can
  * assert the exact URL shape without re-implementing it.
@@ -18,7 +49,7 @@ export function buildFormSrc(rendererBaseUrl: string, formId: string): string {
 }
 
 export function bootBlockView(): void {
-  const cfg = window.paymentformView ?? { rendererBaseUrl: 'https://render.paymentform.io' };
+  const cfg = readViewConfig();
   const rendererOrigin = new URL(cfg.rendererBaseUrl).origin;
 
   document.querySelectorAll<HTMLElement>('.paymentform-embed[data-form-id]').forEach((host) => {

@@ -11,6 +11,7 @@ import { UserMenu } from './UserMenu';
 import { AppBreadcrumb } from './AppBreadcrumb';
 import { VerifyEmailBanner } from './VerifyEmailBanner';
 import { __ } from '../lib/i18n';
+import { wpModuleData } from '../utils/wpData';
 
 const { Header, Sider, Content } = Layout;
 
@@ -20,7 +21,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const connected =
-    window.paymentformAdmin?.connected === '1' || window.paymentformAdmin?.connected === true;
+    wpModuleData.connected === '1' || wpModuleData.connected === true;
 
   const headerStyles = css`
     background: ${token.colorBgContainer};

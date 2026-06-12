@@ -4,6 +4,7 @@ import { ExternalLink, LogOut } from 'lucide-react';
 import { useConnection } from '../features/auth/useConnection';
 import { useDisconnect } from '../features/auth/useDisconnect';
 import { __ } from '../lib/i18n';
+import { wpModuleData } from '../utils/wpData';
 
 function initialsFrom(name?: string): string {
   if (!name) return '?';
@@ -18,7 +19,7 @@ export function UserMenu() {
 
   if (!data?.connected) return null;
 
-  const appBaseUrl = window.paymentformAdmin?.appBaseUrl ?? 'https://app.paymentform.io';
+  const appBaseUrl = wpModuleData.appBaseUrl ?? 'https://app.paymentform.io';
 
   const items: MenuProps['items'] = [
     {

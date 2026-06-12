@@ -1,4 +1,5 @@
 import { devEnv } from '../../lib/devEnv';
+import { wpModuleData } from '../../utils/wpData';
 
 /**
  * Forms are served at `<rendererBaseUrl>/<formId>` where rendererBaseUrl is the
@@ -11,7 +12,7 @@ import { devEnv } from '../../lib/devEnv';
  * would be persisted into a published post.
  */
 function rendererBase(): string | null {
-  const base = devEnv('APP_RENDERER_BASE_URL') ?? window.paymentformAdmin?.rendererBaseUrl;
+  const base = devEnv('APP_RENDERER_BASE_URL') ?? wpModuleData.rendererBaseUrl;
   if (typeof base !== 'string' || base === '') return null;
   return base.replace(/\/$/, '');
 }

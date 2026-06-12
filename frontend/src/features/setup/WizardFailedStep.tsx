@@ -44,7 +44,7 @@ export function WizardFailedStep({ state, dispatch }: Props) {
   return (
     <Flex vertical gap={token.marginLG}>
       <Alert
-        message={__('Something went wrong', 'paymentform')}
+        title={__('Something went wrong', 'paymentform')}
         description={getErrorMessage()}
         type="error"
         showIcon
@@ -52,7 +52,7 @@ export function WizardFailedStep({ state, dispatch }: Props) {
         style={{ marginBottom: token.marginMD }}
       />
 
-      <Space direction="vertical" style={{ width: '100%' }}>
+      <Space orientation="vertical" style={{ width: '100%' }}>
         <Button
           type="primary"
           block

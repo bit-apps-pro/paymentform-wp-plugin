@@ -1,4 +1,4 @@
-import { Input, Button, Flex, Typography, theme, Space, Spin, message } from 'antd';
+import { Input, Button, Flex, Typography, theme, Space, message } from 'antd';
 import { useState, useEffect } from 'react';
 import { __ } from '../../lib/i18n';
 import { useVerifyOtp, useResendOtp, useSetupStatus } from './queries';
@@ -68,7 +68,7 @@ export function WizardCheckInboxStep({ state, dispatch }: Props) {
       } else {
         message.info(__('Email not yet verified. Check your inbox for the verification link.', 'paymentform'));
       }
-    } catch (error) {
+    } catch {
       message.error(__('Could not check status. Try again.', 'paymentform'));
     }
   };
@@ -93,13 +93,11 @@ export function WizardCheckInboxStep({ state, dispatch }: Props) {
             dispatch({ type: 'verify-otp-failed' });
           }
         },
-        onError: (error: any) => {
-          if (error.errorCode === '501' || error.status === 501) {
-            // OTP not implemented yet - just show message
-            message.info(__('OTP verification not yet enabled. Check the email link to verify.', 'paymentform'));
-          } else {
-            message.error(__('Could not verify code. Try again.', 'paymentform'));
-          }
+        onError: () => {
+          // Only structural failures (unknown/expired token, flag-off,
+          // transport) reach here — a wrong/expended code rides the 200
+          // onSuccess branch above with its own message.
+          message.error(__('Could not verify code. Try again.', 'paymentform'));
           dispatch({ type: 'verify-otp-failed' });
         },
       }
@@ -134,7 +132,7 @@ export function WizardCheckInboxStep({ state, dispatch }: Props) {
         </Typography.Paragraph>
       </div>
 
-      <Space direction="vertical" style={{ width: '100%', gap: token.marginMD }}>
+      <Space orientation="vertical" style={{ width: '100%', gap: token.marginMD }}>
         <Button
           type="default"
           block

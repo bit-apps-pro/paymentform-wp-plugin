@@ -16,7 +16,7 @@ function stubFetch({ ok, status, statusText = '', body }: FetchStub) {
     statusText,
     json: async () => body,
   });
-  (globalThis as any).fetch = mockFetch;
+  globalThis.fetch = mockFetch as unknown as typeof fetch;
   return mockFetch;
 }
 
@@ -40,9 +40,9 @@ describe('request utility', () => {
     await request('/test');
 
     expect(mockFetch).toHaveBeenCalled();
-    const callArgs = (mockFetch.mock.calls[0] || []) as any[];
-    expect(callArgs[0]).toContain('/test');
-    expect(callArgs[1]?.headers.get('X-WP-Nonce')).toBe('test-nonce');
+    const [url, init] = (mockFetch.mock.calls[0] ?? []) as [string, { headers: Headers }];
+    expect(url).toContain('/test');
+    expect(init?.headers.get('X-WP-Nonce')).toBe('test-nonce');
   });
 
   it('unwraps the wp-kit success envelope to the bare payload', async () => {

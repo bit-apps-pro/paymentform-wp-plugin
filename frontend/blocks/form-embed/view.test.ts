@@ -61,6 +61,30 @@ describe('paymentform block view', () => {
       expect(iframe?.style.width).toBe('100%');
     });
 
+    it('prefers the script-module-data tag over window.paymentformView', () => {
+      const tagBase = 'https://module-tag.paymentform.io';
+      const tag = document.createElement('script');
+      tag.type = 'application/json';
+      tag.id = 'wp-script-module-data-paymentform-form-view-script';
+      tag.textContent = JSON.stringify({ rendererBaseUrl: tagBase });
+      document.head.appendChild(tag);
+
+      try {
+        const host = document.createElement('div');
+        host.className = 'paymentform-embed';
+        host.dataset.formId = 'form_tag';
+        container.appendChild(host);
+
+        bootBlockView();
+
+        const iframe = host.querySelector('iframe');
+        // The JSON tag wins over the window.paymentformView set in beforeEach.
+        expect(iframe?.src).toBe(`${tagBase}/form_tag?embedded=true`);
+      } finally {
+        tag.remove();
+      }
+    });
+
     it('is idempotent (no duplicate iframes on second call)', () => {
       const host = document.createElement('div');
       host.className = 'paymentform-embed';

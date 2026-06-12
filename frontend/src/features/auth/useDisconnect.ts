@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { request } from '../../lib/request/request';
 
 interface DisconnectResponse {
-  success: boolean;
+  status: boolean;
 }
 
 export function useDisconnect() {

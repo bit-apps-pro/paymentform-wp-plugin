@@ -26,7 +26,8 @@
     },
     "scripts": {
         "lint": "phpcs --standard=WordPress backend/",
-        "test": "phpunit"
+        "test": "phpunit",
+        "package": "bin/package.sh"
     },
     "config": {
         "allow-plugins": {

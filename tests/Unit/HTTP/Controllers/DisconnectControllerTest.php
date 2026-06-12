@@ -8,6 +8,7 @@ use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\EncryptionService;
+use PaymentForm\Services\Http\HttpTransport;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Tests\Support\InteractsWithWpKit;
@@ -30,7 +31,7 @@ class DisconnectControllerTest extends TestCase
             ApiClient::class => new ApiClient(
                 $this->tokenService,
                 new TokenRefreshLock(),
-                PAYMENTFORM_API_BASE_URL
+                new HttpTransport(PAYMENTFORM_API_BASE_URL)
             ),
         ]);
     }

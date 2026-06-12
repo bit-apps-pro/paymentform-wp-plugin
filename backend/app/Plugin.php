@@ -7,6 +7,7 @@ namespace PaymentForm;
 use PaymentForm\HTTP\Middleware\CapabilityCheckerMiddleware;
 use PaymentForm\HTTP\Middleware\NonceCheckerMiddleware;
 use PaymentForm\Providers\HookProvider;
+use PaymentForm\Providers\InstallerProvider;
 use PaymentForm\Providers\PluginServiceProvider;
 use PaymentForm\Providers\ServiceContainer;
 
@@ -65,6 +66,11 @@ final class Plugin
 
     private function wire(): void
     {
+        // Lifecycle (activation/deactivation/uninstall) via wp-kit's Installer.
+        // Constructed on every load so register_activation_hook() is in place
+        // before the user activates; register() wires the requirement gate.
+        (new InstallerProvider())->register();
+
         $provider = new PluginServiceProvider();
         $provider->register(ServiceContainer::instance());
 

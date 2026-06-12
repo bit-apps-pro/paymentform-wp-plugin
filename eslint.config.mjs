@@ -6,12 +6,12 @@ import tsParser from '@typescript-eslint/parser';
 import tsEslint from '@typescript-eslint/eslint-plugin';
 
 export default [
-  { ignores: ['dist', 'node_modules'] },
+  { ignores: ['assets', 'node_modules'] },
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['frontend/**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: { ...globals.browser, ...globals.node },
+      globals: { ...globals.browser, ...globals.node, React: 'readonly' },
       parser: tsParser,
       parserOptions: {
         ecmaVersion: 2020,

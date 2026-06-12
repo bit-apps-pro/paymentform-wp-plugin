@@ -20,6 +20,24 @@ final class Config
 {
     public const VERSION = '0.1.0';
 
+    /**
+     * Canonical plugin slug. Single source of truth for the text domain, the
+     * admin page slug, and the `@<slug>/…` Script Module id namespace.
+     */
+    public const SLUG = 'paymentform';
+
+    /**
+     * Prefix for plugin-owned option names and internal wp-kit hook tags
+     * (see {@see withPrefix()}). Single source of truth so the lifecycle
+     * provider and option accessors never drift.
+     */
+    public const VAR_PREFIX = 'paymentform_';
+
+    /** Minimum runtime the {@see \PaymentForm\Providers\InstallerProvider} gates activation on. */
+    public const REQUIRED_PHP_VERSION = '8.1';
+
+    public const REQUIRED_WP_VERSION = '6.7';
+
     private const DEFAULT_API_BASE_URL = 'https://api.paymentform.io';
 
     private const DEFAULT_APP_BASE_URL = 'https://app.paymentform.io';
@@ -57,6 +75,42 @@ final class Config
         return plugin_dir_url(self::pluginFile());
     }
 
+    /**
+     * `plugin_basename` of the entrypoint (e.g. `paymentform/paymentform.php`).
+     * Required by the lifecycle hooks the {@see \PaymentForm\Providers\InstallerProvider}
+     * registers.
+     */
+    public static function pluginBasename(): string
+    {
+        return plugin_basename(self::pluginFile());
+    }
+
+    /**
+     * Namespaces an option/hook key with {@see VAR_PREFIX} so plugin-owned
+     * entries never collide with WordPress core or sibling plugins.
+     */
+    public static function withPrefix(string $key): string
+    {
+        return self::VAR_PREFIX . $key;
+    }
+
+    /**
+     * Reads a plugin-owned option (auto-prefixed). Mirrors `get_option`'s
+     * default semantics.
+     */
+    public static function getOption(string $option, mixed $default = false): mixed
+    {
+        return get_option(self::withPrefix($option), $default);
+    }
+
+    /**
+     * Writes a plugin-owned option (auto-prefixed).
+     */
+    public static function updateOption(string $option, mixed $value, bool $autoload = false): bool
+    {
+        return update_option(self::withPrefix($option), $value, $autoload);
+    }
+
     public static function apiBaseUrl(): string
     {
         return defined('PAYMENTFORM_API_BASE_URL') ? (string) PAYMENTFORM_API_BASE_URL : self::DEFAULT_API_BASE_URL;
@@ -74,9 +128,9 @@ final class Config
 
     /**
      * Dev-mode marker: the Vite dev server writes its port to `frontend/port`
-     * on boot and removes it on shutdown (see frontend/vite.config.ts,
+     * on boot and removes it on shutdown (see vite.config.ts,
      * setDevServerConfig). The file's presence means "serve the admin SPA
-     * from the dev server with HMR" instead of the built `dist/` bundle.
+     * from the dev server with HMR" instead of the built `assets/` bundle.
      */
     public static function isDev(): bool
     {

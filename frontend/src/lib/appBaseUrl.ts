@@ -1,4 +1,5 @@
 import { devEnv } from './devEnv';
+import { wpModuleData } from '../utils/wpData';
 
 /**
  * Marketing/app host used for "go to PaymentForm" deep links from wp-admin.
@@ -14,7 +15,6 @@ import { devEnv } from './devEnv';
  * from `src/`.
  */
 export function appBaseUrl(): string {
-  const w = window as unknown as { paymentformAdmin?: { appBaseUrl?: string } };
-  const base = devEnv('APP_APP_BASE_URL') ?? w.paymentformAdmin?.appBaseUrl ?? 'https://app.paymentform.io';
+  const base = devEnv('APP_APP_BASE_URL') ?? wpModuleData.appBaseUrl ?? 'https://app.paymentform.io';
   return base.replace(/\/$/, '');
 }

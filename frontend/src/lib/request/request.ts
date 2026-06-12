@@ -1,21 +1,5 @@
 import type { ApiError } from './types'
-
-/**
- * Shape of `window.paymentformAdmin` injected by
- * `PaymentForm\Providers\PluginServiceProvider::enqueueAdminAssets`.
- * Declared inline (not via the global namespace) so this module owns the
- * narrowing — every other consumer should pull it from a typed helper
- * rather than touching `window` directly.
- */
-type PaymentformAdminConfig = {
-  restUrl: string
-  nonce: string
-}
-
-declare global {
-  // eslint-disable-next-line no-var
-  var paymentformAdmin: PaymentformAdminConfig | undefined
-}
+import { wpModuleData } from '../../utils/wpData'
 
 type ErrorBody = {
   error_code?: unknown
@@ -31,13 +15,11 @@ interface FetchInit {
 }
 
 export async function request<T>(path: string, init: FetchInit = {}): Promise<T> {
-  const config: PaymentformAdminConfig | undefined = (window as unknown as { paymentformAdmin?: PaymentformAdminConfig }).paymentformAdmin
-
-  if (!config) {
-    throw new Error('paymentform: window.paymentformAdmin not initialized')
+  if (!wpModuleData.restUrl) {
+    throw new Error('paymentform: admin config not initialized')
   }
 
-  const { restUrl, nonce } = config
+  const { restUrl, nonce } = wpModuleData
   const url = restUrl + path.replace(/^\//, '')
   const headers = new Headers(init.headers)
 
@@ -78,7 +60,7 @@ export async function request<T>(path: string, init: FetchInit = {}): Promise<T>
   // bare payload so call sites keep their existing response types. Requiring
   // all three envelope keys (status is always 'success' | 'error') avoids
   // wrongly unwrapping a non-enveloped payload that happens to carry data+code.
-  if (res.ok && body && typeof body === 'object' && 'status' in body && 'code' in body && 'data' in body) {
+  if (body && typeof body === 'object' && 'status' in body && 'code' in body && 'data' in body) {
     return (body as { data: T }).data
   }
   return body as T

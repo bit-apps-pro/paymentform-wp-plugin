@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit;
 
+use PaymentForm\Config;
 use PaymentForm\HTTP\Middleware\CapabilityCheckerMiddleware;
 use PaymentForm\HTTP\Middleware\NonceCheckerMiddleware;
 use PaymentForm\Plugin;
+use PaymentForm\Providers\Container;
 use PaymentForm\Providers\HookProvider;
 use PaymentForm\Providers\PluginServiceProvider;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
+use PaymentForm\Services\EncryptionService;
+use PaymentForm\Services\TokenService;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
+use ReflectionProperty;
 
 final class PluginTest extends TestCase
 {
@@ -104,6 +109,84 @@ final class PluginTest extends TestCase
             ],
             Plugin::instance()->middlewares()
         );
+    }
+
+    /**
+     * The admin SPA config is delivered through the WP 6.7 Script Module Data
+     * API: on the plugin page the prod enqueue registers a
+     * `script_module_data_@paymentform/admin` filter that merges the config onto
+     * the data WP passes while printing the enqueued module. WP core auto-prints
+     * the module and its data tag — there is no manual printer to assert.
+     */
+    public function test_admin_page_registers_the_script_module_data_filter(): void
+    {
+        $this->enqueueAdminAssetsOnPluginPage();
+
+        $data = apply_filters('script_module_data_@paymentform/admin', []);
+
+        $this->assertIsArray($data);
+        $this->assertArrayHasKey('nonce', $data);
+        $this->assertArrayHasKey('restUrl', $data);
+        $this->assertArrayHasKey('connected', $data);
+        $this->assertArrayHasKey('tenant', $data);
+        $this->assertArrayHasKey('version', $data);
+        $this->assertArrayHasKey('siteUrl', $data);
+        $this->assertArrayHasKey('appBaseUrl', $data);
+        $this->assertArrayHasKey('rendererBaseUrl', $data);
+        $this->assertSame('http://example.test/wp-json/paymentform/v1/', $data['restUrl']);
+
+        // The callback merges onto incoming data — pre-existing keys survive.
+        $merged = apply_filters('script_module_data_@paymentform/admin', ['x' => 1]);
+        $this->assertSame(1, $merged['x']);
+    }
+
+    public function test_admin_config_filter_is_not_registered_off_the_plugin_page(): void
+    {
+        $this->makeProvider()->enqueueAdminAssets('some_other_admin_page');
+
+        $this->assertSame(
+            [],
+            apply_filters('script_module_data_@paymentform/admin', []),
+            'Off the plugin page the admin config filter must not be registered.'
+        );
+    }
+
+    /**
+     * Drive the production admin enqueue on the plugin's top-level admin page.
+     * Config::bootstrap points pluginDir() at the real plugin so the built
+     * frontend/dist/admin.js is found and the prod (module) path runs; the
+     * provider's container is seeded so the inline-config printer is wired.
+     */
+    private function enqueueAdminAssetsOnPluginPage(): void
+    {
+        $this->makeProvider()->enqueueAdminAssets('toplevel_page_paymentform');
+    }
+
+    private function makeProvider(): PluginServiceProvider
+    {
+        Config::bootstrap(dirname(__DIR__, 2) . '/paymentform.php');
+
+        // The admin-config printer reads wp_get_current_user()->exists()/->user_email.
+        // The harness's default user is a bare stdClass; give it a WP_User-shaped
+        // double so the prod enqueue path runs to completion.
+        \TestWpFunctions::setCurrentUser(new class {
+            public string $user_email = 'admin@example.test';
+            public function exists(): bool
+            {
+                return true;
+            }
+        });
+
+        $container = new Container();
+        $container[EncryptionService::class] = static fn (): EncryptionService => new EncryptionService();
+        $container[TokenService::class] = static fn (Container $c): TokenService
+            => new TokenService($c[EncryptionService::class]);
+
+        $provider = new PluginServiceProvider();
+        (new ReflectionProperty(PluginServiceProvider::class, 'container'))
+            ->setValue($provider, $container);
+
+        return $provider;
     }
 
     private function resetPluginSingleton(): void

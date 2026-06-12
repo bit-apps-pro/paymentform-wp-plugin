@@ -1,5 +1,6 @@
 import { Result, Button, Space, App as AntApp } from 'antd';
 import { __ } from '../lib/i18n';
+import { wpModuleData } from '../utils/wpData';
 
 interface ErrorFallbackProps {
   error?: Error | null;
@@ -12,9 +13,9 @@ export function ErrorFallback({ error, reset }: ErrorFallbackProps = {}) {
   const copyDiagnostic = async () => {
     const stack = error?.stack ? error.stack.split('\n').slice(0, 5).join('\n') : null;
     const payload = {
-      version: window.paymentformAdmin?.version,
-      tenant: window.paymentformAdmin?.tenant,
-      siteUrl: window.paymentformAdmin?.siteUrl,
+      version: wpModuleData.version,
+      tenant: wpModuleData.tenant,
+      siteUrl: wpModuleData.siteUrl,
       errorName: error?.name,
       errorMessage: error?.message,
       errorStack: stack,

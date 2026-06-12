@@ -1,7 +1,7 @@
 import { Button, Flex, Typography, theme } from 'antd';
 import { CheckCircle } from 'lucide-react';
 import { __ } from '../../lib/i18n';
-import type { WizardState, WizardAction } from './state';
+import type { WizardState } from './state';
 
 interface Props {
   state: WizardState;

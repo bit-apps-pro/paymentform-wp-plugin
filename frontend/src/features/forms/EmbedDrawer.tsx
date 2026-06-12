@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Drawer, Tabs, Typography, Flex, Segmented, Skeleton, theme, Button } from 'antd';
 import { X } from 'lucide-react';
 import { css } from '@emotion/css';
@@ -61,13 +61,19 @@ export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
 
   // Reset transient state when the drawer opens OR the selected form changes
   // (parent may swap `form` without closing the drawer between row clicks).
-  useEffect(() => {
-    if (open) {
-      setSnippet('shortcode');
-      setActiveTab('embed');
-      setPreviewLoaded(false);
-    }
-  }, [open, formId]);
+  // Done during render via the "adjust state on prop change" pattern rather
+  // than an effect, so the reset is applied before paint with no extra render.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [openedFormId, setOpenedFormId] = useState<string | null>(null);
+  if (open && openedFormId !== formId) {
+    setOpenedFormId(formId);
+    setSnippet('shortcode');
+    setActiveTab('embed');
+    setPreviewLoaded(false);
+  } else if (!open && openedFormId !== null) {
+    // Forget the opened form once closed so re-opening the same form resets.
+    setOpenedFormId(null);
+  }
 
   const handleClose = () => {
     onClose();

@@ -1,7 +1,9 @@
 # Lefthook hook config, mirroring the bit-* plugin family so contributors get
 # the same fast PHP + JS gating regardless of which BitApps plugin they're on.
-# Front-end commands run inside `frontend/` because this plugin keeps Vite +
-# Vitest scoped under that directory (unlike bit-pi which uses a flat layout).
+# JS tooling config (package.json, vite/vitest/eslint/tsconfig) lives at the
+# plugin root; the web app source stays under `frontend/`. The js-* commands run
+# from the repo root (where package.json now is) and only fire when files under
+# `frontend/` change.
 pre-commit:
   parallel: true
   commands:
@@ -15,17 +17,14 @@ pre-commit:
 
     js-lint:
       glob: 'frontend/**/*.{js,ts,jsx,tsx}'
-      root: frontend/
       run: pnpm lint
 
     js-typecheck:
       glob: 'frontend/**/*.{ts,tsx}'
-      root: frontend/
       run: pnpm typecheck
 
     js-test:
       glob: 'frontend/**/*.test.{ts,tsx}'
-      root: frontend/
       run: pnpm test
 
 commit-msg:

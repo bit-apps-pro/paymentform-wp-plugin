@@ -66,16 +66,17 @@ final class PluginServiceProviderTest extends TestCase
         $this->assertStringContainsString('type="module"', $tag);
     }
 
-    public function test_adds_module_type_to_the_admin_spa_handle(): void
+    public function test_leaves_the_admin_spa_handle_untouched(): void
     {
+        // The admin SPA now ships through the Script Modules API
+        // (wp_enqueue_script_module), so it never passes through
+        // script_loader_tag and must NOT be tagged here.
         $provider = new PluginServiceProvider();
 
-        $tag = $provider->addModuleTypeToScripts(
-            '<script src="admin.js"></script>',
-            'paymentform-admin'
-        );
+        $original = '<script src="admin.js"></script>';
+        $tag = $provider->addModuleTypeToScripts($original, 'paymentform-admin');
 
-        $this->assertStringContainsString('type="module"', $tag);
+        $this->assertSame($original, $tag);
     }
 
     public function test_leaves_unrelated_handles_untouched(): void
@@ -92,8 +93,9 @@ final class PluginServiceProviderTest extends TestCase
     {
         $provider = new PluginServiceProvider();
 
-        $original = '<script type="module" src="admin.js"></script>';
-        $tag = $provider->addModuleTypeToScripts($original, 'paymentform-admin');
+        $original = '<script type="module" src="block-editor.js" id="'
+            . self::FALLBACK_EDITOR_HANDLE . '-js"></script>';
+        $tag = $provider->addModuleTypeToScripts($original, self::FALLBACK_EDITOR_HANDLE);
 
         $this->assertSame($original, $tag);
         $this->assertSame(1, substr_count($tag, 'type="module"'));

@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
 use PaymentForm\HTTP\Controllers\SetupDiagnoseController;
+use PaymentForm\Providers\ServiceContainer;
+use PaymentForm\Services\Http\HttpTransport;
+use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Tests\Support\InteractsWithWpKit;
+use PaymentForm\Tests\Support\SeedsServiceContainer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use WpHttpMock;
@@ -20,11 +24,20 @@ use WpHttpMock;
 class SetupDiagnoseControllerTest extends TestCase
 {
     use InteractsWithWpKit;
+    use SeedsServiceContainer;
 
     protected function setUp(): void
     {
         \TestWpFunctions::reset();
         WpHttpMock::reset();
+        $this->seedContainer([
+            SetupApiClient::class => new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL)),
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        ServiceContainer::reset();
     }
 
     /** @return array<string, mixed> */
@@ -92,8 +105,10 @@ class SetupDiagnoseControllerTest extends TestCase
 
         $payload = json_decode((string) $call['args']['body'], true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame('http://example.test/paymentform/setup-proof', $payload['proof_url']);
+        $this->assertSame('http://example.test', $payload['site_url']);
+        $this->assertSame('wp-plugin', $payload['client_slug']);
         $this->assertStringStartsWith('v1.', $payload['setup_token']);
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $payload['nonce']);
+        $this->assertArrayNotHasKey('nonce', $payload);
         $this->assertArrayNotHasKey('wp_setup_token', $payload);
     }
 }

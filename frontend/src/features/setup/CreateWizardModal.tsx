@@ -10,6 +10,8 @@ import { WizardDiagnoseStep } from './WizardDiagnoseStep';
 import { WizardCheckInboxStep } from './WizardCheckInboxStep';
 import { WizardSuccessStep } from './WizardSuccessStep';
 import { WizardFailedStep } from './WizardFailedStep';
+import { wpModuleData } from '../../utils/wpData';
+import type { ApiError } from '../../lib/request/types';
 
 interface Props {
   open: boolean;
@@ -18,12 +20,10 @@ interface Props {
 
 export function CreateWizardModal({ open, onClose }: Props) {
   const { token } = theme.useToken();
-  const adminEmail =
-    (window as unknown as { paymentformAdmin?: { adminEmail?: string } })?.paymentformAdmin
-      ?.adminEmail || '';
+  const adminEmail = wpModuleData.adminEmail || '';
 
   const { state, dispatch } = useWizard(adminEmail, defaultCountry());
-  const { mutate: setup, isPending: isSetupPending } = useSetup();
+  const { mutate: setup } = useSetup();
 
   // Bumped on every modal close so an in-flight /setup request whose user
   // has already closed the dialog can't dispatch against a fresh wizard
@@ -31,7 +31,6 @@ export function CreateWizardModal({ open, onClose }: Props) {
   const sessionRef = useRef(0);
 
   const isSubmitting = state.step === 'submitting' || state.step === 'verifying_otp';
-  const isLoading = isSetupPending;
 
   // Handle setup submission
   useEffect(() => {
@@ -72,13 +71,14 @@ export function CreateWizardModal({ open, onClose }: Props) {
               });
             }
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             if (session !== sessionRef.current) return;
 
+            const apiError = error as ApiError;
             dispatch({
               type: 'fail',
-              code: error.errorCode || 'unknown',
-              message: error.message || __('Could not set up your account. Try again.', 'paymentform'),
+              code: apiError.errorCode || 'unknown',
+              message: apiError.message || __('Could not set up your account. Try again.', 'paymentform'),
             });
           },
         }
@@ -140,10 +140,10 @@ export function CreateWizardModal({ open, onClose }: Props) {
       onCancel={handleCancel}
       footer={null}
       width={480}
-      destroyOnClose
+      destroyOnHidden
       afterClose={handleAfterClose}
       closable={!isSubmitting}
-      maskClosable={!isSubmitting}
+      mask={{ closable: !isSubmitting }}
       aria-live={state.step === 'submitting' || state.step === 'verifying_otp' ? 'polite' : undefined}
     >
       <Flex vertical gap={token.marginLG} style={{ marginTop: token.marginLG }}>

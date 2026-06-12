@@ -1,17 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Input, Select, Segmented, Button, Flex, theme } from 'antd';
 import { RefreshCw, Search } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
 import { __ } from '../../lib/i18n';
+import type { Density, StatusFilter, FormsToolbarValue } from './useFormsToolbarState';
 
-export type Density = 'compact' | 'default';
-export type StatusFilter = 'all' | 'enabled' | 'disabled' | 'draft';
-
-export interface FormsToolbarValue {
-  q: string;
-  status: StatusFilter;
-  density: Density;
-}
+export type { Density, StatusFilter, FormsToolbarValue } from './useFormsToolbarState';
 
 interface FormsToolbarProps {
   value: FormsToolbarValue;
@@ -20,40 +13,6 @@ interface FormsToolbarProps {
   isRefreshing?: boolean;
   /** Right-aligned content (e.g. primary action button). */
   extra?: ReactNode;
-}
-
-const URL_DEBOUNCE_MS = 300;
-
-export function useFormsToolbarState(): {
-  value: FormsToolbarValue;
-  setValue: (next: FormsToolbarValue) => void;
-} {
-  const [params, setParams] = useSearchParams();
-  const initial: FormsToolbarValue = {
-    q: params.get('q') ?? '',
-    status: (params.get('status') as StatusFilter) ?? 'all',
-    density: (params.get('density') as Density) ?? 'default',
-  };
-  const [value, setLocal] = useState<FormsToolbarValue>(initial);
-  const timer = useRef<number | undefined>(undefined);
-
-  const setValue = (next: FormsToolbarValue) => {
-    setLocal(next);
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      const sp = new URLSearchParams();
-      if (next.q) sp.set('q', next.q);
-      if (next.status !== 'all') sp.set('status', next.status);
-      if (next.density !== 'default') sp.set('density', next.density);
-      setParams(sp, { replace: true });
-    }, URL_DEBOUNCE_MS);
-  };
-
-  useEffect(() => () => {
-    if (timer.current) window.clearTimeout(timer.current);
-  }, []);
-
-  return { value, setValue };
 }
 
 export function FormsToolbar({

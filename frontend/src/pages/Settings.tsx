@@ -16,6 +16,7 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { useThemeMode } from '../theme/themeMode';
 import { request } from '../lib/request/request';
 import { __ } from '../lib/i18n';
+import { wpModuleData } from '../utils/wpData';
 
 type HealthRow = { endpoint: string; ok: boolean; ms: number; error?: string };
 
@@ -75,7 +76,7 @@ export function Settings() {
   const onCopyDiagnostic = async () => {
     const info = {
       timestamp: new Date().toISOString(),
-      pluginVersion: window.paymentformAdmin?.version ?? 'unknown',
+      pluginVersion: wpModuleData.version ?? 'unknown',
       siteUrl: window.location.origin,
       userAgent: navigator.userAgent,
     };
@@ -108,10 +109,10 @@ export function Settings() {
       <Card title={__('Plugin info', 'paymentform')} className={cardStyles}>
         <Descriptions column={{ xs: 1, sm: 2 }} size="small">
           <Descriptions.Item label={__('Plugin version', 'paymentform')}>
-            {window.paymentformAdmin?.version ?? '—'}
+            {wpModuleData.version ?? '—'}
           </Descriptions.Item>
           <Descriptions.Item label={__('Site URL', 'paymentform')}>
-            {window.paymentformAdmin?.siteUrl ?? '—'}
+            {wpModuleData.siteUrl ?? '—'}
           </Descriptions.Item>
           <Descriptions.Item label={__('Support', 'paymentform')}>
             <a

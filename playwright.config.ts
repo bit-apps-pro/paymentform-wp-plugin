@@ -6,10 +6,10 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * E2E suite against a live dev WordPress install (default http://wp-dev.io).
- * See e2e/README.md for setup, env vars and the non-destructive policy.
+ * See frontend/e2e/README.md for setup, env vars and the non-destructive policy.
  */
 export default defineConfig({
-  testDir: 'e2e',
+  testDir: 'frontend/e2e',
   reporter: 'list',
   timeout: 60_000,
   expect: { timeout: 15_000 },
@@ -30,7 +30,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        storageState: path.join(dirname, 'e2e/.auth/state.json'),
+        storageState: path.join(dirname, 'frontend/e2e/.auth/state.json'),
       },
       dependencies: ['setup'],
     },

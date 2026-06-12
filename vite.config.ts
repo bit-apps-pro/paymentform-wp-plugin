@@ -176,11 +176,38 @@ function wpExternals(): Plugin {
 }
 
 /**
+ * Copy `blocks/form-embed/block.json` into the build output at
+ * `form-embed/block.json`, rewriting only its `file:` script paths to match the
+ * flat `assets/` layout (block.json sits in `assets/form-embed/`, the JS sits in
+ * `assets/`, so `../<name>.js` is the correct relative path). Every other field
+ * is preserved verbatim from the source so future block.json edits propagate.
+ */
+function copyBlockJson(): Plugin {
+  return {
+    name: 'copy-block-json',
+    generateBundle() {
+      const source = readFileSync(
+        resolve(__dirname, 'frontend/blocks/form-embed/block.json'),
+        'utf8',
+      );
+      const block = JSON.parse(source) as Record<string, unknown>;
+      block.editorScript = 'file:../block-editor.js';
+      block.viewScriptModule = 'file:../block-view.js';
+      this.emitFile({
+        type: 'asset',
+        fileName: 'form-embed/block.json',
+        source: `${JSON.stringify(block, null, 2)}\n`,
+      });
+    },
+  };
+}
+
+/**
  * Coordinate the dev-server port with PHP through a `frontend/port` file:
  * the plugin picks a free port (sticky across restarts via the stored file),
  * writes it on boot and removes it on shutdown. PHP treats the file's
  * presence as "dev mode" (Config::isDev()) and loads the admin SPA from
- * `http://localhost:<port>` with HMR instead of the built `dist/` bundle.
+ * `http://localhost:<port>` with HMR instead of the built `assets/` bundle.
  *
  * Adapted from the file-manager plugin's port-file pattern.
  */
@@ -233,7 +260,7 @@ function setDevServerConfig(): Plugin {
   };
 }
 
-const portFile = resolve(__dirname, 'port');
+const portFile = resolve(__dirname, 'frontend/port');
 
 let portFileCleanupRegistered = false;
 
@@ -271,7 +298,13 @@ export default defineConfig({
   // map cleanly to `wp.element.createElement` (the editor's React 18 instance).
   // The automatic runtime would emit `jsx`/`jsxs` calls which `wp.element` does
   // not expose. Admin SPA also gets classic — same emotion-css JSX behavior.
-  plugins: [react({ jsxRuntime: 'classic' }), wpExternals(), setDevServerConfig()],
+  plugins: [react({ jsxRuntime: 'classic' }), wpExternals(), copyBlockJson(), setDevServerConfig()],
+  // The build config lives at the plugin root but the web app source stays under
+  // `frontend/`, so point Vite's project root there. The dev server then serves
+  // `/src/main.tsx`, `/dev-react-refresh.js` etc. from `frontend/` (PHP targets
+  // those exact paths), `.env` loads from `frontend/`, and `outDir: '../assets'`
+  // still resolves to the repo-root `assets/` dir.
+  root: resolve(__dirname, 'frontend'),
   // Expose `APP_*` vars from `frontend/.env` to the client as dev-only
   // overrides (see src/lib/devEnv.ts); production reads window.paymentformAdmin.
   envPrefix: 'APP_',
@@ -284,13 +317,16 @@ export default defineConfig({
   },
   build: {
     target: 'ES2022',
-    outDir: 'dist',
+    // Built assets land in the repo-root `assets/` dir (sibling of `frontend/`),
+    // the only tree shipped to WordPress. `emptyOutDir` still wipes it on each
+    // build — correct, since `assets/` is generated-only.
+    outDir: '../assets',
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        admin: resolve(__dirname, 'src/main.tsx'),
-        'block-editor': resolve(__dirname, 'blocks/form-embed/index.ts'),
-        'block-view': resolve(__dirname, 'blocks/form-embed/view.ts'),
+        admin: resolve(__dirname, 'frontend/src/main.tsx'),
+        'block-editor': resolve(__dirname, 'frontend/blocks/form-embed/index.ts'),
+        'block-view': resolve(__dirname, 'frontend/blocks/form-embed/view.ts'),
       },
       output: {
         entryFileNames: '[name].js',

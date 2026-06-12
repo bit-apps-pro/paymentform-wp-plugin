@@ -32,7 +32,10 @@ export interface SetupResponse {
 
 export interface VerifyOtpResponse {
   verified: boolean;
+  // Present on a wrong/expended code (HTTP 200): a human-readable message the
+  // WP bridge builds from the backend's `attempts_remaining`.
   error?: string;
+  attempts_remaining?: number;
 }
 
 export interface ResendOtpResponse {

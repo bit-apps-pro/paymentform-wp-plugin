@@ -26,7 +26,7 @@ final class RefreshController
     }
 
     /**
-     * @return array<string, mixed>|Response
+     * @return array{expiresAt: ?string, expiresIn: ?int}|Response
      */
     public function refresh(Request $req): array|Response
     {
@@ -35,7 +35,7 @@ final class RefreshController
             return Response::error([
                 'status' => false,
                 'error_code' => ErrorCode::NOT_CONNECTED->value,
-            ], 400)->code(ErrorCode::NOT_CONNECTED->value);
+            ], 400)->code(ErrorCode::NOT_CONNECTED->value)->message(null);
         }
 
         try {
@@ -45,16 +45,18 @@ final class RefreshController
             $rawData = $this->tokenService->getRaw();
             $expiresAt = $rawData['expires_at'] ?? null;
 
+            // Flat, camelCase payload mirroring StatusController so request()'s
+            // single envelope-unwrap surfaces { expiresAt, expiresIn } directly
+            // — a self-wrapped { status, data: {...} } would nest the values one
+            // level deeper than every other endpoint.
             return [
-                'status' => true,
-                'data' => [
-                    'expires_at' => $expiresAt,
-                    'expires_in' => $expiresIn,
-                ],
+                'expiresAt' => $expiresAt,
+                'expiresIn' => $expiresIn,
             ];
         } catch (RuntimeException $e) {
             return Response::error($this->failureBody($e), 502)
-                ->code(ErrorCode::REFRESH_FAILED->value);
+                ->code(ErrorCode::REFRESH_FAILED->value)
+                ->message(null);
         }
     }
 

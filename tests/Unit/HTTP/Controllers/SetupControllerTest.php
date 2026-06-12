@@ -7,9 +7,9 @@ namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\SetupController;
 use PaymentForm\Providers\ServiceContainer;
-use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\EncryptionService;
-use PaymentForm\Services\TokenRefreshLock;
+use PaymentForm\Services\Http\HttpTransport;
+use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use PaymentForm\Tests\Support\InteractsWithWpKit;
@@ -56,7 +56,7 @@ class SetupControllerTest extends TestCase
         $tokenService ??= $this->tokenService;
 
         $this->seedContainer([
-            ApiClient::class => new ApiClient($tokenService, new TokenRefreshLock(), PAYMENTFORM_API_BASE_URL),
+            SetupApiClient::class => new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL)),
             TokenService::class => $tokenService,
         ]);
 

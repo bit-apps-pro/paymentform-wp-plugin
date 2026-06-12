@@ -16,11 +16,33 @@ use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\ConnectService;
+use PaymentForm\Services\Http\HttpTransport;
+use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\WebhookService;
 use PaymentForm\Cron\PurgeExpiredSetupOptions;
+use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 
 final class PluginServiceProvider
 {
+    /**
+     * Script Module id for the admin SPA, in the npm-scope style WP core uses
+     * for its own modules (`@wordpress/*`). The admin SPA config is delivered
+     * through the WP 6.7 Script Module Data API keyed on this id, so it must
+     * match the `wp_enqueue_script_module()` id, the `script_module_data_{id}`
+     * filter tag, and the frontend reader's `wp-script-module-data-{id}` lookup.
+     */
+    private const ADMIN_MODULE_ID = '@' . Config::SLUG . '/admin';
+
+    /**
+     * Dev-only Script Module ids. In dev the admin SPA is served from the Vite
+     * dev server, but it still ships through the Script Modules API so WP emits
+     * the config data tag and keeps dev/prod loading identical. The React Fast
+     * Refresh preamble and the Vite HMR client are enqueued as their own modules
+     * so they execute before the SPA entry.
+     */
+    private const DEV_REFRESH_MODULE_ID = '@' . Config::SLUG . '/dev-react-refresh';
+    private const DEV_VITE_CLIENT_MODULE_ID = '@' . Config::SLUG . '/vite-client';
+
     private ?Container $container = null;
 
     public function register(Container $c): void
@@ -35,11 +57,21 @@ final class PluginServiceProvider
         // Token refresh synchronization
         $c[TokenRefreshLock::class] = static fn() => new TokenRefreshLock();
 
+        // Shared outbound HTTP transport (wp-kit HttpClient adapter). Owns the
+        // API base URL; stateless beyond that — a fresh client is built per call
+        // inside send().
+        $c[HttpTransport::class] = static fn() => new HttpTransport(Config::apiBaseUrl());
+
         // API client with token awareness
         $c[ApiClient::class] = static fn($c) => new ApiClient(
             $c[TokenService::class],
             $c[TokenRefreshLock::class],
-            Config::apiBaseUrl()
+            $c[HttpTransport::class]
+        );
+
+        // Unauthenticated client for the pre-auth setup/exchange endpoints.
+        $c[SetupApiClient::class] = static fn($c) => new SetupApiClient(
+            $c[HttpTransport::class]
         );
 
         // OAuth-like connect flow
@@ -54,7 +86,8 @@ final class PluginServiceProvider
         // (see Plugin.php docblock for the composition-root split).
         $c[CallbackController::class] = static fn($c) => new CallbackController(
             $c[ConnectService::class],
-            $c[TokenService::class]
+            $c[TokenService::class],
+            $c[SetupApiClient::class]
         );
 
         $c[WebhookController::class] = static fn($c) => new WebhookController(
@@ -62,7 +95,7 @@ final class PluginServiceProvider
             $c[WebhookService::class]
         );
 
-        $c[SetupProofController::class] = static fn($c) => new SetupProofController();
+        $c[SetupProofController::class] = static fn() => new SetupProofController();
     }
 
     public function boot(): void
@@ -91,13 +124,15 @@ final class PluginServiceProvider
 
     public function addModuleTypeToScripts(string $tag, string $handle): string
     {
-        // Only the admin SPA and block-editor bundles ship as ES modules
-        // (Vite emits real imports there). `paymentform-form-view-script` is
-        // a plain IIFE talking to window globals; tagging it `type="module"`
-        // causes WP to register it through its module loader pipeline, which
-        // then *omits the standard `<script src>` tag* in favour of an import
-        // map entry — leaving only the inline `-extra` localised data on
-        // the page and breaking shortcode hydration.
+        // Only the block-editor bundle still ships as a classic ES-module
+        // script (WP has no `editorScriptModule`, so the editor entry is
+        // enqueued as a classic script that needs `type="module"`). The admin
+        // SPA now ships through the Script Modules API (wp_enqueue_script_module),
+        // so it never passes through `script_loader_tag` and is intentionally
+        // absent from the allowlist. `paymentform-form-view-script` is a plain
+        // IIFE talking to window globals; tagging it `type="module"` would route
+        // it through WP's module loader and omit the `<script src>` tag in favour
+        // of an import-map entry, breaking shortcode hydration.
         //
         // The editor handle is the one captured by registerBlockAndShortcode
         // (init), not a hard-coded literal — WP's `<block>-editor-script`
@@ -105,7 +140,7 @@ final class PluginServiceProvider
         // would print the module bundle as a classic script (SyntaxError on
         // its top-level `import`, dead editor). `script_loader_tag` fires at
         // print time, after init populated the property.
-        $moduleHandles = ['paymentform-admin', $this->blockEditorScriptHandle];
+        $moduleHandles = [$this->blockEditorScriptHandle];
         if (!in_array($handle, $moduleHandles, true)) {
             return $tag;
         }
@@ -128,18 +163,28 @@ final class PluginServiceProvider
      * to register (e.g. block.json malformed).
      */
     private string $blockEditorScriptHandle = 'paymentform-form-editor-script';
-    private string $blockViewScriptHandle = 'paymentform-form-view-script';
+
+    /**
+     * The auto-generated view *Script Module* id for the form-embed block,
+     * captured from `register_block_type`'s return value. The block view now
+     * ships as a Script Module (block.json `viewScriptModule`), so WP exposes
+     * its id on `view_script_module_ids` rather than `view_script_handles`.
+     * The block view's config is delivered through the WP 6.7 Script Module
+     * Data API keyed on this id (`script_module_data_{id}`); the shortcode
+     * classic path keeps its own `window.paymentformView` localize.
+     */
+    private string $blockViewScriptModuleId = 'paymentform-form-view-script';
 
     public function registerBlockAndShortcode(): void
     {
-        $blockType = register_block_type(Config::pluginDir() . 'frontend/blocks/form-embed');
+        $blockType = register_block_type(Config::pluginDir() . 'assets/form-embed');
         if ($blockType && !empty($blockType->editor_script_handles)) {
             $this->blockEditorScriptHandle = (string) $blockType->editor_script_handles[0];
         } else {
             error_log('PaymentForm: register_block_type returned no editor_script_handles; falling back to default handle name. Block editor localize may target a stale handle.');
         }
-        if ($blockType && !empty($blockType->view_script_handles)) {
-            $this->blockViewScriptHandle = (string) $blockType->view_script_handles[0];
+        if ($blockType && !empty($blockType->view_script_module_ids)) {
+            $this->blockViewScriptModuleId = (string) $blockType->view_script_module_ids[0];
         }
         (new Shortcode())->register();
     }
@@ -170,20 +215,17 @@ final class PluginServiceProvider
             'nonce' => wp_create_nonce('wp_rest'),
         ];
 
-        // Connection-derived fields cost a TokenService::getRaw() DB lookup, so
-        // only resolve them when the post already uses the block (the preview
-        // iframe needs the tenant renderer host). `has_block()` returns false
-        // for FSE/site-editor (no post context) which is fine — those screens
-        // don't render the form-embed block edit UI; consumers handle absence.
-        global $post;
-        if (! $post || has_block('paymentform/form', $post)) {
-            $raw = $this->container[TokenService::class]->getRaw();
-            $isArr = is_array($raw);
+        // Connection-derived fields drive the preview iframe's tenant renderer
+        // host. Localize them unconditionally: gating on has_block() left a
+        // freshly-inserted block with no rendererBaseUrl until save+reload, so
+        // the preview showed "Preview unavailable" on a connected site. Cost is
+        // one cached TokenService::getRaw() read per editor load.
+        $raw = $this->container[TokenService::class]->getRaw();
+        $isArr = is_array($raw);
 
-            $config['connected'] = $isArr && !empty($raw['access_token']);
-            $config['tenant'] = $isArr ? ($raw['tenant'] ?? null) : null;
-            $config['rendererBaseUrl'] = $this->resolveRendererBaseUrl();
-        }
+        $config['connected'] = $isArr && !empty($raw['access_token']);
+        $config['tenant'] = $isArr ? ($raw['tenant'] ?? null) : null;
+        $config['rendererBaseUrl'] = $this->resolveRendererBaseUrl();
 
         wp_localize_script($this->blockEditorScriptHandle, 'paymentformAdmin', $config);
     }
@@ -221,31 +263,6 @@ final class PluginServiceProvider
         echo '<div id="paymentform-admin-root"></div>';
     }
 
-    /**
-     * CSS that flattens WP admin chrome on our page so the React shell fills the
-     * viewport without producing an outer page scrollbar or a gap between the WP
-     * admin sidebar and the plugin sidebar.
-     */
-    private function adminChromeOverrides(): string
-    {
-        return <<<'CSS'
-html.wp-toolbar { overflow: hidden; }
-body.toplevel_page_paymentform #wpcontent { padding-left: 0 !important; margin-left: 160px; }
-body.folded.toplevel_page_paymentform #wpcontent { margin-left: 36px; }
-body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
-body.toplevel_page_paymentform #wpbody-content { padding-bottom: 0 !important; }
-body.toplevel_page_paymentform .wrap { margin: 0 !important; padding: 0 !important; }
-body.toplevel_page_paymentform #wpfooter { display: none !important; }
-body.toplevel_page_paymentform #paymentform-admin-root,
-body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 32px); }
-@media screen and (max-width: 782px) {
-    body.toplevel_page_paymentform #wpcontent { margin-left: 0; }
-    body.toplevel_page_paymentform #paymentform-admin-root,
-    body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 46px); }
-}
-CSS;
-    }
-
     public function enqueueAdminAssets(string $hook): void
     {
         if ($hook !== 'toplevel_page_paymentform') {
@@ -258,55 +275,58 @@ CSS;
             return;
         }
 
-        wp_add_inline_style('paymentform-admin', $this->adminChromeOverrides());
-        $this->localizeAdminConfig();
+        // WP core auto-prints the import map, the enqueued Script Module, and
+        // its `wp-script-module-data-{id}` JSON tag on `admin_print_footer_scripts`
+        // (admin support since 6.6) — no manual printer is needed. The admin SPA
+        // config is delivered via the Script Module Data filter registered here.
+        $this->registerAdminConfigData();
     }
 
     /**
      * Dev mode (Config::isDev()): serve the admin SPA straight from the Vite
-     * dev server so wp-admin gets HMR. Registers src-less stubs for the
-     * `paymentform-admin` script/style handles so the shared localize +
-     * inline-chrome-CSS plumbing works exactly as in prod, then prints the
-     * React Fast Refresh preamble, Vite client and SPA entry as
-     * `type="module"` tags. The preamble must execute before the entry
-     * module and WP's script-module API gives no ordering guarantee for
-     * inline modules, so all three print together in the admin footer.
+     * dev server so wp-admin gets HMR. The React Fast Refresh preamble, the Vite
+     * HMR client and the SPA entry all ship through the Script Modules API — the
+     * same path as production — so WP prints them as `type="module"` scripts and
+     * auto-emits the `wp-script-module-data-{id}` config tag for the enqueued
+     * admin module (no manual tag print needed).
+     *
+     * The preamble must execute before the entry, and the Vite client before the
+     * SPA registers its Fast Refresh boundaries. Module scripts execute in
+     * document order and WP prints enqueued modules in registration order, so
+     * register them preamble → client → entry. `version: false` suppresses the
+     * `?ver` query WP would otherwise append — Vite's dev endpoints
+     * (`/@vite/client`, `/@react-refresh`) don't expect it.
+     *
+     * The chrome-flattening CSS ships inside the built `assets/admin.css`. A
+     * clean dev checkout may not have it (no build has run); when absent we skip
+     * the enqueue — the SPA still functions, the wp-admin chrome simply isn't
+     * flattened until a build produces `assets/admin.css` once.
      */
     private function enqueueDevAdminAssets(): void
     {
         $dev = Config::devServerUrl();
 
-        wp_register_script('paymentform-admin', false, [], Config::VERSION, true);
-        wp_enqueue_script('paymentform-admin');
-        wp_register_style('paymentform-admin', false, [], Config::VERSION);
-        wp_enqueue_style('paymentform-admin');
+        $css_file = Config::pluginDir() . 'assets/admin.css';
+        if (file_exists($css_file)) {
+            wp_enqueue_style('paymentform-admin', Config::pluginUrl() . 'assets/admin.css', [], Config::VERSION);
+        }
 
-        add_action('admin_print_footer_scripts', static function () use ($dev): void {
-            printf(
-                '<script type="module">import RefreshRuntime from "%s";'
-                    . 'RefreshRuntime.injectIntoGlobalHook(window);'
-                    . 'window.$RefreshReg$ = () => {};'
-                    . 'window.$RefreshSig$ = () => (type) => type;'
-                    . 'window.__vite_plugin_react_preamble_installed__ = true;'
-                    . '</script>' . "\n",
-                esc_url($dev . '/@react-refresh')
-            );
-            printf('<script type="module" src="%s"></script>' . "\n", esc_url($dev . '/@vite/client'));
-            printf('<script type="module" src="%s"></script>' . "\n", esc_url($dev . '/src/main.tsx'));
-        }, 5);
+        wp_enqueue_script_module(self::DEV_REFRESH_MODULE_ID, $dev . '/dev-react-refresh.js', [], false);
+        wp_enqueue_script_module(self::DEV_VITE_CLIENT_MODULE_ID, $dev . '/@vite/client', [], false);
+        wp_enqueue_script_module(self::ADMIN_MODULE_ID, $dev . '/src/main.tsx', [], false);
     }
 
     /**
-     * Production: enqueue the built `dist/` bundle. Returns false when no
-     * build exists (fresh checkout) — callers skip the localize/chrome-CSS
-     * steps entirely, matching the historical early-return behaviour.
+     * Production: enqueue the built `assets/` bundle. Returns false when no
+     * build exists (fresh checkout) — callers skip the config-data step
+     * entirely, matching the historical early-return behaviour.
      */
     private function enqueueBuiltAdminAssets(): bool
     {
-        $frontend_dir = Config::pluginDir() . 'frontend/dist';
-        $js_file = $frontend_dir . '/admin.js';
-        $css_file = $frontend_dir . '/admin.css';
-        $asset_file = $frontend_dir . '/admin.asset.php';
+        $assets_dir = Config::pluginDir() . 'assets';
+        $js_file = $assets_dir . '/admin.js';
+        $css_file = $assets_dir . '/admin.css';
+        $asset_file = $assets_dir . '/admin.asset.php';
 
         if (!file_exists($js_file)) {
             return false;
@@ -324,38 +344,80 @@ CSS;
             ? $asset['dependencies']
             : ['wp-element'];
 
-        wp_enqueue_script(
-            'paymentform-admin',
-            Config::pluginUrl() . 'frontend/dist/admin.js',
-            $deps,
-            $version,
-            true
+        // The SPA ships as a Script Module. A Script Module's dependency array
+        // accepts *module* ids only — it cannot declare classic-script deps.
+        // The bundle reads `window.wp.*` globals (Vite externalizes @wordpress/*
+        // to globals; the SPA bundles its own React), so enqueue the WP-core
+        // classic handles from admin.asset.php separately. WP prints them
+        // before the module executes, so the globals exist at module run time.
+        foreach ($deps as $dep) {
+            wp_enqueue_script($dep);
+        }
+
+        wp_enqueue_script_module(
+            self::ADMIN_MODULE_ID,
+            Config::pluginUrl() . 'assets/admin.js',
+            [],
+            $version
         );
 
+        // The build always emits `assets/admin.css` (chrome overrides). Guard
+        // the enqueue with file_exists so a partial build (JS present, CSS
+        // missing) degrades to no-stylesheet rather than a 404.
         if (file_exists($css_file)) {
             wp_enqueue_style(
                 'paymentform-admin',
-                Config::pluginUrl() . 'frontend/dist/admin.css',
+                Config::pluginUrl() . 'assets/admin.css',
                 [],
                 $version
             );
-        } else {
-            // Even without compiled CSS we still need an inline style handle.
-            wp_register_style('paymentform-admin', false, [], $version);
-            wp_enqueue_style('paymentform-admin');
         }
 
         return true;
     }
 
     /**
-     * Attach the `paymentformAdmin` config object to the admin SPA handle
-     * (built bundle or dev-mode stub alike).
+     * Register the admin SPA config on the WP 6.7 Script Module Data filter for
+     * the admin module. When WP prints the enqueued module on
+     * `admin_print_footer_scripts` it runs `script_module_data_{id}`, encodes
+     * the returned array, and emits it as a non-executable
+     * `<script type="application/json" id="wp-script-module-data-{id}">` tag —
+     * parsed into the DOM before the deferred `type=module` SPA executes, so the
+     * SPA reads it synchronously at eval. Registered on both the prod and dev
+     * admin paths — dev enqueues the SPA through the Script Modules API too, so
+     * WP emits the data tag identically in both.
      */
-    private function localizeAdminConfig(): void
+    private function registerAdminConfigData(): void
+    {
+        Hooks::addFilter('script_module_data_' . self::ADMIN_MODULE_ID, [$this, 'createConfigVariable']);
+    }
+
+    /**
+     * Script Module Data filter callback for the admin module: merges the SPA
+     * config onto whatever data WP (or another filter) has already accumulated.
+     * WP encodes the returned array itself into a `type="application/json"` tag,
+     * so no manual `wp_json_encode`/escaping is needed here.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function createConfigVariable(array $data): array
+    {
+        return array_merge($data, $this->adminConfig());
+    }
+
+    /**
+     * Build the admin SPA config array (token/expiry/email/CF-country derivation
+     * + the central app/renderer hosts). Sole builder of the 14-key config that
+     * the admin Script Module Data filter delivers, and that the dev path prints
+     * directly into its data tag.
+     *
+     * @return array<string, mixed>
+     */
+    private function adminConfig(): array
     {
         if ($this->container === null) {
-            return;
+            return [];
         }
 
         $tokenService = $this->container[TokenService::class];
@@ -375,7 +437,7 @@ CSS;
             $cfCountry = '';
         }
 
-        wp_localize_script('paymentform-admin', 'paymentformAdmin', [
+        return [
             'nonce' => wp_create_nonce('wp_rest'),
             'restUrl' => rest_url('paymentform/v1/'),
             'adminUrl' => admin_url('admin.php?page=paymentform'),
@@ -400,42 +462,44 @@ CSS;
             // EmbedDrawer uses this to render the "Iframe URL" + preview iframe
             // against the correct subdomain instead of the static `app.` host.
             'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
-        ]);
+        ];
     }
 
     public function enqueueFrontendAssets(): void
     {
-        $view_js = Config::pluginDir() . 'frontend/dist/block-view.js';
-
-        if (!file_exists($view_js)) {
-            return;
-        }
-
         global $post;
         $hasShortcode = $post && has_shortcode($post->post_content, 'paymentform');
         $hasBlock = $post && has_block('paymentform/form', $post);
 
-        // Block runtime: auto-enqueued by register_block_type via
-        // block.json viewScript. We only need to attach the renderer config
-        // so view.ts can build the iframe src against the tenant origin.
+        // Block runtime: the view module is auto-enqueued by register_block_type
+        // via block.json `viewScriptModule`, and WP runs `script_module_data_{id}`
+        // for it, emitting the config as a `type="application/json"` data tag the
+        // view module reads. Register the filter whenever the block is present —
+        // independent of whether the built `assets/block-view.js` exists locally,
+        // since the data tag is keyed on the registered module id, not the file.
         if ($hasBlock) {
-            wp_localize_script($this->blockViewScriptHandle, 'paymentformView', [
-                'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
-            ]);
+            $rendererBaseUrl = $this->resolveRendererBaseUrl();
+            Hooks::addFilter(
+                'script_module_data_' . $this->blockViewScriptModuleId,
+                static fn (array $data): array => array_merge($data, ['rendererBaseUrl' => $rendererBaseUrl]),
+            );
         }
 
-        if ($hasShortcode) {
+        $view_js = Config::pluginDir() . 'assets/block-view.js';
+
+        if ($hasShortcode && file_exists($view_js)) {
             $version = Config::VERSION . '.' . filemtime($view_js);
 
-            // Distinct handle from the block's auto-registered `viewScript`
-            // (block.json registers `paymentform-form-view-script` with an
-            // empty `src` because the `file:` path resolves through
-            // `register_block_type`'s loader; reusing that handle here would
-            // hit `WP_Dependencies::add()`'s already-registered guard and
-            // leave us with only the inline `-extra` localised data).
+            // Shortcode path stays a CLASSIC script (it does not go through
+            // block.json). The SAME built block-view.js works both ways — it is
+            // import/export-free, so it loads fine as a classic <script> here
+            // and as the block's view *module* (block.json viewScriptModule)
+            // elsewhere. A distinct classic handle keeps this enqueue independent
+            // of the block's Script Module registration and any future classic
+            // handle WP might mint for the block.
             wp_enqueue_script(
                 'paymentform-shortcode-view',
-                Config::pluginUrl() . 'frontend/dist/block-view.js',
+                Config::pluginUrl() . 'assets/block-view.js',
                 [],
                 $version,
                 true

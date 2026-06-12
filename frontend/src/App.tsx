@@ -13,9 +13,10 @@ import { Welcome } from './pages/Welcome';
 import { Callback } from './pages/Callback';
 import { Forms } from './pages/Forms';
 import { Settings } from './pages/Settings';
+import { wpModuleData } from './utils/wpData';
 
 function RootRedirect() {
-  const connected = window.paymentformAdmin?.connected === '1' || window.paymentformAdmin?.connected === true;
+  const connected = wpModuleData.connected === '1' || wpModuleData.connected === true;
   return <Navigate to={connected ? '/forms' : '/welcome'} replace />;
 }
 

@@ -17,9 +17,11 @@ export function useFormsList() {
     queryKey: ['forms'],
     queryFn: async () => {
       // The controller returns the bare forms array; request() strips the
-      // wp-kit envelope.
+      // wp-kit envelope. Coerce any non-array payload (e.g. a degenerate
+      // backend body flattened to an object) to [] so the table never
+      // receives a non-array — `?? []` only guards null/undefined.
       const forms = await request<Form[]>('/forms', { method: 'GET' });
-      return forms ?? [];
+      return Array.isArray(forms) ? forms : [];
     },
   });
 }

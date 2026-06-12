@@ -34,13 +34,7 @@ final class FormsProxyController
      */
     public function index(Request $req): array|Response
     {
-        try {
-            return $this->flatten($this->apiClient->request('GET', '/form'));
-        } catch (DisconnectedException) {
-            return $this->errorResponse(ErrorCode::DISCONNECTED, 401);
-        } catch (RuntimeException $e) {
-            return $this->errorResponse(ErrorCode::API_ERROR, 500, $e->getMessage());
-        }
+        return $this->proxy('/form');
     }
 
     /**
@@ -56,8 +50,20 @@ final class FormsProxyController
             return $this->errorResponse(ErrorCode::INVALID_FORM_ID, 400);
         }
 
+        return $this->proxy('/form/' . (int) $id);
+    }
+
+    /**
+     * Proxy a GET to the backend, flatten the success payload, and map
+     * transport failures onto the SPA error envelope. Shared by index/show
+     * so the catch ladder stays in one place.
+     *
+     * @return array<int|string, mixed>|Response
+     */
+    private function proxy(string $path): array|Response
+    {
         try {
-            return $this->flatten($this->apiClient->request('GET', '/form/' . (int) $id));
+            return $this->flatten($this->apiClient->request('GET', $path));
         } catch (DisconnectedException) {
             return $this->errorResponse(ErrorCode::DISCONNECTED, 401);
         } catch (RuntimeException $e) {
@@ -88,6 +94,8 @@ final class FormsProxyController
      * the same value rides the wp-kit envelope `code`. Exception messages may
      * carry internal URLs or stack hints — only forward them when `WP_DEBUG`
      * is on so production sites don't leak detail to the authenticated admin.
+     * `message(null)` clears any message a prior response left on wp-kit's
+     * all-static Response singleton (same guard as SetupController::failure()).
      */
     private function errorResponse(ErrorCode $errorCode, int $status, ?string $message = null): Response
     {
@@ -97,6 +105,6 @@ final class FormsProxyController
             $body['message'] = $message;
         }
 
-        return Response::error($body, $status)->code($errorCode->value);
+        return Response::error($body, $status)->code($errorCode->value)->message(null);
     }
 }

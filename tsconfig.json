@@ -16,7 +16,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["frontend/src/*"]
     },
     "noEmit": true,
     "verbatimModuleSyntax": true,
@@ -25,6 +25,6 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src", "blocks"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["frontend/src", "frontend/blocks"],
+  "exclude": ["node_modules", "assets"]
 }

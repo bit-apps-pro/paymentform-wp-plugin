@@ -8,7 +8,7 @@ function freshImport() {
 }
 
 function setMatchMedia(matches: boolean) {
-  (window as any).matchMedia = vi.fn().mockImplementation((query: string) => ({
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches,
     media: query,
     onchange: null,
@@ -17,7 +17,7 @@ function setMatchMedia(matches: boolean) {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
-  }));
+  })) as unknown as typeof window.matchMedia;
 }
 
 describe('themeMode store', () => {

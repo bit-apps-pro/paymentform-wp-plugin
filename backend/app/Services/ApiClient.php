@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace PaymentForm\Services;
 
-use JsonException;
+use PaymentForm\Services\Http\HttpResponse;
+use PaymentForm\Services\Http\HttpTransport;
 use RuntimeException;
 
 /**
- * Token-aware HTTP client that wraps `wp_remote_request` (the same pattern
- * bit-* plugins use for outbound HTTP). Replaces the previous Guzzle-based
- * implementation: WP-native means we ride the site's own CA bundle and
- * cURL transport configuration instead of bundling our own.
+ * Token-aware HTTP client that drives the shared {@see HttpTransport} adapter
+ * (wp-kit `HttpClient` under the hood, which itself rides the site's own
+ * `wp_remote_request` transport and CA bundle).
  *
  * The class intentionally throws plain `RuntimeException` for upstream
  * failures so callers can map them to their own response shape; 401 is
@@ -30,14 +30,14 @@ final class ApiClient
     public function __construct(
         private readonly TokenServiceInterface $tokenService,
         private readonly TokenRefreshLock $refreshLock,
-        private readonly string $baseUrl = 'https://api.paymentform.io',
+        private readonly HttpTransport $http,
     ) {}
 
     /**
      * Execute an authenticated request against the upstream API, transparently
      * refreshing the bearer once on 401.
      *
-     * @param  array<string, mixed>  $options  Extra wp_remote_request args; `headers` are merged.
+     * @param  array<string, mixed>  $options  Extra request args; `headers` are merged, `json`/`timeout` honored.
      * @return array<string, mixed>            Decoded JSON body.
      */
     public function request(string $method, string $path, array $options = []): array
@@ -57,20 +57,22 @@ final class ApiClient
             throw new RuntimeException('NO_TOKEN_TO_REFRESH');
         }
 
-        $response = wp_remote_request($this->baseUrl . '/auth/refresh', [
-            'method' => 'POST',
-            'timeout' => self::TIMEOUT_SECONDS,
-            'headers' => [
+        $response = $this->http->post(
+            '/auth/refresh',
+            [
                 'Authorization' => 'Bearer ' . $current,
                 'Accept' => 'application/json',
             ],
-        ]);
+            timeoutSeconds: self::TIMEOUT_SECONDS,
+        );
 
-        if (is_wp_error($response)) {
-            throw new RuntimeException('REFRESH_FAILED: ' . $response->get_error_message());
+        if ($response->isError()) {
+            throw new RuntimeException('REFRESH_FAILED: ' . $response->error->get_error_message());
         }
 
-        $body = $this->decodeBody($response);
+        // Refresh historically did not check the HTTP status — it only decoded
+        // the body and validated the token fields. Preserve that exactly.
+        $body = $this->decodeOrThrow($response);
         $token = $body['data']['token'] ?? null;
         $expiresAt = $body['data']['expires_at'] ?? null;
 
@@ -96,20 +98,30 @@ final class ApiClient
         $effectivePath = $tenant !== null && ! str_starts_with($path, '/auth/')
             ? '/' . rawurlencode($tenant) . $path
             : $path;
-        $url = rtrim($this->baseUrl, '/') . $effectivePath;
 
-        $args = $this->buildRequestArgs($method, $token, $options);
+        $headers = array_merge(
+            is_array($options['headers'] ?? null) ? $options['headers'] : [],
+            [
+                'Authorization' => 'Bearer ' . $token,
+                'Accept' => 'application/json',
+            ],
+        );
+        $json = is_array($options['json'] ?? null) ? $options['json'] : null;
+        // A raw `body` option is forwarded for parity with the legacy client;
+        // when `json` is also set the adapter encodes it and ignores `body`.
+        $body = is_string($options['body'] ?? null) ? $options['body'] : null;
+        $timeout = $options['timeout'] ?? self::TIMEOUT_SECONDS;
 
-        $response = wp_remote_request($url, $args);
+        $response = $this->http->send($method, $effectivePath, $headers, json: $json, body: $body, timeoutSeconds: $timeout);
 
-        if (is_wp_error($response)) {
-            throw new RuntimeException('API_REQUEST_FAILED: ' . $response->get_error_message());
+        if ($response->isError()) {
+            throw new RuntimeException('API_REQUEST_FAILED: ' . $response->error->get_error_message());
         }
 
-        $status = (int) wp_remote_retrieve_response_code($response);
+        $status = $response->status;
 
         if ($status >= 200 && $status < 300) {
-            return $this->decodeBody($response);
+            return $this->decodeOrThrow($response);
         }
 
         if ($status === 401) {
@@ -119,7 +131,7 @@ final class ApiClient
         throw new RuntimeException(sprintf(
             'API_ERROR_%d: %s',
             $status,
-            $this->truncate((string) wp_remote_retrieve_body($response)),
+            $this->truncate($response->rawBody),
         ));
     }
 
@@ -161,49 +173,19 @@ final class ApiClient
     }
 
     /**
-     * @param  array<string, mixed>  $options
+     * Map the adapter's normalized body onto the array contract callers expect,
+     * preserving the legacy `JSON_THROW_ON_ERROR` behavior: a malformed body
+     * (flagged by the adapter) becomes `INVALID_JSON_RESPONSE`.
+     *
      * @return array<string, mixed>
      */
-    private function buildRequestArgs(string $method, string $token, array $options): array
+    private function decodeOrThrow(HttpResponse $response): array
     {
-        $headers = array_merge(
-            is_array($options['headers'] ?? null) ? $options['headers'] : [],
-            [
-                'Authorization' => 'Bearer ' . $token,
-                'Accept' => 'application/json',
-            ],
-        );
-
-        $args = $options;
-        unset($args['headers']);
-        $args['method'] = strtoupper($method);
-        $args['headers'] = $headers;
-        $args['timeout'] = $args['timeout'] ?? self::TIMEOUT_SECONDS;
-
-        if (isset($args['json'])) {
-            $args['body'] = json_encode($args['json']);
-            $args['headers']['Content-Type'] = 'application/json';
-            unset($args['json']);
+        if ($response->jsonError) {
+            throw new RuntimeException('INVALID_JSON_RESPONSE');
         }
 
-        return $args;
-    }
-
-    /**
-     * @param  mixed  $response
-     * @return array<string, mixed>
-     */
-    private function decodeBody($response): array
-    {
-        $raw = (string) wp_remote_retrieve_body($response);
-
-        try {
-            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw new RuntimeException('INVALID_JSON_RESPONSE', 0, $e);
-        }
-
-        return is_array($decoded) ? $decoded : [];
+        return $response->body;
     }
 
     private function truncate(string $body): string

@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace PaymentForm\HTTP\Controllers;
 
 use InvalidArgumentException;
-use JsonException;
-use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\Providers\ServiceContainer;
-use PaymentForm\Services\ApiClient;
+use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\SetupOptionsStore;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
@@ -42,13 +40,13 @@ final class SetupController
 {
     private const TIMEOUT_SECONDS = 30;
 
-    private readonly ApiClient $apiClient;
+    private readonly SetupApiClient $setupApi;
 
     private readonly TokenServiceInterface $tokenService;
 
     public function __construct()
     {
-        $this->apiClient = ServiceContainer::get(ApiClient::class);
+        $this->setupApi = ServiceContainer::get(SetupApiClient::class);
         $this->tokenService = ServiceContainer::get(TokenService::class);
     }
 
@@ -132,18 +130,10 @@ final class SetupController
             $backendPayload['locale'] = $locale;
         }
 
-        $response = wp_remote_request(Config::apiBaseUrl() . '/auth/setup', [
-            'method' => 'POST',
-            'timeout' => self::TIMEOUT_SECONDS,
-            'headers' => [
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ],
-            'body' => wp_json_encode($backendPayload),
-        ]);
+        $res = $this->setupApi->post('/auth/setup', $backendPayload, self::TIMEOUT_SECONDS);
 
         // Handle network errors.
-        if (is_wp_error($response)) {
+        if ($res->isError()) {
             return $this->failure(
                 [
                     'next' => 'failed',
@@ -154,28 +144,23 @@ final class SetupController
             );
         }
 
-        $status = (int) wp_remote_retrieve_response_code($response);
-        $raw = (string) wp_remote_retrieve_body($response);
+        $status = $res->status;
 
         // Handle 503 kill switch.
         if ($status === 503) {
-            try {
-                $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-                if (isset($body['error_code']) && $body['error_code'] === 'FEATURE_DISABLED') {
-                    $retryAfter = (int) ($body['retry_after'] ?? 3600);
+            $body = $res->body;
+            if (! $res->jsonError && isset($body['error_code']) && $body['error_code'] === 'FEATURE_DISABLED') {
+                $retryAfter = (int) ($body['retry_after'] ?? 3600);
 
-                    return $this->failure(
-                        [
-                            'next' => 'failed',
-                            'code' => 'service_unavailable',
-                            'message' => 'PaymentForm signup is temporarily unavailable. Please try again later.',
-                            'retry_after_seconds' => $retryAfter,
-                        ],
-                        503
-                    );
-                }
-            } catch (JsonException) {
-                // Fall through to generic network error.
+                return $this->failure(
+                    [
+                        'next' => 'failed',
+                        'code' => 'service_unavailable',
+                        'message' => 'PaymentForm signup is temporarily unavailable. Please try again later.',
+                        'retry_after_seconds' => $retryAfter,
+                    ],
+                    503
+                );
             }
 
             return $this->failure(
@@ -188,7 +173,7 @@ final class SetupController
         // "try again in N seconds" message instead of a generic error.
         if ($status === 429) {
             $retryAfter = 0;
-            $retryHeader = wp_remote_retrieve_header($response, 'retry-after');
+            $retryHeader = $res->headers['retry-after'] ?? null;
             if (is_string($retryHeader) && ctype_digit($retryHeader)) {
                 $retryAfter = (int) $retryHeader;
             }
@@ -206,14 +191,13 @@ final class SetupController
 
         // Successful response (2xx).
         if ($status >= 200 && $status < 300) {
-            try {
-                $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
+            if ($res->jsonError) {
                 return $this->failure(
                     ['next' => 'failed', 'code' => 'invalid_response', 'message' => 'Invalid backend response.'],
                     502
                 );
             }
+            $body = $res->body;
 
             // Backend wraps payload in `{ status: true, data: {...} }`. Hard
             // require the envelope so a contract drift surfaces as a clear
@@ -295,11 +279,10 @@ final class SetupController
 
         // Handle 422 errors (validation / proof failure).
         if ($status === 422) {
-            try {
-                $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
+            if ($res->jsonError) {
                 return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);
             }
+            $body = $res->body;
 
             $errorCode = $body['error_code'] ?? null;
 
@@ -359,25 +342,16 @@ final class SetupController
             );
         }
 
-        $response = wp_remote_request(Config::apiBaseUrl() . '/auth/setup/finalize', [
-            'method' => 'POST',
-            'timeout' => self::TIMEOUT_SECONDS,
-            'headers' => [
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ],
-            'body' => wp_json_encode(['setup_token' => $wpSetupToken]),
-        ]);
+        $res = $this->setupApi->post('/auth/setup/finalize', ['setup_token' => $wpSetupToken], self::TIMEOUT_SECONDS);
 
-        if (is_wp_error($response)) {
+        if ($res->isError()) {
             return $this->failure(
                 ['next' => 'failed', 'code' => 'network', 'message' => 'Could not reach paymentform.io.'],
                 503
             );
         }
 
-        $statusCode = (int) wp_remote_retrieve_response_code($response);
-        $raw = (string) wp_remote_retrieve_body($response);
+        $statusCode = $res->status;
 
         // 410 (or any 4xx) means the cache row is gone server-side — drop
         // the transient so a retry doesn't keep hammering the dead key.
@@ -391,15 +365,18 @@ final class SetupController
         }
 
         if ($statusCode < 200 || $statusCode >= 300) {
-            // Dynamic passthrough of the backend's own status (mapping S5).
-            return $this->failure(['next' => 'failed', 'code' => 'finalize_failed'], $statusCode);
+            // Dynamic passthrough of the backend's own status (mapping S5). A
+            // degenerate/unparseable upstream response yields $statusCode === 0,
+            // which Response::getHttpStatusCode() silently coerces to 400 — fall
+            // back to 502 Bad Gateway so the wizard sees an upstream failure,
+            // not a misleading client error.
+            return $this->failure(['next' => 'failed', 'code' => 'finalize_failed'], $statusCode ?: 502);
         }
 
-        try {
-            $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
+        if ($res->jsonError) {
             return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);
         }
+        $body = $res->body;
 
         if (! is_array($body) || ! isset($body['data']) || ! is_array($body['data'])) {
             return $this->failure(['next' => 'failed', 'code' => 'invalid_response'], 502);

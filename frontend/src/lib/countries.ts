@@ -1,3 +1,5 @@
+import { wpModuleData } from '../utils/wpData';
+
 /**
  * ISO 3166-1 alpha-2 country codes with display names.
  * Sorted alphabetically by label for easy searching.
@@ -255,7 +257,5 @@ export const COUNTRIES: { value: string; label: string }[] = [
 ];
 
 export function defaultCountry(): string {
-  const cfCountry = (window as unknown as { paymentformAdmin?: { cfCountry?: string } })
-    ?.paymentformAdmin?.cfCountry;
-  return cfCountry || 'US';
+  return wpModuleData.cfCountry || 'US';
 }

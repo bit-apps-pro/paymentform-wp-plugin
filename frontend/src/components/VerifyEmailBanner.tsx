@@ -2,41 +2,26 @@ import { Alert, Button, Space } from 'antd';
 import { useEffect, useState } from 'react';
 import { __ } from '../lib/i18n';
 import { useSetupStatus } from '../features/setup/queries';
+import { wpModuleData } from '../utils/wpData';
 
 export function VerifyEmailBanner() {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
-  const { data, refetch, isFetching } = useSetupStatus();
+  // Read the per-session dismissal once on mount via a lazy initializer.
+  const [isDismissed, setIsDismissed] = useState(
+    () => sessionStorage.getItem('paymentform_dismiss_verify_banner') !== null
+  );
+  const { refetch, isFetching } = useSetupStatus();
 
-  const adminConfig = (window as unknown as { paymentformAdmin?: { emailVerified?: boolean | null } })
-    ?.paymentformAdmin;
+  const isEmailVerified = wpModuleData.emailVerified === true;
 
-  const isEmailVerified = adminConfig?.emailVerified === true;
+  // Derived during render: show only while the email is explicitly unverified
+  // and the banner hasn't been dismissed this session.
+  const isVisible = wpModuleData.emailVerified === false && !isDismissed;
 
-  // Check if banner was dismissed in this session
-  useEffect(() => {
-    const dismissed = sessionStorage.getItem('paymentform_dismiss_verify_banner');
-    if (dismissed) {
-      setIsDismissed(true);
-    }
-  }, []);
-
-  // Show banner only if email is explicitly unverified
-  useEffect(() => {
-    if (adminConfig?.emailVerified === false && !isDismissed) {
-      setIsVisible(true);
-    } else {
-      setIsVisible(false);
-    }
-  }, [adminConfig?.emailVerified, isDismissed]);
-
-  // Setup polling for status checks (60s interval)
+  // Poll status while the banner is visible (immediate refetch + 60s interval).
   useEffect(() => {
     if (!isVisible) return;
 
-    // Enable query for polling
-    const unsubscribe = refetch();
-
+    refetch();
     const timer = setInterval(() => {
       refetch();
     }, 60000); // 60 seconds
@@ -49,7 +34,6 @@ export function VerifyEmailBanner() {
   const handleDismiss = () => {
     sessionStorage.setItem('paymentform_dismiss_verify_banner', Date.now().toString());
     setIsDismissed(true);
-    setIsVisible(false);
   };
 
   if (!isVisible || isEmailVerified) {
@@ -58,12 +42,11 @@ export function VerifyEmailBanner() {
 
   return (
     <Alert
-      message={__('Verify your email', 'paymentform')}
+      title={__('Verify your email', 'paymentform')}
       description={__('Verify your email to enable form publishing, webhook delivery, and payment connects.', 'paymentform')}
       type="warning"
       showIcon
-      closable
-      onClose={handleDismiss}
+      closable={{ onClose: handleDismiss }}
       action={
         <Space size="small">
           <Button

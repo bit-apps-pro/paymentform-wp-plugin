@@ -13,10 +13,10 @@ describe('Forms page', () => {
   });
 
   it('renders without crashing', () => {
-    (globalThis as any).fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: 'success', code: 'SUCCESS', data: [] }),
-    });
+    }) as unknown as typeof fetch;
 
     const { container } = render(
       <BrowserRouter>
@@ -32,10 +32,10 @@ describe('Forms page', () => {
   });
 
   it('renders Forms content container', () => {
-    (globalThis as any).fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: 'success', code: 'SUCCESS', data: [] }),
-    });
+    }) as unknown as typeof fetch;
 
     const { container } = render(
       <BrowserRouter>

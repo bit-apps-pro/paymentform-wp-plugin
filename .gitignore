@@ -1,7 +1,8 @@
 /vendor/
 node_modules/
-dist/
+assets/
 build/
+/paymentform.zip
 .pnpm-store/
 .bin/
 /.wrangler/
@@ -16,5 +17,5 @@ build/
 /tests/__output__/
 /frontend/port
 /frontend/e2e/.auth/
-/frontend/playwright-report/
-/frontend/test-results/
+/playwright-report/
+/test-results/

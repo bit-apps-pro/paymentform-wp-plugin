@@ -10,7 +10,7 @@
  * Text Domain: paymentform
  * Domain Path: /languages
  * Requires PHP: 8.1
- * Requires at least: 6.4
+ * Requires at least: 6.7
  */
 
 if (!defined('ABSPATH')) {
@@ -30,13 +30,11 @@ if (!file_exists($paymentform_plugin_dir . 'vendor/autoload.php')) {
 
 require_once $paymentform_plugin_dir . 'vendor/autoload.php';
 
-use PaymentForm\Activation\Activator;
-use PaymentForm\Activation\Deactivator;
 use PaymentForm\Config;
 
 Config::bootstrap(__FILE__);
 
-register_activation_hook(__FILE__, [Activator::class, 'activate']);
-register_deactivation_hook(__FILE__, [Deactivator::class, 'deactivate']);
-
+// Activation, deactivation and uninstall hooks are registered by
+// PaymentForm\Providers\InstallerProvider (wired in Plugin::wire via
+// backend/bootstrap.php), mirroring the BitApps wp-kit Installer lifecycle.
 require_once $paymentform_plugin_dir . 'backend/bootstrap.php';

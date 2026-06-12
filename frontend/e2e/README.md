@@ -13,8 +13,9 @@ against a **live dev WordPress install** — not a fixture.
 
 ## Run
 
+Run from the plugin root (where `package.json` and `playwright.config.ts` now live):
+
 ```sh
-cd frontend
 pnpm exec playwright install chromium   # once
 pnpm test:e2e
 ```

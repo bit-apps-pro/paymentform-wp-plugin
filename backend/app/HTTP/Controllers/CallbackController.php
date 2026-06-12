@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace PaymentForm\HTTP\Controllers;
 
 use JsonException;
-use PaymentForm\Config;
 use PaymentForm\Enums\ErrorCode;
 use PaymentForm\Services\ConnectService;
+use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\TokenServiceInterface;
 use Throwable;
+use WP_REST_Request;
 
 final class CallbackController
 {
@@ -27,65 +28,63 @@ final class CallbackController
     public function __construct(
         private readonly ConnectService $connectService,
         private readonly TokenServiceInterface $tokenService,
+        private readonly SetupApiClient $setupApi,
     ) {}
 
-    public function handle($req): void
+    public function handle(WP_REST_Request $req): void
     {
         $code = $req->get_param('code');
         $state = $req->get_param('state');
 
         if (! is_string($code) || $code === '' || strlen($code) > 128) {
             $this->redirectWithError(ErrorCode::MISSING_PARAMS);
+
             return;
         }
         if (! is_string($state) || $state === '' || strlen($state) !== 64) {
             $this->redirectWithError(ErrorCode::MISSING_PARAMS);
+
             return;
         }
 
         $userId = $this->connectService->consumeState($state);
         if ($userId === null) {
             $this->redirectWithError(ErrorCode::INVALID_STATE);
+
             return;
         }
 
-        $response = wp_remote_request(Config::apiBaseUrl() . '/auth/exchange', [
-            'method' => 'POST',
-            'timeout' => self::TIMEOUT_SECONDS,
-            'headers' => [
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ],
-            'body' => wp_json_encode([
-                'code' => $code,
-                'site_url' => site_url(),
-                'client_slug' => 'wp-plugin',
-            ]),
-        ]);
+        $res = $this->setupApi->post('/auth/exchange', [
+            'code' => $code,
+            'site_url' => site_url(),
+            'client_slug' => 'wp-plugin',
+        ], self::TIMEOUT_SECONDS);
 
-        if (is_wp_error($response)) {
-            $this->debugLog('callback exchange error', $response->get_error_message());
+        if ($res->isError()) {
+            $this->debugLog('callback exchange error', $res->error->get_error_message());
             $this->redirectWithError(ErrorCode::EXCHANGE_FAILED);
+
             return;
         }
 
-        $status = (int) wp_remote_retrieve_response_code($response);
-        $raw = (string) wp_remote_retrieve_body($response);
+        $status = $res->status;
 
         if ($status < 200 || $status >= 300) {
-            $upstream = $this->extractUpstreamErrorCode($raw);
+            $upstream = $this->extractUpstreamErrorCode($res->rawBody);
             $this->debugLog('callback exchange error', $upstream ?? sprintf('HTTP_%d', $status));
             $this->redirectWithError(ErrorCode::EXCHANGE_FAILED, $upstream);
+
             return;
         }
 
-        try {
-            $body = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            $this->debugLog('callback exchange error', $e->getMessage());
+        if ($res->jsonError) {
+            $this->debugLog('callback exchange error', 'invalid JSON response');
             $this->redirectWithError(ErrorCode::INVALID_RESPONSE);
+
             return;
         }
+
+        $body = $res->body;
 
         $token = $body['data']['token'] ?? null;
         $expiresAt = $body['data']['expires_at'] ?? null;
@@ -94,6 +93,7 @@ final class CallbackController
 
         if (! is_string($token) || ! is_string($expiresAt)) {
             $this->redirectWithError(ErrorCode::INVALID_RESPONSE);
+
             return;
         }
 
@@ -106,6 +106,7 @@ final class CallbackController
             $this->tokenService->clear();
             $this->debugLog('callback storage error', $e->getMessage());
             $this->redirectWithError(ErrorCode::STORAGE_FAILED);
+
             return;
         }
 
@@ -140,7 +141,7 @@ final class CallbackController
             $query['upstream'] = $upstream;
         }
 
-        $this->redirect(admin_url('admin.php?' . http_build_query($query)));
+        $this->redirect(admin_url('admin.php?'.http_build_query($query)));
     }
 
     /**

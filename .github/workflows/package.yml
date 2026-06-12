@@ -1,0 +1,59 @@
+name: Package plugin
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Build and package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer
+
+      - name: Build and package
+        id: build
+        run: |
+          bash bin/package.sh
+          ZIP="$(ls paymentform-*.zip | head -1)"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paymentform-plugin
+          path: ${{ steps.build.outputs.zip }}
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ZIP: ${{ steps.build.outputs.zip }}
+        run: |
+          # Attach the version-stamped asset (human-facing) plus a stable-named
+          # copy, so the `releases/latest/download/paymentform.zip` URL keeps
+          # resolving across every future release.
+          cp "$ZIP" paymentform.zip
+          gh release upload "$RELEASE_TAG" "$ZIP" paymentform.zip --clobber

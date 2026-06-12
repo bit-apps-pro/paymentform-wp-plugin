@@ -61,8 +61,10 @@ class TestWpFunctions
     private static ?array $grantedCaps = null;
     /** @var array<string, list<callable>> */
     private static array $filters = [];
-    /** @var array<string, list<callable>> */
+    /** @var array<string, list<array{callback: callable, priority: int}>> */
     private static array $actions = [];
+    /** null = fall back to scanning post content for the block name. */
+    private static ?bool $hasBlock = null;
 
     public static function reset(): void
     {
@@ -74,6 +76,27 @@ class TestWpFunctions
         self::$grantedCaps = null;
         self::$filters = [];
         self::$actions = [];
+        self::$hasBlock = null;
+    }
+
+    /**
+     * Forces has_block() to a fixed result for a single test. Pass null to
+     * restore the default (scan the post content for the block name).
+     */
+    public static function setHasBlock(?bool $present): void
+    {
+        self::$hasBlock = $present;
+    }
+
+    public static function hasBlock(string $blockName, mixed $post): bool
+    {
+        if (self::$hasBlock !== null) {
+            return self::$hasBlock;
+        }
+
+        $content = is_object($post) ? ($post->post_content ?? '') : (string) $post;
+
+        return str_contains((string) $content, '<!-- wp:' . $blockName);
     }
 
     public static function getOption(string $option, mixed $default = false): mixed
@@ -204,9 +227,9 @@ class TestWpFunctions
         return $value;
     }
 
-    public static function addAction(string $tag, callable $callback): void
+    public static function addAction(string $tag, callable $callback, int $priority = 10): void
     {
-        self::$actions[$tag][] = $callback;
+        self::$actions[$tag][] = ['callback' => $callback, 'priority' => $priority];
     }
 
     /**
@@ -216,6 +239,21 @@ class TestWpFunctions
      * @return list<callable>
      */
     public static function getActions(string $tag): array
+    {
+        return array_map(
+            static fn (array $record): callable => $record['callback'],
+            self::$actions[$tag] ?? []
+        );
+    }
+
+    /**
+     * Full action records (callback + priority), in registration order — for
+     * tests that assert hook ordering (e.g. an inline-data printer must run at
+     * a lower priority number than a module printer).
+     *
+     * @return list<array{callback: callable, priority: int}>
+     */
+    public static function getActionRecords(string $tag): array
     {
         return self::$actions[$tag] ?? [];
     }
@@ -229,9 +267,9 @@ if (!function_exists('get_option')) {
 }
 
 if (!function_exists('update_option')) {
-    function update_option(string $option, mixed $value, bool $autoload = true): bool
+    function update_option(string $option, mixed $value, bool|null $autoload = null): bool
     {
-        return TestWpFunctions::updateOption($option, $value, $autoload);
+        return TestWpFunctions::updateOption($option, $value, $autoload ?? true);
     }
 }
 
@@ -448,10 +486,42 @@ if (!function_exists('plugin_basename')) {
 if (!function_exists('add_action')) {
     function add_action(string $hook, callable $function_to_add, int $priority = 10, int $accepted_args = 1): bool
     {
-        // Recorded but never fired; priority/accepted_args are ignored.
-        // Inspect via TestWpFunctions::getActions().
-        TestWpFunctions::addAction($hook, $function_to_add);
+        // Recorded but never fired; accepted_args is ignored. Priority IS
+        // recorded so tests can assert hook ordering. Inspect via
+        // TestWpFunctions::getActions() / getActionRecords().
+        TestWpFunctions::addAction($hook, $function_to_add, $priority);
         return true;
+    }
+}
+
+if (!function_exists('do_action')) {
+    function do_action(string $hook, mixed ...$args): void
+    {
+        // Harness never fires hooks; tests invoke recorded callbacks explicitly
+        // (mirrors the add_action() stub contract).
+    }
+}
+
+if (!function_exists('register_activation_hook')) {
+    function register_activation_hook(string $file, callable $callback): void
+    {
+        // Recorded under a synthetic tag so tests can assert the lifecycle
+        // provider registered its activation callback.
+        TestWpFunctions::addAction('__activation_hook__', $callback);
+    }
+}
+
+if (!function_exists('register_deactivation_hook')) {
+    function register_deactivation_hook(string $file, callable $callback): void
+    {
+        TestWpFunctions::addAction('__deactivation_hook__', $callback);
+    }
+}
+
+if (!function_exists('register_uninstall_hook')) {
+    function register_uninstall_hook(string $file, callable $callback): void
+    {
+        TestWpFunctions::addAction('__uninstall_hook__', $callback);
     }
 }
 
@@ -467,6 +537,74 @@ if (!function_exists('wp_localize_script')) {
     {
         // No-op in tests
         return true;
+    }
+}
+
+if (!function_exists('wp_register_style')) {
+    function wp_register_style(string $handle, string|false $src, array $deps = [], mixed $ver = false, string $media = 'all'): bool
+    {
+        // No-op in tests
+        return true;
+    }
+}
+
+if (!function_exists('wp_enqueue_style')) {
+    function wp_enqueue_style(string $handle, string $src = '', array $deps = [], mixed $ver = false, string $media = 'all'): void
+    {
+        // No-op in tests
+    }
+}
+
+if (!function_exists('wp_add_inline_style')) {
+    function wp_add_inline_style(string $handle, string $data): bool
+    {
+        // No-op in tests
+        return true;
+    }
+}
+
+if (!function_exists('wp_register_script_module')) {
+    function wp_register_script_module(string $id, string $src, array $deps = [], string|false|null $version = false): void
+    {
+        // No-op in tests — Script Module registration is browser-verified.
+    }
+}
+
+if (!function_exists('wp_enqueue_script_module')) {
+    function wp_enqueue_script_module(string $id, string $src = '', array $deps = [], string|false|null $version = false): void
+    {
+        // No-op in tests — Script Module enqueue is browser-verified.
+    }
+}
+
+if (!function_exists('wp_print_inline_script_tag')) {
+    function wp_print_inline_script_tag(string $javascript, array $attributes = []): void
+    {
+        // Mirrors WP core: prints the inline <script> tag. Tests that exercise
+        // the footer printers capture output; ordering is asserted via the
+        // recorded add_action priorities.
+        echo '<script>' . $javascript . '</script>';
+    }
+}
+
+if (!function_exists('wp_create_nonce')) {
+    function wp_create_nonce(string $action = '-1'): string
+    {
+        return 'test-nonce-' . $action;
+    }
+}
+
+if (!function_exists('plugin_dir_path')) {
+    function plugin_dir_path(string $file): string
+    {
+        return rtrim(dirname($file), '/\\') . '/';
+    }
+}
+
+if (!function_exists('plugin_dir_url')) {
+    function plugin_dir_url(string $file): string
+    {
+        return 'http://example.test/wp-content/plugins/paymentform/';
     }
 }
 
@@ -525,6 +663,15 @@ if (!function_exists('has_shortcode')) {
     {
         // Check if shortcode is present in content
         return strpos($content, '[' . $tag) !== false;
+    }
+}
+
+if (!function_exists('has_block')) {
+    function has_block(string $block_name, mixed $post = null): bool
+    {
+        // Mirrors has_shortcode's shape; default scans the post content for the
+        // block comment, overridable per-test via TestWpFunctions::setHasBlock().
+        return TestWpFunctions::hasBlock($block_name, $post);
     }
 }
 
@@ -745,6 +892,21 @@ if (!function_exists('wp_json_encode')) {
     }
 }
 
+if (!function_exists('wp_parse_args')) {
+    function wp_parse_args(mixed $args, array $defaults = []): array
+    {
+        if (is_object($args)) {
+            $parsed = get_object_vars($args);
+        } elseif (is_array($args)) {
+            $parsed = $args;
+        } else {
+            parse_str((string) $args, $parsed);
+        }
+
+        return array_merge($defaults, $parsed);
+    }
+}
+
 // Mock WordPress database
 class TestWpDb
 {
@@ -766,3 +928,10 @@ if (!isset($GLOBALS['wpdb'])) {
     $GLOBALS['wpdb'] = new TestWpDb();
     $GLOBALS['wpdb']->options = 'wp_options';
 }
+
+// Mirror production bootstrap order: paymentform.php calls Config::bootstrap()
+// before Plugin::load() wires the InstallerProvider. Anchor Config at the real
+// plugin entrypoint so pluginFile()/pluginDir()/pluginBasename() resolve in any
+// test that boots the plugin. Individual tests may re-bootstrap if they need a
+// different anchor.
+\PaymentForm\Config::bootstrap(dirname(__DIR__) . '/paymentform.php');

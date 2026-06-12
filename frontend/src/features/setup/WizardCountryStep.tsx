@@ -40,10 +40,10 @@ export function WizardCountryStep({ state, dispatch }: Props) {
         value={state.country || defaultCountry()}
         onChange={handleCountryChange}
         options={COUNTRIES}
-        showSearch
-        filterOption={(input, option) =>
-          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-        }
+        showSearch={{
+          filterOption: (input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
+        }}
       />
 
       <Flex gap={token.marginSM} style={{ marginTop: token.marginMD }}>
