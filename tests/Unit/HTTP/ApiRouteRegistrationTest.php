@@ -10,6 +10,7 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Router\Router;
 use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\HTTP\Controllers\FormsProxyController;
+use PaymentForm\HTTP\Controllers\LoginLinkController;
 use PaymentForm\HTTP\Controllers\RefreshController;
 use PaymentForm\HTTP\Controllers\ResendOtpController;
 use PaymentForm\HTTP\Controllers\SetupController;
@@ -41,6 +42,7 @@ final class ApiRouteRegistrationTest extends TestCase
         [['GET'], 'status', StatusController::class, 'show'],
         [['POST'], 'refresh', RefreshController::class, 'refresh'],
         [['POST'], 'disconnect', DisconnectController::class, 'disconnect'],
+        [['POST'], 'login-link', LoginLinkController::class, 'create'],
         [['GET'], 'forms', FormsProxyController::class, 'index'],
         [['GET'], 'forms/{id}', FormsProxyController::class, 'show'],
         [['POST'], 'setup', SetupController::class, 'handle'],

@@ -10,6 +10,7 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Router\Route;
 use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\HTTP\Controllers\FormsProxyController;
+use PaymentForm\HTTP\Controllers\LoginLinkController;
 use PaymentForm\HTTP\Controllers\RefreshController;
 use PaymentForm\HTTP\Controllers\ResendOtpController;
 use PaymentForm\HTTP\Controllers\SetupController;
@@ -41,6 +42,7 @@ Route::group(static function (): void {
     Route::get('status', [StatusController::class, 'show']);
     Route::post('refresh', [RefreshController::class, 'refresh']);
     Route::post('disconnect', [DisconnectController::class, 'disconnect']);
+    Route::post('login-link', [LoginLinkController::class, 'create']);
     Route::get('forms', [FormsProxyController::class, 'index']);
     // wp-kit's {id} matches [^/]+ (no inline regex constraint); FormShowRequest
     // validates that the id is a UUID and answers 400 on a malformed id.

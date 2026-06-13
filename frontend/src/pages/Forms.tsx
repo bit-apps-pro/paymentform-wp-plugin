@@ -21,8 +21,9 @@ import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { FormsToolbar } from '../features/forms/FormsToolbar';
 import { useFormsToolbarState } from '../features/forms/useFormsToolbarState';
 import { EmbedDrawer } from '../features/forms/EmbedDrawer';
+import { useLoginLink } from '../features/auth/useLoginLink';
+import { openLoginLink } from '../lib/openLoginLink';
 import { __ } from '../lib/i18n';
-import { appBaseUrl } from '../lib/appBaseUrl';
 
 const ACTIVE_STATUSES = new Set(['enabled', 'active', 'published']);
 
@@ -37,7 +38,7 @@ export function Forms() {
   const { data: forms = [], isLoading, isFetching, refetch } = useFormsList();
   const { value: toolbar, setValue: setToolbar } = useFormsToolbarState();
   const [openForm, setOpenForm] = useState<Form | null>(null);
-  const baseUrl = appBaseUrl();
+  const { mutateAsync: mintLoginLink } = useLoginLink();
 
   const containerStyles = css`
     max-width: 1200px;
@@ -116,9 +117,9 @@ export function Forms() {
               size="small"
               aria-label={__('Edit form', 'paymentform')}
               icon={<Pencil size={16} />}
-              href={`${baseUrl}/build/${encodeURIComponent(record.id)}`}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={() => {
+                void openLoginLink(mintLoginLink, `/build/${record.id}`);
+              }}
             />
           </Tooltip>
         </Space>
@@ -173,9 +174,9 @@ export function Forms() {
     <Button
       type="primary"
       icon={<Plus size={16} />}
-      href={`${baseUrl}/myforms`}
-      target="_blank"
-      rel="noopener noreferrer"
+      onClick={() => {
+        void openLoginLink(mintLoginLink, '/myforms');
+      }}
     >
       {__('Create form', 'paymentform')}
     </Button>
@@ -204,9 +205,9 @@ export function Forms() {
             <Button
               type="primary"
               icon={<Plus size={16} />}
-              href={`${baseUrl}/myforms`}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={() => {
+                void openLoginLink(mintLoginLink, '/myforms');
+              }}
             >
               {__('Create form', 'paymentform')}
             </Button>

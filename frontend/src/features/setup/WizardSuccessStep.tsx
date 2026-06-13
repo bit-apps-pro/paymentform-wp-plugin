@@ -1,5 +1,7 @@
 import { Button, Flex, Typography, theme } from 'antd';
 import { CheckCircle } from 'lucide-react';
+import { useLoginLink } from '../auth/useLoginLink';
+import { openLoginLink } from '../../lib/openLoginLink';
 import { __ } from '../../lib/i18n';
 import type { WizardState } from './state';
 
@@ -10,6 +12,18 @@ interface Props {
 
 export function WizardSuccessStep({ state, onClose }: Props) {
   const { token } = theme.useToken();
+  const { mutateAsync: mintLoginLink } = useLoginLink();
+
+  // With a ready workspace, "Go to dashboard" mints an SSO link and opens the
+  // dashboard, then still closes the modal (preserving CreateWizardModal's
+  // close contract). Without one, "Done" just closes — there is nothing to
+  // open until the email-verification link is followed.
+  const handlePrimary = async () => {
+    if (state.hasWorkspace) {
+      await openLoginLink(mintLoginLink, '/myforms');
+    }
+    onClose();
+  };
 
   return (
     <Flex vertical align="center" gap={token.marginLG} style={{ textAlign: 'center' }}>
@@ -28,7 +42,14 @@ export function WizardSuccessStep({ state, onClose }: Props) {
         </Typography.Paragraph>
       </div>
 
-      <Button type="primary" size="large" onClick={onClose} style={{ width: '100%' }}>
+      <Button
+        type="primary"
+        size="large"
+        onClick={() => {
+          void handlePrimary();
+        }}
+        style={{ width: '100%' }}
+      >
         {state.hasWorkspace ? __('Go to dashboard', 'paymentform') : __('Done', 'paymentform')}
       </Button>
     </Flex>

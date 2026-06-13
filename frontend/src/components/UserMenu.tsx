@@ -3,8 +3,9 @@ import type { MenuProps } from 'antd';
 import { ExternalLink, LogOut } from 'lucide-react';
 import { useConnection } from '../features/auth/useConnection';
 import { useDisconnect } from '../features/auth/useDisconnect';
+import { useLoginLink } from '../features/auth/useLoginLink';
+import { openLoginLink } from '../lib/openLoginLink';
 import { __ } from '../lib/i18n';
-import { wpModuleData } from '../utils/wpData';
 
 function initialsFrom(name?: string): string {
   if (!name) return '?';
@@ -15,21 +16,19 @@ function initialsFrom(name?: string): string {
 export function UserMenu() {
   const { data } = useConnection();
   const { mutate: disconnect } = useDisconnect();
+  const { mutateAsync: mintLoginLink } = useLoginLink();
   const { modal } = AntApp.useApp();
 
   if (!data?.connected) return null;
-
-  const appBaseUrl = wpModuleData.appBaseUrl ?? 'https://app.paymentform.io';
 
   const items: MenuProps['items'] = [
     {
       key: 'open',
       icon: <ExternalLink size={14} />,
-      label: (
-        <a href={appBaseUrl} target="_blank" rel="noopener noreferrer">
-          {__('Open paymentform.io', 'paymentform')}
-        </a>
-      ),
+      label: __('Open paymentform.io', 'paymentform'),
+      onClick: () => {
+        void openLoginLink(mintLoginLink);
+      },
     },
     { type: 'divider' },
     {
