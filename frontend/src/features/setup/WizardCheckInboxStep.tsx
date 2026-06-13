@@ -84,10 +84,13 @@ export function WizardCheckInboxStep({ state, dispatch }: Props) {
       {
         onSuccess: (data) => {
           if (data.verified) {
-            dispatch({
-              type: 'verify-otp-success',
-              hasWorkspace: state.hasWorkspace,
-            });
+            // Email is verified, but the access token is only minted once a
+            // setup/status poll runs finalize. Kick the status check (the 3s
+            // poller + auto-promote effect then carry the wizard to
+            // 'connected') instead of jumping to success before the token
+            // exists — otherwise the wizard unmounts this poller and strands
+            // the user on a "check your email" screen while disconnected.
+            void checkStatus();
           } else {
             message.error(data.error || __('Invalid code. Please try again.', 'paymentform'));
             dispatch({ type: 'verify-otp-failed' });

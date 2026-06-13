@@ -6,11 +6,13 @@ declare global {
   }
 }
 
-// Default module-data tag id for the block-view Script Module (matches the
-// PHP fallback `$blockViewScriptModuleId`). If WP assigns a different id at
-// runtime, the `window.paymentformView` fallback (set by the shortcode classic
-// path via wp_localize_script) covers the gap.
-const VIEW_MODULE_DATA_ID = 'wp-script-module-data-paymentform-form-view-script';
+// Prefix of the block-view Script Module Data tag id. WP derives the actual id
+// from the registered view module id and appends a suffix (e.g. `-module`), so
+// the tag is `wp-script-module-data-paymentform-form-view-script-module` — we
+// match by prefix rather than an exact id to stay robust to that suffix. The
+// `window.paymentformView` fallback (shortcode classic path via
+// wp_localize_script) still covers the shortcode case.
+const VIEW_MODULE_DATA_ID_PREFIX = 'wp-script-module-data-paymentform-form-view-script';
 
 /**
  * Resolve the renderer base URL for the embed iframe.
@@ -23,7 +25,9 @@ const VIEW_MODULE_DATA_ID = 'wp-script-module-data-paymentform-form-view-script'
  * both a classic script (shortcode) and a Script Module (block view).
  */
 function readViewConfig(): { rendererBaseUrl: string } {
-  const el = document.getElementById(VIEW_MODULE_DATA_ID);
+  const el = document.querySelector(
+    `script[type="application/json"][id^="${VIEW_MODULE_DATA_ID_PREFIX}"]`,
+  );
   if (el?.textContent) {
     try {
       const parsed = JSON.parse(el.textContent) as { rendererBaseUrl?: string };
