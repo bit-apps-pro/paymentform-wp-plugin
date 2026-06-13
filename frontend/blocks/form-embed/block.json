@@ -13,6 +13,5 @@
   },
   "supports": { "html": false, "align": ["wide", "full"] },
   "textdomain": "paymentform",
-  "editorScript": "file:../../dist/block-editor.js",
   "viewScriptModule": "file:../../dist/block-view.js"
 }

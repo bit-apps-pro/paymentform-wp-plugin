@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm;
 
+use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 use PaymentForm\HTTP\Middleware\CapabilityCheckerMiddleware;
 use PaymentForm\HTTP\Middleware\NonceCheckerMiddleware;
 use PaymentForm\Providers\HookProvider;
@@ -74,7 +75,7 @@ final class Plugin
         $provider = new PluginServiceProvider();
         $provider->register(ServiceContainer::instance());
 
-        add_action('plugins_loaded', [$provider, 'boot']);
+        Hooks::addAction('plugins_loaded', [$provider, 'boot']);
 
         new HookProvider();
     }

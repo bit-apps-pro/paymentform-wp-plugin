@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\VerifyOtpController;
+use PaymentForm\HTTP\Requests\VerifyOtpRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\Http\HttpTransport;
 use PaymentForm\Services\SetupApiClient;
@@ -45,7 +47,7 @@ class VerifyOtpControllerTest extends TestCase
     private function controller(): VerifyOtpController
     {
         $this->seedContainer([
-            SetupApiClient::class => new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL)),
+            SetupApiClient::class => new SetupApiClient(new HttpTransport(Config::apiBaseUrl())),
         ]);
 
         return new VerifyOtpController();
@@ -54,7 +56,11 @@ class VerifyOtpControllerTest extends TestCase
     private function verify(string $otp = self::VALID_OTP): array|Response
     {
         return $this->controller()
-            ->handle($this->makeWpKitRequest(params: ['otp' => $otp], method: 'POST'));
+            ->handle($this->makeWpKitRequest(
+                params: ['otp' => $otp],
+                method: 'POST',
+                requestClass: VerifyOtpRequest::class,
+            ));
     }
 
     private function stashPendingSetupToken(string $token = 'v1.stashed-token'): void
@@ -84,15 +90,9 @@ class VerifyOtpControllerTest extends TestCase
         $this->assertSame([], WpHttpMock::$calls);
     }
 
-    public function test_rejects_non_six_digit_code_without_backend_call(): void
-    {
-        $this->stashPendingSetupToken();
-
-        $result = $this->verify('abc');
-
-        $this->assertFailure($result, 400, ['verified' => false, 'error' => 'bad_request'], 'bad_request');
-        $this->assertSame([], WpHttpMock::$calls);
-    }
+    // The non-six-digit guard moved to VerifyOtpRequest::rules() (run by the
+    // wp-kit router before the action); see VerifyOtpRequestTest. These unit
+    // tests call the action directly, so only well-formed OTPs reach handle().
 
     public function test_returns_410_when_no_pending_transient_without_backend_call(): void
     {
@@ -112,7 +112,7 @@ class VerifyOtpControllerTest extends TestCase
         $this->verify();
 
         $call = end(WpHttpMock::$calls);
-        $this->assertSame(PAYMENTFORM_API_BASE_URL . '/auth/setup/verify-otp', $call['url']);
+        $this->assertSame(Config::apiBaseUrl() . '/auth/setup/verify-otp', $call['url']);
         $this->assertSame('POST', $call['args']['method']);
         $this->assertSame(
             ['setup_token' => 'v1.stashed-token', 'code' => self::VALID_OTP],

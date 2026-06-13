@@ -24,13 +24,18 @@ adminConfigTag.id = 'wp-script-module-data-@paymentform/admin';
 adminConfigTag.textContent = JSON.stringify(adminConfig);
 document.head.appendChild(adminConfigTag);
 
-// The block EDITOR (blocks/form-embed/edit.tsx) is a classic script and stays on
-// the window.paymentformAdmin global (it cannot use the Script Module Data API).
-// Seed it for the editor tests; the SPA reads the JSON tag above instead.
-Object.defineProperty(window, 'paymentformAdmin', {
-  value: adminConfig,
-  writable: true,
+// The block EDITOR (blocks/form-embed/edit.tsx) now ships as a Script Module too
+// and reads its config from a Script Module Data JSON tag, same as the SPA. Seed
+// the editor tag so edit.tsx resolves nonce / renderer / app config in tests.
+const editorConfigTag = document.createElement('script');
+editorConfigTag.type = 'application/json';
+editorConfigTag.id = 'wp-script-module-data-@paymentform/block-editor';
+editorConfigTag.textContent = JSON.stringify({
+  nonce: 'test-nonce',
+  rendererBaseUrl: 'https://test-tenant.paymentform.io',
+  appBaseUrl: 'https://app.paymentform.io',
 });
+document.head.appendChild(editorConfigTag);
 
 // Mock fetch globally
 globalThis.fetch = vi.fn() as unknown as typeof fetch;

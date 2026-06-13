@@ -42,8 +42,8 @@ Route::group(static function (): void {
     Route::post('refresh', [RefreshController::class, 'refresh']);
     Route::post('disconnect', [DisconnectController::class, 'disconnect']);
     Route::get('forms', [FormsProxyController::class, 'index']);
-    // wp-kit's {id} matches [^/]+ (no inline regex constraint); the
-    // controller validates numeric and answers 400 INVALID_FORM_ID.
+    // wp-kit's {id} matches [^/]+ (no inline regex constraint); FormShowRequest
+    // validates that the id is a UUID and answers 400 on a malformed id.
     Route::get('forms/{id}', [FormsProxyController::class, 'show']);
     Route::post('setup', [SetupController::class, 'handle']);
     Route::post('setup/diagnose', [SetupDiagnoseController::class, 'handle']);

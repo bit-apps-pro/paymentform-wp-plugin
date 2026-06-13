@@ -83,7 +83,7 @@ describe('form-embed Edit', () => {
     expect(apiFetchMock).toHaveBeenCalledWith({ path: 'paymentform/v1/forms' });
   });
 
-  it('registers the plugin nonce middleware from window.paymentformAdmin.nonce', async () => {
+  it('registers the plugin nonce middleware from the editor Script Module Data nonce', async () => {
     apiFetchMock.mockResolvedValueOnce([]);
 
     await renderEdit();

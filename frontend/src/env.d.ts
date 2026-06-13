@@ -8,7 +8,6 @@
 interface ImportMetaEnv {
   readonly APP_API_BASE_URL?: string;
   readonly APP_APP_BASE_URL?: string;
-  readonly APP_RENDERER_BASE_URL?: string;
 }
 
 interface ImportMeta {

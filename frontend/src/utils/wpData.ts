@@ -12,9 +12,10 @@
  * `adminUrl`/`expiresAt`/`hasConnection`, but no SPA code consumes them, so they are
  * omitted here (YAGNI). Add them back only when a real reader appears.
  *
- * The block EDITOR (`blocks/form-embed/edit.tsx`) and the shortcode view stay on the
- * `window.paymentformAdmin` / `window.paymentformView` classic globals — they are not
- * Script Modules and cannot use the data API.
+ * The block EDITOR (`blocks/form-embed/edit.tsx`) reads its own editor module's data
+ * tag (`@paymentform/block-editor`); the shortcode view falls back to the
+ * `window.paymentformView` classic global since the shortcode path is not a Script
+ * Module. Both are independent of this admin config.
  */
 export type PaymentformAdminConfig = {
   nonce: string

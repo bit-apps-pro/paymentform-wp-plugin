@@ -43,6 +43,16 @@ final class PluginServiceProvider
     private const DEV_REFRESH_MODULE_ID = '@' . Config::SLUG . '/dev-react-refresh';
     private const DEV_VITE_CLIENT_MODULE_ID = '@' . Config::SLUG . '/vite-client';
 
+    /**
+     * Script Module id for the form-embed block's editor entry. WP has no
+     * `editorScriptModule` block.json field, so the editor bundle is enqueued
+     * through the Script Modules API directly (not via `register_block_type`)
+     * and its config is delivered on the `script_module_data_{id}` filter keyed
+     * on this id — the editor reads the matching `wp-script-module-data-{id}`
+     * JSON tag.
+     */
+    private const EDITOR_MODULE_ID = '@' . Config::SLUG . '/block-editor';
+
     private ?Container $container = null;
 
     public function register(Container $c): void
@@ -100,14 +110,13 @@ final class PluginServiceProvider
 
     public function boot(): void
     {
-        add_action('init', [$this, 'loadTextdomain']);
-        add_action('init', [$this, 'registerBlockAndShortcode']);
-        add_action('init', [$this, 'registerCronSchedules']);
-        add_action('admin_menu', [$this, 'registerAdminMenu']);
-        add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
-        add_action('enqueue_block_editor_assets', [$this, 'enqueueBlockEditorAssets']);
-        add_action('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
-        add_filter('script_loader_tag', [$this, 'addModuleTypeToScripts'], 10, 2);
+        Hooks::addAction('init', [$this, 'loadTextdomain']);
+        Hooks::addAction('init', [$this, 'registerBlockAndShortcode']);
+        Hooks::addAction('init', [$this, 'registerCronSchedules']);
+        Hooks::addAction('admin_menu', [$this, 'registerAdminMenu']);
+        Hooks::addAction('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
+        Hooks::addAction('enqueue_block_editor_assets', [$this, 'enqueueBlockEditorAssets']);
+        Hooks::addAction('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
 
         if ($this->container !== null) {
             (new Rewrites($this->container))->register();
@@ -119,50 +128,13 @@ final class PluginServiceProvider
         if (!wp_next_scheduled('paymentform_setup_purge')) {
             wp_schedule_event(time(), 'daily', 'paymentform_setup_purge');
         }
-        add_action('paymentform_setup_purge', [new PurgeExpiredSetupOptions(), 'run']);
-    }
-
-    public function addModuleTypeToScripts(string $tag, string $handle): string
-    {
-        // Only the block-editor bundle still ships as a classic ES-module
-        // script (WP has no `editorScriptModule`, so the editor entry is
-        // enqueued as a classic script that needs `type="module"`). The admin
-        // SPA now ships through the Script Modules API (wp_enqueue_script_module),
-        // so it never passes through `script_loader_tag` and is intentionally
-        // absent from the allowlist. `paymentform-form-view-script` is a plain
-        // IIFE talking to window globals; tagging it `type="module"` would route
-        // it through WP's module loader and omit the `<script src>` tag in favour
-        // of an import-map entry, breaking shortcode hydration.
-        //
-        // The editor handle is the one captured by registerBlockAndShortcode
-        // (init), not a hard-coded literal — WP's `<block>-editor-script`
-        // naming convention has shifted across versions, and a mismatch here
-        // would print the module bundle as a classic script (SyntaxError on
-        // its top-level `import`, dead editor). `script_loader_tag` fires at
-        // print time, after init populated the property.
-        $moduleHandles = [$this->blockEditorScriptHandle];
-        if (!in_array($handle, $moduleHandles, true)) {
-            return $tag;
-        }
-        if (str_contains($tag, 'type="module"')) {
-            return $tag;
-        }
-        return str_replace('<script ', '<script type="module" ', $tag);
+        Hooks::addAction('paymentform_setup_purge', [new PurgeExpiredSetupOptions(), 'run']);
     }
 
     public function loadTextdomain(): void
     {
         load_plugin_textdomain('paymentform', false, dirname(plugin_basename(Config::pluginFile())) . '/languages');
     }
-
-    /**
-     * The auto-generated editor-script handle for the form-embed block. Captured
-     * from `register_block_type`'s return value so we don't depend on WP's
-     * `<block>-editor-script` convention (which has shifted across WP versions
-     * for namespaced block names). Falls back to the historical name if WP fails
-     * to register (e.g. block.json malformed).
-     */
-    private string $blockEditorScriptHandle = 'paymentform-form-editor-script';
 
     /**
      * The auto-generated view *Script Module* id for the form-embed block,
@@ -178,11 +150,6 @@ final class PluginServiceProvider
     public function registerBlockAndShortcode(): void
     {
         $blockType = register_block_type(Config::pluginDir() . 'assets/form-embed');
-        if ($blockType && !empty($blockType->editor_script_handles)) {
-            $this->blockEditorScriptHandle = (string) $blockType->editor_script_handles[0];
-        } else {
-            error_log('PaymentForm: register_block_type returned no editor_script_handles; falling back to default handle name. Block editor localize may target a stale handle.');
-        }
         if ($blockType && !empty($blockType->view_script_module_ids)) {
             $this->blockViewScriptModuleId = (string) $blockType->view_script_module_ids[0];
         }
@@ -190,13 +157,13 @@ final class PluginServiceProvider
     }
 
     /**
-     * Inject the tenant-scoped `paymentformAdmin` globals into the block editor
-     * so the form-embed block's Edit component can build a preview iframe against
-     * the connected tenant's renderer host.
+     * Enqueue the form-embed block's editor entry as a Script Module and deliver
+     * its config through the WP Script Module Data API — the same delivery path
+     * the admin SPA and the block view use.
      *
-     * Runs on `enqueue_block_editor_assets` — fires on every Gutenberg editor.
-     * Cheap: one `wp_localize_script` + a single TokenService::getRaw() round
-     * (the local cache halves what would otherwise be three DB hits).
+     * Runs on `enqueue_block_editor_assets` (every Gutenberg editor). Cheap: one
+     * module enqueue plus a single cached `TokenService` read inside
+     * `resolveRendererBaseUrl()` when the data filter fires.
      */
     public function enqueueBlockEditorAssets(): void
     {
@@ -204,30 +171,40 @@ final class PluginServiceProvider
             return;
         }
 
-        // Always localize the request-layer essentials: the block's Edit
-        // component fetches /forms through the SPA `request()` helper, which
-        // needs `restUrl` + `nonce` even on a brand-new post where the block
-        // is inserted for the first time. These are computed without DB hits.
-        $config = [
-            'siteUrl' => site_url(),
-            'appBaseUrl' => Config::appBaseUrl(),
-            'restUrl' => rest_url('paymentform/v1/'),
+        // The editor bundle externalizes @wordpress/* to the editor's `wp.*`
+        // globals, so its classic deps come from block-editor.asset.php (full
+        // handle set as the partial-build fallback).
+        $fallbackDeps = ['wp-blocks', 'wp-block-editor', 'wp-components', 'wp-element', 'wp-i18n', 'wp-api-fetch'];
+        if ($this->enqueueBuiltScriptModule(self::EDITOR_MODULE_ID, 'block-editor', $fallbackDeps) === null) {
+            return;
+        }
+
+        // WP runs `script_module_data_{id}` when it prints the enqueued module,
+        // emitting the returned array as a `wp-script-module-data-{id}` JSON tag
+        // the editor reads at module eval (see frontend blocks/form-embed/edit.tsx).
+        Hooks::addFilter(
+            'script_module_data_' . self::EDITOR_MODULE_ID,
+            [$this, 'createBlockEditorConfigData']
+        );
+    }
+
+    /**
+     * Script Module Data filter callback for the editor module. The Edit
+     * component needs the REST nonce (it registers its own apiFetch nonce
+     * middleware), the tenant renderer host (preview iframe) and the app host
+     * (empty-state "create form" CTA). Merges onto whatever WP or another filter
+     * accumulated; WP encodes and escapes the JSON tag itself.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function createBlockEditorConfigData(array $data): array
+    {
+        return array_merge($data, [
             'nonce' => wp_create_nonce('wp_rest'),
-        ];
-
-        // Connection-derived fields drive the preview iframe's tenant renderer
-        // host. Localize them unconditionally: gating on has_block() left a
-        // freshly-inserted block with no rendererBaseUrl until save+reload, so
-        // the preview showed "Preview unavailable" on a connected site. Cost is
-        // one cached TokenService::getRaw() read per editor load.
-        $raw = $this->container[TokenService::class]->getRaw();
-        $isArr = is_array($raw);
-
-        $config['connected'] = $isArr && !empty($raw['access_token']);
-        $config['tenant'] = $isArr ? ($raw['tenant'] ?? null) : null;
-        $config['rendererBaseUrl'] = $this->resolveRendererBaseUrl();
-
-        wp_localize_script($this->blockEditorScriptHandle, 'paymentformAdmin', $config);
+            'appBaseUrl' => Config::appBaseUrl(),
+            'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
+        ]);
     }
 
     public function registerAdminMenu(): void
@@ -317,54 +294,63 @@ final class PluginServiceProvider
     }
 
     /**
-     * Production: enqueue the built `assets/` bundle. Returns false when no
-     * build exists (fresh checkout) — callers skip the config-data step
-     * entirely, matching the historical early-return behaviour.
+     * Enqueue a built `assets/<stem>.js` bundle as a Script Module, returning its
+     * version string — or null when no build exists (fresh checkout), so the
+     * caller can skip its follow-up steps.
+     *
+     * The bundle externalizes `@wordpress/*` to `wp.*` globals, so a Script
+     * Module's module-id-only dependency array cannot declare them; the classic
+     * `wp-*` handles from `<stem>.asset.php` are enqueued separately — WP prints
+     * them before the deferred module runs, so the globals exist at module eval.
+     * `$fallbackDeps` + filemtime cover a partial build shipped without the
+     * `.asset.php` manifest.
+     *
+     * @param  list<string>  $fallbackDeps
      */
-    private function enqueueBuiltAdminAssets(): bool
+    private function enqueueBuiltScriptModule(string $moduleId, string $stem, array $fallbackDeps): ?string
     {
         $assets_dir = Config::pluginDir() . 'assets';
-        $js_file = $assets_dir . '/admin.js';
-        $css_file = $assets_dir . '/admin.css';
-        $asset_file = $assets_dir . '/admin.asset.php';
+        $js_file = $assets_dir . '/' . $stem . '.js';
 
         if (!file_exists($js_file)) {
-            return false;
+            return null;
         }
 
-        // Vite plugin emits `admin.asset.php` with the deps + content-hash version so
-        // we enqueue the exact `wp-*` script handles the bundle externalizes against.
-        // Fall back to filemtime + wp-element if the asset file isn't present (e.g.
-        // someone shipped a partial build).
+        $asset_file = $assets_dir . '/' . $stem . '.asset.php';
         $asset = file_exists($asset_file) ? require $asset_file : null;
         $version = is_array($asset) && isset($asset['version'])
             ? (string) $asset['version']
             : Config::VERSION . '.' . filemtime($js_file);
         $deps = is_array($asset) && isset($asset['dependencies']) && is_array($asset['dependencies'])
             ? $asset['dependencies']
-            : ['wp-element'];
+            : $fallbackDeps;
 
-        // The SPA ships as a Script Module. A Script Module's dependency array
-        // accepts *module* ids only — it cannot declare classic-script deps.
-        // The bundle reads `window.wp.*` globals (Vite externalizes @wordpress/*
-        // to globals; the SPA bundles its own React), so enqueue the WP-core
-        // classic handles from admin.asset.php separately. WP prints them
-        // before the module executes, so the globals exist at module run time.
         foreach ($deps as $dep) {
             wp_enqueue_script($dep);
         }
 
-        wp_enqueue_script_module(
-            self::ADMIN_MODULE_ID,
-            Config::pluginUrl() . 'assets/admin.js',
-            [],
-            $version
-        );
+        wp_enqueue_script_module($moduleId, Config::pluginUrl() . 'assets/' . $stem . '.js', [], $version);
+
+        return $version;
+    }
+
+    /**
+     * Production: enqueue the built admin SPA Script Module + its stylesheet.
+     * Returns false when no build exists (fresh checkout) — callers skip the
+     * config-data step entirely, matching the historical early-return behaviour.
+     */
+    private function enqueueBuiltAdminAssets(): bool
+    {
+        $version = $this->enqueueBuiltScriptModule(self::ADMIN_MODULE_ID, 'admin', ['wp-element']);
+        if ($version === null) {
+            return false;
+        }
 
         // The build always emits `assets/admin.css` (chrome overrides). Guard
         // the enqueue with file_exists so a partial build (JS present, CSS
-        // missing) degrades to no-stylesheet rather than a 404.
-        if (file_exists($css_file)) {
+        // missing) degrades to no-stylesheet rather than a 404. Same version as
+        // the module so cache-busting stays in lockstep.
+        if (file_exists(Config::pluginDir() . 'assets/admin.css')) {
             wp_enqueue_style(
                 'paymentform-admin',
                 Config::pluginUrl() . 'assets/admin.css',
@@ -512,34 +498,25 @@ final class PluginServiceProvider
     }
 
     /**
-     * Tenant subdomain owns the form render — replace the `app.` host in the
-     * configured app base URL with the connected tenant slug so the iframe
-     * lands on `<tenant>.paymentform.io/<form-id>` instead of the central
-     * app shell. Falls back to the static renderer URL when there is no
-     * active connection (e.g. the shortcode rendered before the admin
-     * connected).
+     * The renderer host is the connected tenant's subdomain of the app host —
+     * swap the `app.` label in the app base URL for the tenant slug so the iframe
+     * lands on `<tenant>.<base>/<form-id>`. There is no static renderer host:
+     * without an active connection (no container / no tenant, or an app host that
+     * is not the expected `app.*` shape) this returns an empty string, and every
+     * consumer (admin SPA, block editor preview, block/shortcode view) treats an
+     * empty renderer base as "not connected".
      */
     private function resolveRendererBaseUrl(): string
     {
         if ($this->container === null) {
-            return Config::rendererBaseUrl();
+            return '';
         }
 
         $tenant = $this->container[TokenService::class]->getTenant();
         if (!is_string($tenant) || $tenant === '') {
-            return Config::rendererBaseUrl();
+            return '';
         }
 
-        $appBase = Config::appBaseUrl();
-        $parts = parse_url($appBase);
-        if (!is_array($parts) || empty($parts['host'])) {
-            return Config::rendererBaseUrl();
-        }
-
-        $host = preg_replace('/^app\./', $tenant . '.', $parts['host'], 1);
-        $scheme = $parts['scheme'] ?? 'https';
-        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
-
-        return sprintf('%s://%s%s', $scheme, $host, $port);
+        return Config::swapAppSubdomain(Config::appBaseUrl(), $tenant) ?? '';
     }
 }

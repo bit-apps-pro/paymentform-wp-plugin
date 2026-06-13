@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\SetupController;
+use PaymentForm\HTTP\Requests\SetupRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\Http\HttpTransport;
@@ -56,7 +58,7 @@ class SetupControllerTest extends TestCase
         $tokenService ??= $this->tokenService;
 
         $this->seedContainer([
-            SetupApiClient::class => new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL)),
+            SetupApiClient::class => new SetupApiClient(new HttpTransport(Config::apiBaseUrl())),
             TokenService::class => $tokenService,
         ]);
 
@@ -68,7 +70,7 @@ class SetupControllerTest extends TestCase
         ?TokenServiceInterface $tokenService = null,
     ): array|Response {
         return $this->controller($tokenService)
-            ->handle($this->makeWpKitRequest(params: $params, method: 'POST'));
+            ->handle($this->makeWpKitRequest(params: $params, method: 'POST', requestClass: SetupRequest::class));
     }
 
     private function pollStatus(?TokenServiceInterface $tokenService = null): array|Response
@@ -109,30 +111,11 @@ class SetupControllerTest extends TestCase
     }
 
     // ---------------------------------------------------------------
-    // handle() — input validation (400, no backend call) — mapping #1-#3
+    // handle() — input validation moved to SetupRequest::rules(), which the
+    // wp-kit router runs before the action. These unit tests call the action
+    // directly (bypassing the router), so malformed-input cases now live in
+    // SetupRequestTest; only well-formed input reaches handle() here.
     // ---------------------------------------------------------------
-
-    public static function invalidInputProvider(): array
-    {
-        return [
-            'missing email' => [['country' => 'US'], 'Invalid email address.'],
-            'malformed email' => [['email' => 'not-an-email', 'country' => 'US'], 'Invalid email address.'],
-            'oversized email' => [['email' => str_repeat('a', 250) . '@example.com', 'country' => 'US'], 'Invalid email address.'],
-            'missing country' => [['email' => 'admin@example.com'], 'Invalid country code.'],
-            'lowercase country' => [['email' => 'admin@example.com', 'country' => 'us'], 'Invalid country code.'],
-            'three-letter country' => [['email' => 'admin@example.com', 'country' => 'USA'], 'Invalid country code.'],
-            'short locale' => [[...self::VALID_PARAMS, 'locale' => 'en'], 'Invalid locale format.'],
-        ];
-    }
-
-    #[DataProvider('invalidInputProvider')]
-    public function test_handle_rejects_invalid_input(array $params, string $message): void
-    {
-        $result = $this->handleSetup($params);
-
-        $this->assertFailure($result, 400, ['next' => 'failed', 'code' => 'bad_request', 'message' => $message]);
-        $this->assertSame([], WpHttpMock::$calls);
-    }
 
     // ---------------------------------------------------------------
     // handle() — transport and backend error mapping — #4-#7
@@ -482,7 +465,7 @@ class SetupControllerTest extends TestCase
         $this->handleSetup();
 
         $call = end(WpHttpMock::$calls);
-        $this->assertSame(PAYMENTFORM_API_BASE_URL . '/auth/setup', $call['url']);
+        $this->assertSame(Config::apiBaseUrl() . '/auth/setup', $call['url']);
         $this->assertSame('POST', $call['args']['method']);
 
         $payload = $this->lastRequestJson();
@@ -499,9 +482,12 @@ class SetupControllerTest extends TestCase
 
     public static function emailOverrideProvider(): array
     {
+        // SetupRequest guarantees email_override is a valid email when present,
+        // so the controller uses it verbatim; an absent override falls back to
+        // the primary email.
         return [
-            'valid override wins' => ['owner@example.com', 'owner@example.com'],
-            'invalid override falls back to primary email' => ['not-an-email', 'admin@example.com'],
+            'override wins when present' => ['owner@example.com', 'owner@example.com'],
+            'falls back to primary email when absent' => ['', 'admin@example.com'],
         ];
     }
 
@@ -701,7 +687,7 @@ class SetupControllerTest extends TestCase
         $this->pollStatus();
 
         $call = end(WpHttpMock::$calls);
-        $this->assertSame(PAYMENTFORM_API_BASE_URL . '/auth/setup/finalize', $call['url']);
+        $this->assertSame(Config::apiBaseUrl() . '/auth/setup/finalize', $call['url']);
         $this->assertSame('POST', $call['args']['method']);
         $this->assertSame(['setup_token' => 'v1.stashed-token'], $this->lastRequestJson());
     }

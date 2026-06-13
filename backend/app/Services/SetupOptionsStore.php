@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PaymentForm\Services;
 
+use PaymentForm\Config;
+
 /**
  * Helper for storing and retrieving setup-flow transient state (nonce rows,
  * per-email pending state) via WP options with embedded TTL enforcement.
@@ -12,11 +14,14 @@ namespace PaymentForm\Services;
  * thousands of stale setup rows accumulate. The daily cron cleanup
  * (PurgeExpiredSetupOptions) removes rows older than 7 days; individual
  * read operations also auto-purge on-the-fly if expires_at < time().
+ *
+ * The PREFIX constants are bare (no `paymentform_`); {@see Config} prepends
+ * VAR_PREFIX so the stored option names stay `paymentform_setup_*`.
  */
 final class SetupOptionsStore
 {
-    private const PER_NONCE_PREFIX = 'paymentform_setup_by_nonce_';
-    private const PER_EMAIL_PREFIX = 'paymentform_setup_pending_';
+    private const PER_NONCE_PREFIX = 'setup_by_nonce_';
+    private const PER_EMAIL_PREFIX = 'setup_pending_';
 
     /**
      * Persist both a per-nonce row (consumed at handshake) and a per-email row
@@ -26,8 +31,8 @@ final class SetupOptionsStore
      */
     public function put(string $nonce, array $row, string $emailMd5): void
     {
-        update_option(self::PER_NONCE_PREFIX . $nonce, $row, false);
-        update_option(self::PER_EMAIL_PREFIX . $emailMd5, $row, false);
+        Config::updateOption(self::PER_NONCE_PREFIX . $nonce, $row);
+        Config::updateOption(self::PER_EMAIL_PREFIX . $emailMd5, $row);
     }
 
     /**
@@ -37,14 +42,14 @@ final class SetupOptionsStore
      */
     public function getByNonce(string $nonce): ?array
     {
-        $row = get_option(self::PER_NONCE_PREFIX . $nonce, false);
+        $row = Config::getOption(self::PER_NONCE_PREFIX . $nonce, false);
         if ($row === false || !is_array($row)) {
             return null;
         }
 
         // Auto-purge expired rows on read.
         if (!isset($row['expires_at']) || (int) $row['expires_at'] < time()) {
-            delete_option(self::PER_NONCE_PREFIX . $nonce);
+            Config::deleteOption(self::PER_NONCE_PREFIX . $nonce);
             return null;
         }
 
@@ -58,14 +63,14 @@ final class SetupOptionsStore
      */
     public function getByEmail(string $emailMd5): ?array
     {
-        $row = get_option(self::PER_EMAIL_PREFIX . $emailMd5, false);
+        $row = Config::getOption(self::PER_EMAIL_PREFIX . $emailMd5, false);
         if ($row === false || !is_array($row)) {
             return null;
         }
 
         // Auto-purge expired rows on read.
         if (!isset($row['expires_at']) || (int) $row['expires_at'] < time()) {
-            delete_option(self::PER_EMAIL_PREFIX . $emailMd5);
+            Config::deleteOption(self::PER_EMAIL_PREFIX . $emailMd5);
             return null;
         }
 
@@ -78,6 +83,6 @@ final class SetupOptionsStore
      */
     public function consumeByNonce(string $nonce): bool
     {
-        return delete_option(self::PER_NONCE_PREFIX . $nonce) !== false;
+        return Config::deleteOption(self::PER_NONCE_PREFIX . $nonce) !== false;
     }
 }

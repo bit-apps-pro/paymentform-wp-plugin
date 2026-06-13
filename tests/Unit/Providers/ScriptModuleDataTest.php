@@ -13,18 +13,21 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 /**
- * Locks the WP 6.7 Script Module Data delivery for the two Script Modules:
+ * Locks the WP 6.7 Script Module Data delivery for the three Script Modules:
  *  - the admin SPA module (`@paymentform/admin`) — `createConfigVariable` merges
  *    the full admin config onto the data WP passes while printing the module;
+ *  - the block-editor module (`@paymentform/block-editor`) —
+ *    `createBlockEditorConfigData` merges the editor's nonce + renderer/app hosts;
  *  - the block-view module (`paymentform-form-view-script`) — a filter merges the
  *    resolved renderer base URL.
  *
- * Both run through `Hooks::addFilter` → the global `add_filter`, so the harness
+ * All run through `Hooks::addFilter` → the global `add_filter`, so the harness
  * records them and `apply_filters` replays them.
  */
 final class ScriptModuleDataTest extends TestCase
 {
     private const ADMIN_FILTER = 'script_module_data_@paymentform/admin';
+    private const EDITOR_FILTER = 'script_module_data_@paymentform/block-editor';
     private const VIEW_FILTER = 'script_module_data_paymentform-form-view-script';
 
     protected function setUp(): void
@@ -71,7 +74,31 @@ final class ScriptModuleDataTest extends TestCase
         $this->assertSame('x', $data['preexisting']);
     }
 
-    public function test_block_view_filter_returns_the_renderer_base_url(): void
+    public function test_block_editor_filter_returns_the_editor_config(): void
+    {
+        $this->makeProvider()->enqueueBlockEditorAssets();
+
+        $data = apply_filters(self::EDITOR_FILTER, []);
+
+        $this->assertIsArray($data);
+        $this->assertArrayHasKey('nonce', $data);
+        $this->assertIsString($data['nonce']);
+        $this->assertArrayHasKey('appBaseUrl', $data);
+        $this->assertArrayHasKey('rendererBaseUrl', $data);
+        // No tenant connected → renderer host is empty ("not connected").
+        $this->assertSame('', $data['rendererBaseUrl']);
+    }
+
+    public function test_block_editor_filter_preserves_preexisting_data(): void
+    {
+        $this->makeProvider()->enqueueBlockEditorAssets();
+
+        $data = apply_filters(self::EDITOR_FILTER, ['preexisting' => 'x']);
+
+        $this->assertSame('x', $data['preexisting']);
+    }
+
+    public function test_block_view_filter_renderer_base_is_empty_without_a_connection(): void
     {
         \TestWpFunctions::setHasBlock(true);
         $GLOBALS['post'] = (object) ['post_content' => '<!-- wp:paymentform/form /-->'];
@@ -82,8 +109,28 @@ final class ScriptModuleDataTest extends TestCase
 
         $this->assertIsArray($data);
         $this->assertArrayHasKey('rendererBaseUrl', $data);
-        // No connection seeded → falls back to the static renderer base URL.
-        $this->assertSame(Config::rendererBaseUrl(), $data['rendererBaseUrl']);
+        // No tenant connected → no renderer host ("not connected"); there is no
+        // static renderer fallback.
+        $this->assertSame('', $data['rendererBaseUrl']);
+    }
+
+    public function test_block_view_filter_uses_the_tenant_renderer_host_when_connected(): void
+    {
+        // getTenant() reads the plaintext `tenant` from the credentials option.
+        Config::updateOption('credentials', ['tenant' => 'acme']);
+        \TestWpFunctions::setHasBlock(true);
+        $GLOBALS['post'] = (object) ['post_content' => '<!-- wp:paymentform/form /-->'];
+
+        $this->makeProvider()->enqueueFrontendAssets();
+
+        $data = apply_filters(self::VIEW_FILTER, []);
+
+        // Renderer host is the tenant subdomain of the app host, not a static
+        // `render.` host.
+        $this->assertSame(
+            Config::swapAppSubdomain(Config::appBaseUrl(), 'acme'),
+            $data['rendererBaseUrl']
+        );
     }
 
     public function test_block_view_filter_is_not_registered_without_the_block(): void

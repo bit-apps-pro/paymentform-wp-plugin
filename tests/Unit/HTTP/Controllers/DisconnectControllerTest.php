@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\HTTP\Controllers\DisconnectController;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
@@ -31,7 +32,7 @@ class DisconnectControllerTest extends TestCase
             ApiClient::class => new ApiClient(
                 $this->tokenService,
                 new TokenRefreshLock(),
-                new HttpTransport(PAYMENTFORM_API_BASE_URL)
+                new HttpTransport(Config::apiBaseUrl())
             ),
         ]);
     }

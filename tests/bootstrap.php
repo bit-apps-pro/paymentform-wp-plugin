@@ -21,12 +21,6 @@ if (!defined('SECURE_AUTH_KEY')) {
 if (!defined('MINUTE_IN_SECONDS')) {
     define('MINUTE_IN_SECONDS', 60);
 }
-if (!defined('PAYMENTFORM_API_BASE_URL')) {
-    define('PAYMENTFORM_API_BASE_URL', 'https://api.paymentform.io');
-}
-if (!defined('PAYMENTFORM_APP_BASE_URL')) {
-    define('PAYMENTFORM_APP_BASE_URL', 'https://app.paymentform.io');
-}
 
 // Mock WordPress role
 class TestWpRole
@@ -77,6 +71,11 @@ class TestWpFunctions
         self::$filters = [];
         self::$actions = [];
         self::$hasBlock = null;
+
+        // Config memoises the parsed frontend/.env on first URL-getter call; the
+        // static survives the whole test process. Clear it so each test starts
+        // from a clean slate and never inherits a prior test's resolved hosts.
+        (new ReflectionProperty(\PaymentForm\Config::class, 'devEnv'))->setValue(null, null);
     }
 
     /**

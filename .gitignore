@@ -3,10 +3,11 @@ node_modules/
 assets/
 build/
 /paymentform.zip
+/paymentform-*.zip
 .pnpm-store/
 .bin/
 /.wrangler/
-.phpunit.result.cache
+.phpunit.cache/
 *.log
 .env
 .env.local
@@ -19,3 +20,4 @@ build/
 /frontend/e2e/.auth/
 /playwright-report/
 /test-results/
+.phpunit.result.cache

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
-use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
+use PaymentForm\HTTP\Requests\VerifyOtpRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\SetupApiClient;
 
@@ -38,17 +38,16 @@ final class VerifyOtpController
     /**
      * @return array<string, mixed>|Response
      */
-    public function handle(Request $req): array|Response
+    public function handle(VerifyOtpRequest $req): array|Response
     {
         $userId = get_current_user_id();
         if ($userId <= 0) {
             return $this->failure(['verified' => false, 'error' => 'unauthenticated'], 401);
         }
 
+        // Format (six digits) is validated by VerifyOtpRequest::rules() before
+        // this runs (wp-kit RouteRegister).
         $otp = (string) $req->get('otp', '');
-        if (! preg_match('/^\d{6}$/', $otp)) {
-            return $this->failure(['verified' => false, 'error' => 'bad_request'], 400);
-        }
 
         $wpSetupToken = get_transient($this->pendingTransientKey($userId));
         if (! is_string($wpSetupToken) || $wpSetupToken === '') {

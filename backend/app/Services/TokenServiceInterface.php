@@ -10,6 +10,8 @@ interface TokenServiceInterface
 
     public function store(string $token, string $expiresAt, ?string $tenant = null): void;
 
+    public function storeCreatedVia(string $via): void;
+
     public function clear(): void;
 
     public function expiresIn(): ?int;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\HTTP\Controllers\SetupDiagnoseController;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\Http\HttpTransport;
@@ -31,7 +32,7 @@ class SetupDiagnoseControllerTest extends TestCase
         \TestWpFunctions::reset();
         WpHttpMock::reset();
         $this->seedContainer([
-            SetupApiClient::class => new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL)),
+            SetupApiClient::class => new SetupApiClient(new HttpTransport(Config::apiBaseUrl())),
         ]);
     }
 
@@ -100,7 +101,7 @@ class SetupDiagnoseControllerTest extends TestCase
         $this->diagnose();
 
         $call = end(WpHttpMock::$calls);
-        $this->assertSame(PAYMENTFORM_API_BASE_URL . '/auth/setup/diagnose', $call['url']);
+        $this->assertSame(Config::apiBaseUrl() . '/auth/setup/diagnose', $call['url']);
         $this->assertSame('POST', $call['args']['method']);
 
         $payload = json_decode((string) $call['args']['body'], true, 512, JSON_THROW_ON_ERROR);

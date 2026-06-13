@@ -10,6 +10,30 @@ import { __ } from '@wordpress/i18n';
 import apiFetch from '@wordpress/api-fetch';
 import type { CSSProperties } from 'react';
 
+/**
+ * Editor config delivered by PHP via the WP Script Module Data API. The editor
+ * entry ships as a Script Module (not a classic script), so WP emits its config
+ * as a `<script type="application/json" id="wp-script-module-data-@paymentform/block-editor">`
+ * tag. That tag is in the DOM before this deferred module evaluates, so the read
+ * is safe at module scope. Every field is optional — each reader below degrades
+ * to a sensible fallback when the tag is absent.
+ */
+type EditorConfig = { nonce?: string; rendererBaseUrl?: string; appBaseUrl?: string };
+
+const EDITOR_MODULE_DATA_ID = 'wp-script-module-data-@paymentform/block-editor';
+
+function readEditorConfig(): EditorConfig {
+  const el = document.getElementById(EDITOR_MODULE_DATA_ID);
+  if (!el?.textContent) return {};
+  try {
+    return JSON.parse(el.textContent) as EditorConfig;
+  } catch {
+    return {};
+  }
+}
+
+const editorConfig = readEditorConfig();
+
 type Attrs = { formId: string };
 type SetAttrs = (next: Partial<Attrs>) => void;
 type FormSummary = { id: string; name: string; status?: string };
@@ -47,16 +71,15 @@ function messageFrom(error: unknown): string {
 }
 
 /**
- * Register the plugin's own nonce middleware once, sourced from
- * `window.paymentformAdmin.nonce`. WP core registers a REST nonce middleware in
- * the block editor already, but doing it ourselves makes the block robust on
- * any editor surface (and matches the X-WP-Nonce the SPA's request() sent).
+ * Register the plugin's own nonce middleware once, sourced from the editor
+ * Script Module Data config. WP core registers a REST nonce middleware in the
+ * block editor already, but doing it ourselves makes the block robust on any
+ * editor surface (and matches the X-WP-Nonce the SPA's request() sent).
  */
 let nonceMiddlewareRegistered = false;
 function ensureNonceMiddleware(): void {
   if (nonceMiddlewareRegistered) return;
-  const nonce = (window as unknown as { paymentformAdmin?: { nonce?: string } }).paymentformAdmin
-    ?.nonce;
+  const { nonce } = editorConfig;
   if (typeof nonce !== 'string' || nonce === '') return;
   apiFetch.use(apiFetch.createNonceMiddleware(nonce));
   nonceMiddlewareRegistered = true;
@@ -90,8 +113,7 @@ function BrandLogo({ size = 28 }: { size?: number }) {
  * explicit "not connected" placeholder instead of a wrong-host iframe.
  */
 function rendererBase(): string | null {
-  const base = (window as unknown as { paymentformAdmin?: { rendererBaseUrl?: string } })
-    .paymentformAdmin?.rendererBaseUrl;
+  const base = editorConfig.rendererBaseUrl;
   if (typeof base !== 'string' || base === '') return null;
   return base.replace(/\/$/, '');
 }
@@ -102,8 +124,7 @@ function rendererBase(): string | null {
  * state always offers a working action.
  */
 function appBaseUrl(): string {
-  const w = window as unknown as { paymentformAdmin?: { appBaseUrl?: string } };
-  return w.paymentformAdmin?.appBaseUrl ?? 'https://app.paymentform.io';
+  return editorConfig.appBaseUrl ?? 'https://app.paymentform.io';
 }
 
 /**

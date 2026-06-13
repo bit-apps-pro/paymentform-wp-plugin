@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP;
 
+use PaymentForm\Config;
+use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\SetupProofController;
 use PaymentForm\HTTP\Controllers\WebhookController;
@@ -28,16 +30,16 @@ final class Rewrites
      */
     private const RULES_VERSION = '2';
 
-    private const RULES_OPTION = 'paymentform_rewrite_rules_version';
+    private const RULES_OPTION = 'rewrite_rules_version';
 
     public function __construct(private readonly Container $container) {}
 
     public function register(): void
     {
-        add_action('init', [$this, 'addRules']);
-        add_action('init', [$this, 'maybeFlush'], 11);
-        add_filter('query_vars', [$this, 'registerQueryVar']);
-        add_action('parse_request', [$this, 'dispatch']);
+        Hooks::addAction('init', [$this, 'addRules']);
+        Hooks::addAction('init', [$this, 'maybeFlush'], 11);
+        Hooks::addFilter('query_vars', [$this, 'registerQueryVar']);
+        Hooks::addAction('parse_request', [$this, 'dispatch']);
     }
 
     public function addRules(): void
@@ -63,12 +65,12 @@ final class Rewrites
 
     public function maybeFlush(): void
     {
-        if (get_option(self::RULES_OPTION) === self::RULES_VERSION) {
+        if (Config::getOption(self::RULES_OPTION) === self::RULES_VERSION) {
             return;
         }
 
         flush_rewrite_rules(false);
-        update_option(self::RULES_OPTION, self::RULES_VERSION, false);
+        Config::updateOption(self::RULES_OPTION, self::RULES_VERSION);
     }
 
     public function dispatch(WP $wp): void

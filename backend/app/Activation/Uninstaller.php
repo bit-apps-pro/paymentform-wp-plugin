@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PaymentForm\Activation;
 
+use PaymentForm\Config;
+
 final class Uninstaller
 {
     public static function uninstall(): void
@@ -15,7 +17,7 @@ final class Uninstaller
         }
 
         // Delete credentials option
-        delete_option('paymentform_credentials');
+        Config::deleteOption('credentials');
 
         // Wipe all stale transients and related options
         global $wpdb;

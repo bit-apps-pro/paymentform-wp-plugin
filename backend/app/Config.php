@@ -8,13 +8,17 @@ namespace PaymentForm;
  * Plugin-level config accessor. Replaces ad-hoc `define()` globals so internal
  * code depends on namespaced lookups instead of polluting the global table.
  *
- * Two upstream URLs (`PAYMENTFORM_API_BASE_URL`, `PAYMENTFORM_APP_BASE_URL`)
- * stay as `define()` constants because operators routinely override them from
- * `wp-config.php`; the matching getters here honour the override when present
- * and fall back to production defaults otherwise. Everything else
- * (plugin path / URL / version, renderer URL) is plugin-internal — callers
- * read it via `Config::*()` so we never leak names like `PAYMENTFORM_VERSION`
- * into the global PHP constant table.
+ * The two upstream URLs (API / app) resolve to their production `DEFAULT_*`
+ * constants, overridable in development from `frontend/.env` — the same `APP_*`
+ * vars the Vite dev server consumes. The frontend source (and thus `.env`) never
+ * ships in the built plugin (see bin/package.sh), so production always uses the
+ * defaults and no `PAYMENTFORM_*` / `wp-config.php` globals are involved. The
+ * renderer host is not configured here: it is the connected tenant's subdomain
+ * of the app host (`<tenant>.<app-base>`), derived per-request in
+ * PluginServiceProvider via {@see swapAppSubdomain()} — there is no static
+ * renderer host. Everything else (plugin path / URL / version) is plugin-internal
+ * — callers read it via `Config::*()` so no names leak into the global PHP
+ * constant table.
  */
 final class Config
 {
@@ -42,9 +46,10 @@ final class Config
 
     private const DEFAULT_APP_BASE_URL = 'https://app.paymentform.io';
 
-    private const DEFAULT_RENDERER_BASE_URL = 'https://render.paymentform.io';
-
     private static ?string $pluginFile = null;
+
+    /** Parsed `frontend/.env` dev overrides, memoised per request ({@see devOverride()}). */
+    private static ?array $devEnv = null;
 
     /**
      * Called once from the entrypoint with `__FILE__`; every other accessor
@@ -111,19 +116,100 @@ final class Config
         return update_option(self::withPrefix($option), $value, $autoload);
     }
 
+    /**
+     * Creates a plugin-owned option (auto-prefixed). Returns false if the
+     * option already exists — mirrors `add_option`'s atomic create semantics.
+     */
+    public static function addOption(string $option, mixed $value, bool $autoload = false): bool
+    {
+        return add_option(self::withPrefix($option), $value, '', $autoload ? 'yes' : 'no');
+    }
+
+    /**
+     * Deletes a plugin-owned option (auto-prefixed).
+     */
+    public static function deleteOption(string $option): bool
+    {
+        return delete_option(self::withPrefix($option));
+    }
+
     public static function apiBaseUrl(): string
     {
-        return defined('PAYMENTFORM_API_BASE_URL') ? (string) PAYMENTFORM_API_BASE_URL : self::DEFAULT_API_BASE_URL;
+        return self::devOverride('APP_API_BASE_URL') ?? self::DEFAULT_API_BASE_URL;
     }
 
     public static function appBaseUrl(): string
     {
-        return defined('PAYMENTFORM_APP_BASE_URL') ? (string) PAYMENTFORM_APP_BASE_URL : self::DEFAULT_APP_BASE_URL;
+        return self::devOverride('APP_APP_BASE_URL') ?? self::DEFAULT_APP_BASE_URL;
     }
 
-    public static function rendererBaseUrl(): string
+    /**
+     * Rewrites the leading `app.` label of an `app.<base>` URL's host to
+     * `<subdomain>.<base>`, preserving scheme and port. Returns host-only
+     * (`scheme://host[:port]`) — any path/query/fragment is discarded, which is
+     * intended: the inputs are bare host roots. Returns null when the URL has no
+     * parseable host or its host is not the expected `app.*` shape, so callers
+     * fall back. Used to build the per-tenant renderer host (`<tenant>.<base>`)
+     * from the app base URL.
+     */
+    public static function swapAppSubdomain(string $url, string $subdomain): ?string
     {
-        return defined('PAYMENTFORM_RENDERER_BASE_URL') ? (string) PAYMENTFORM_RENDERER_BASE_URL : self::DEFAULT_RENDERER_BASE_URL;
+        $parts = parse_url($url);
+        if (!is_array($parts) || empty($parts['host']) || !str_starts_with((string) $parts['host'], 'app.')) {
+            return null;
+        }
+
+        $scheme = $parts['scheme'] ?? 'https';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $host = $subdomain . '.' . substr((string) $parts['host'], 4);
+
+        return sprintf('%s://%s%s', $scheme, $host, $port);
+    }
+
+    /**
+     * Development override for an upstream URL, read from `frontend/.env` — the
+     * same `APP_*` vars the Vite dev server consumes. Returns the value when the
+     * key is present and non-empty, null otherwise so the caller falls back to
+     * its production `DEFAULT_*` constant. The frontend source (and thus `.env`)
+     * never ships in the built plugin, so this is always null in production.
+     * Parsed once per request.
+     */
+    private static function devOverride(string $key): ?string
+    {
+        if (self::$devEnv === null) {
+            self::$devEnv = self::parseEnvFile(self::pluginDir() . 'frontend/.env');
+        }
+
+        $value = self::$devEnv[$key] ?? '';
+
+        return $value !== '' ? $value : null;
+    }
+
+    /**
+     * Minimal `KEY=VALUE` reader for `frontend/.env`: skips blank and
+     * `#`-comment lines, trims surrounding whitespace and one layer of matching
+     * quotes. Sufficient for the handful of `APP_*` dev overrides — not a
+     * general-purpose dotenv implementation.
+     *
+     * @return array<string, string>
+     */
+    private static function parseEnvFile(string $path): array
+    {
+        if (!is_readable($path)) {
+            return [];
+        }
+
+        $env = [];
+        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) {
+                continue;
+            }
+            [$key, $value] = explode('=', $line, 2);
+            $env[trim($key)] = trim($value, " \t\"'");
+        }
+
+        return $env;
     }
 
     /**

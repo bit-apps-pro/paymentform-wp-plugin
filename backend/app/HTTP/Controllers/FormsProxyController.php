@@ -7,6 +7,7 @@ namespace PaymentForm\HTTP\Controllers;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\Enums\ErrorCode;
+use PaymentForm\HTTP\Requests\FormShowRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\DisconnectedException;
@@ -40,17 +41,12 @@ final class FormsProxyController
     /**
      * @return array<int|string, mixed>|Response
      */
-    public function show(Request $req): array|Response
+    public function show(FormShowRequest $req): array|Response
     {
-        $id = $req->get('id');
-
-        // wp-kit's {id} route param matches [^/]+ (no inline regex
-        // constraint), so the numeric guard lives here (migration-spec Risk #5).
-        if (!is_numeric($id) || (int) $id <= 0) {
-            return $this->errorResponse(ErrorCode::INVALID_FORM_ID, 400);
-        }
-
-        return $this->proxy('/form/' . (int) $id);
+        // Form ids are UUIDs, validated by FormShowRequest::rules() before this
+        // runs (wp-kit RouteRegister). Encode the id so it can never break out
+        // of the upstream path segment.
+        return $this->proxy('/form/' . rawurlencode((string) $req->get('id')));
     }
 
     /**

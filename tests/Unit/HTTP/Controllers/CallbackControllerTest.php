@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\EncryptionService;
@@ -29,7 +30,7 @@ class CallbackControllerTest extends TestCase
         $this->encryption = new EncryptionService();
         $this->tokenService = new TokenService($this->encryption);
         $this->connectService = new ConnectService();
-        $this->setupApi = new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL));
+        $this->setupApi = new SetupApiClient(new HttpTransport(Config::apiBaseUrl()));
     }
 
     private function controller(): CallbackController

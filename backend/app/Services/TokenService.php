@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace PaymentForm\Services;
 
+use PaymentForm\Config;
 use RuntimeException;
 
 final class TokenService implements TokenServiceInterface
 {
-    private const OPTION_NAME = 'paymentform_credentials';
+    private const OPTION = 'credentials';
     private const CONTEXT_TOKEN = 'paymentform:token:v1';
     private const CONTEXT_WEBHOOK = 'paymentform:webhook:v1';
 
@@ -49,7 +50,7 @@ final class TokenService implements TokenServiceInterface
         $data['tenant'] = $tenant;
         $data['connected_at'] = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(\DateTimeInterface::ATOM);
 
-        update_option(self::OPTION_NAME, $data, false);
+        Config::updateOption(self::OPTION, $data);
     }
 
     /**
@@ -65,12 +66,12 @@ final class TokenService implements TokenServiceInterface
 
         $data = $this->getRaw() ?? [];
         $data['created_via'] = $via;
-        update_option(self::OPTION_NAME, $data, false);
+        Config::updateOption(self::OPTION, $data);
     }
 
     public function clear(): void
     {
-        delete_option(self::OPTION_NAME);
+        Config::deleteOption(self::OPTION);
     }
 
     public function expiresIn(): ?int
@@ -102,7 +103,7 @@ final class TokenService implements TokenServiceInterface
 
     public function getRaw(): ?array
     {
-        $data = get_option(self::OPTION_NAME);
+        $data = Config::getOption(self::OPTION);
         if ($data === false || !is_array($data)) {
             return null;
         }
@@ -119,7 +120,7 @@ final class TokenService implements TokenServiceInterface
         $data['webhook_secret_iv'] = $encrypted['iv'];
         $data['webhook_secret_tag'] = $encrypted['tag'];
 
-        update_option(self::OPTION_NAME, $data, false);
+        Config::updateOption(self::OPTION, $data);
     }
 
     public function getWebhookSecret(): ?string

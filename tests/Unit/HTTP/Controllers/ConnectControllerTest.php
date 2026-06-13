@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\HTTP\Controllers\ConnectController;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ConnectService;
@@ -36,7 +37,7 @@ class ConnectControllerTest extends TestCase
 
         $this->assertArrayHasKey('url', $data);
         $this->assertStringContainsString('state=', $data['url']);
-        $this->assertStringContainsString(PAYMENTFORM_APP_BASE_URL, $data['url']);
+        $this->assertStringContainsString(Config::appBaseUrl(), $data['url']);
         $this->assertStringContainsString('callback_url=', $data['url']);
     }
 

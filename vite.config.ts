@@ -177,10 +177,12 @@ function wpExternals(): Plugin {
 
 /**
  * Copy `blocks/form-embed/block.json` into the build output at
- * `form-embed/block.json`, rewriting only its `file:` script paths to match the
- * flat `assets/` layout (block.json sits in `assets/form-embed/`, the JS sits in
- * `assets/`, so `../<name>.js` is the correct relative path). Every other field
- * is preserved verbatim from the source so future block.json edits propagate.
+ * `form-embed/block.json`, rewriting its `viewScriptModule` `file:` path to match
+ * the flat `assets/` layout (block.json sits in `assets/form-embed/`, the JS sits
+ * in `assets/`, so `../block-view.js` is the correct relative path). The editor
+ * entry is not declared here — PHP enqueues `block-editor.js` as a Script Module
+ * directly (WP has no `editorScriptModule` block.json field). Every other field is
+ * preserved verbatim from the source so future block.json edits propagate.
  */
 function copyBlockJson(): Plugin {
   return {
@@ -191,7 +193,6 @@ function copyBlockJson(): Plugin {
         'utf8',
       );
       const block = JSON.parse(source) as Record<string, unknown>;
-      block.editorScript = 'file:../block-editor.js';
       block.viewScriptModule = 'file:../block-view.js';
       this.emitFile({
         type: 'asset',

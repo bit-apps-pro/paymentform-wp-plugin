@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\FormsProxyController;
+use PaymentForm\HTTP\Requests\FormShowRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\EncryptionService;
@@ -22,6 +24,8 @@ class FormsProxyControllerTest extends TestCase
     use InteractsWithWpKit;
     use SeedsServiceContainer;
 
+    private const FORM_ID = '11111111-1111-4111-8111-111111111111';
+
     private TokenService $tokenService;
 
     protected function setUp(): void
@@ -34,7 +38,7 @@ class FormsProxyControllerTest extends TestCase
             ApiClient::class => new ApiClient(
                 $this->tokenService,
                 new TokenRefreshLock(),
-                new HttpTransport(PAYMENTFORM_API_BASE_URL)
+                new HttpTransport(Config::apiBaseUrl())
             ),
         ]);
     }
@@ -50,6 +54,11 @@ class FormsProxyControllerTest extends TestCase
         $this->tokenService->store('test-token', (new \DateTime('+1 day'))->format(\DateTimeInterface::ATOM));
     }
 
+    private function makeShowRequest(string $id): FormShowRequest
+    {
+        return $this->makeWpKitRequest(params: ['id' => $id], requestClass: FormShowRequest::class);
+    }
+
     private function assertErrorResponse(mixed $response, int $httpStatus, string $errorCode): void
     {
         $this->assertInstanceOf(Response::class, $response);
@@ -58,23 +67,9 @@ class FormsProxyControllerTest extends TestCase
         $this->assertSame(['status' => false, 'error_code' => $errorCode], Response::getData());
     }
 
-    public function test_show_returns_400_for_invalid_id(): void
-    {
-        $response = (new FormsProxyController())
-            ->show($this->makeWpKitRequest(params: ['id' => 'abc']));
-
-        $this->assertErrorResponse($response, 400, 'INVALID_FORM_ID');
-        $this->assertSame([], WpHttpMock::$calls);
-    }
-
-    public function test_show_returns_400_for_non_positive_id(): void
-    {
-        $response = (new FormsProxyController())
-            ->show($this->makeWpKitRequest(params: ['id' => '0']));
-
-        $this->assertErrorResponse($response, 400, 'INVALID_FORM_ID');
-        $this->assertSame([], WpHttpMock::$calls);
-    }
+    // Id-format validation moved to FormShowRequest (UUID), run by the wp-kit
+    // router before the action; see FormShowRequestTest. These unit tests call
+    // the action directly, so only a well-formed UUID reaches show().
 
     public function test_index_returns_bare_forms_array(): void
     {
@@ -87,15 +82,17 @@ class FormsProxyControllerTest extends TestCase
         $this->assertSame($forms, $data);
     }
 
-    public function test_show_returns_bare_form_payload(): void
+    public function test_show_returns_bare_form_payload_and_proxies_uuid_path(): void
     {
         $this->connect();
-        $form = ['id' => 5, 'name' => 'Donation'];
+        $form = ['id' => self::FORM_ID, 'name' => 'Donation'];
         WpHttpMock::queue(200, ['status' => true, 'data' => $form]);
 
-        $data = (new FormsProxyController())->show($this->makeWpKitRequest(params: ['id' => '5']));
+        $data = (new FormsProxyController())->show($this->makeShowRequest(self::FORM_ID));
 
         $this->assertSame($form, $data);
+        $call = end(WpHttpMock::$calls);
+        $this->assertSame(Config::apiBaseUrl() . '/form/' . self::FORM_ID, $call['url']);
     }
 
     public function test_index_falls_back_to_full_response_when_data_is_not_an_array(): void
@@ -117,7 +114,7 @@ class FormsProxyControllerTest extends TestCase
         $body = ['status' => true, 'message' => 'no data wrapper'];
         WpHttpMock::queue(200, $body);
 
-        $data = (new FormsProxyController())->show($this->makeWpKitRequest(params: ['id' => '5']));
+        $data = (new FormsProxyController())->show($this->makeShowRequest(self::FORM_ID));
 
         $this->assertSame($body, $data);
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\ResendOtpController;
 use PaymentForm\Providers\ServiceContainer;
@@ -44,7 +45,7 @@ class ResendOtpControllerTest extends TestCase
     private function controller(): ResendOtpController
     {
         $this->seedContainer([
-            SetupApiClient::class => new SetupApiClient(new HttpTransport(PAYMENTFORM_API_BASE_URL)),
+            SetupApiClient::class => new SetupApiClient(new HttpTransport(Config::apiBaseUrl())),
         ]);
 
         return new ResendOtpController();
@@ -100,7 +101,7 @@ class ResendOtpControllerTest extends TestCase
         $this->resend();
 
         $call = end(WpHttpMock::$calls);
-        $this->assertSame(PAYMENTFORM_API_BASE_URL . '/auth/setup/resend-otp', $call['url']);
+        $this->assertSame(Config::apiBaseUrl() . '/auth/setup/resend-otp', $call['url']);
         $this->assertSame('POST', $call['args']['method']);
         $this->assertSame(
             ['setup_token' => 'v1.stashed-token'],

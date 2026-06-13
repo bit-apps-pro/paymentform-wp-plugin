@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Tests\Unit\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\RefreshController;
 use PaymentForm\Providers\ServiceContainer;
@@ -34,7 +35,7 @@ class RefreshControllerTest extends TestCase
             ApiClient::class => new ApiClient(
                 $this->tokenService,
                 new TokenRefreshLock(),
-                new HttpTransport(PAYMENTFORM_API_BASE_URL)
+                new HttpTransport(Config::apiBaseUrl())
             ),
         ]);
     }

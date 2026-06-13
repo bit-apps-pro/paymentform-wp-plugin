@@ -7,6 +7,7 @@ namespace PaymentForm\HTTP\Controllers;
 use InvalidArgumentException;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
+use PaymentForm\HTTP\Requests\SetupRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\SetupOptionsStore;
@@ -53,39 +54,18 @@ final class SetupController
     /**
      * @return array<string, mixed>|Response
      */
-    public function handle(Request $req): array|Response
+    public function handle(SetupRequest $req): array|Response
     {
-        // Parse and validate input.
+        // Input is validated by SetupRequest::rules() before this runs (wp-kit
+        // RouteRegister), so these are guaranteed well-formed.
         $email = (string) $req->get('email', '');
         $country = (string) $req->get('country', '');
         $locale = (string) $req->get('locale', '');
         $emailOverride = (string) $req->get('email_override', '');
 
-        // Validate email format.
-        if (!$email || strlen($email) > 256 || !is_email($email)) {
-            return $this->failure(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid email address.'], 400);
-        }
-
-        // Validate country (ISO 3166-1 alpha-2, uppercase).
-        if (!$country || strlen($country) !== 2 || !preg_match('/^[A-Z]{2}$/', $country)) {
-            return $this->failure(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid country code.'], 400);
-        }
-
-        // Validate optional locale (format: xx_YY).
-        if ($locale && strlen($locale) !== 5) {
-            return $this->failure(['next' => 'failed', 'code' => 'bad_request', 'message' => 'Invalid locale format.'], 400);
-        }
-
-        // Cap string lengths before hashing/persisting.
-        if (strlen($email) > 256) {
-            $email = substr($email, 0, 256);
-        }
-        if ($emailOverride && strlen($emailOverride) > 256) {
-            $emailOverride = substr($emailOverride, 0, 256);
-        }
-
-        // Resolve effective email: override if provided, else use param.
-        $effectiveEmail = $emailOverride && is_email($emailOverride) ? $emailOverride : $email;
+        // Resolve effective email: the override when supplied (the rule
+        // guarantees it is a valid email), else the primary email.
+        $effectiveEmail = $emailOverride !== '' ? $emailOverride : $email;
 
         // Generate nonce (32 hex chars = 16 random bytes).
         $nonce = bin2hex(random_bytes(16));
@@ -227,7 +207,7 @@ final class SetupController
                         $this->tokenService->storeCreatedVia('setup');
 
                         // Wipe per-nonce row; keep per-email for OTP-resend reference.
-                        delete_option('paymentform_setup_by_nonce_' . $nonce);
+                        $store->consumeByNonce($nonce);
 
                         return ['next' => 'connected', 'has_workspace' => true];
                     } catch (Throwable) {
@@ -256,7 +236,7 @@ final class SetupController
                 }
 
                 // Per-nonce row is no longer needed once the handshake completed.
-                delete_option('paymentform_setup_by_nonce_' . $nonce);
+                $store->consumeByNonce($nonce);
 
                 return [
                     'next' => 'check_inbox',
@@ -270,7 +250,7 @@ final class SetupController
                 $connectUrl = $data['connect_url'] ?? null;
                 if ($connectUrl) {
                     // Wipe per-nonce row.
-                    delete_option('paymentform_setup_by_nonce_' . $nonce);
+                    $store->consumeByNonce($nonce);
 
                     return ['next' => 'redirect_connect', 'connect_url' => $connectUrl, 'has_workspace' => false];
                 }
@@ -292,14 +272,14 @@ final class SetupController
                 $message = $this->mapProofErrorMessage($subCode);
 
                 // Wipe per-nonce row.
-                delete_option('paymentform_setup_by_nonce_' . $nonce);
+                $store->consumeByNonce($nonce);
 
                 return $this->failure(['next' => 'failed', 'code' => $subCode, 'message' => $message], 422);
             }
 
             // Proof host mismatch.
             if ($errorCode === 'INVALID_PROOF_HOST') {
-                delete_option('paymentform_setup_by_nonce_' . $nonce);
+                $store->consumeByNonce($nonce);
 
                 return $this->failure(
                     ['next' => 'failed', 'code' => 'invalid_proof_host', 'message' => 'Site URL host mismatch.'],
@@ -309,7 +289,7 @@ final class SetupController
         }
 
         // Generic error response.
-        delete_option('paymentform_setup_by_nonce_' . $nonce);
+        $store->consumeByNonce($nonce);
 
         return $this->failure(
             ['next' => 'failed', 'code' => 'unknown_error', 'message' => 'An unexpected error occurred.'],
