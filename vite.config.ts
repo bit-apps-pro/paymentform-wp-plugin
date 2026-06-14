@@ -37,8 +37,12 @@ function wpExternals(): Plugin {
     // `wp-element` because that's the script that boots `window.React`.
     react: { global: 'window.React', handle: 'wp-element' },
     'react-dom': { global: 'window.ReactDOM', handle: 'wp-element' },
-    'react/jsx-runtime': { global: 'window.React', handle: 'wp-element' },
-    'react/jsx-dev-runtime': { global: 'window.React', handle: 'wp-element' },
+    // Automatic JSX runtime: `react/jsx-runtime` (jsx/jsxs/Fragment) is exposed by
+    // WP core as `window.ReactJSXRuntime` via the `react-jsx-runtime` script handle
+    // (registered since WP 6.6). `window.React` has no jsx/jsxs, so mapping these
+    // there would leave the block bundle's `_jsx(...)` calls undefined.
+    'react/jsx-runtime': { global: 'window.ReactJSXRuntime', handle: 'react-jsx-runtime' },
+    'react/jsx-dev-runtime': { global: 'window.ReactJSXRuntime', handle: 'react-jsx-runtime' },
   };
 
   const handlesByChunk = new Map<string, Set<string>>();
@@ -295,11 +299,13 @@ function removeStoredPort(): void {
 }
 
 export default defineConfig({
-  // Classic JSX runtime so block bundles emit `createElement(...)` calls that
-  // map cleanly to `wp.element.createElement` (the editor's React 18 instance).
-  // The automatic runtime would emit `jsx`/`jsxs` calls which `wp.element` does
-  // not expose. Admin SPA also gets classic — same emotion-css JSX behavior.
-  plugins: [react({ jsxRuntime: 'classic' }), wpExternals(), copyBlockJson(), setDevServerConfig()],
+  // Automatic JSX runtime — matches tsconfig `"jsx": "react-jsx"` and the source
+  // (no file imports React). JSX compiles to `jsx`/`jsxs` from `react/jsx-runtime`:
+  // the admin SPA bundles its own copy; block bundles externalize it to WP core's
+  // `window.ReactJSXRuntime` (`react-jsx-runtime` handle). The previous `classic`
+  // setting emitted `React.createElement` with no `React` bound in the admin
+  // bundle (it imports no default React), crashing the SPA with `React is not defined`.
+  plugins: [react(), wpExternals(), copyBlockJson(), setDevServerConfig()],
   // The build config lives at the plugin root but the web app source stays under
   // `frontend/`, so point Vite's project root there. The dev server then serves
   // `/src/main.tsx`, `/dev-react-refresh.js` etc. from `frontend/` (PHP targets
