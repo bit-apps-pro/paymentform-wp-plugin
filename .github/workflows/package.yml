@@ -1,6 +1,8 @@
 name: Package plugin
 
 on:
+  push:
+    branches: [staging]
   release:
     types: [published]
   workflow_dispatch: {}
