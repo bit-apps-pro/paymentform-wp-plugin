@@ -1,17 +1,22 @@
-import { useState } from 'react';
-import { Layout, theme, Menu, Flex, Button, Tooltip } from 'antd';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Settings as SettingsIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { css } from '@emotion/css';
-import { Logo } from './Logo';
-import { ConnectionPill } from './ConnectionPill';
-import { HeaderThemeToggle } from './HeaderThemeToggle';
-import { HeaderConnectButton } from './HeaderConnectButton';
-import { UserMenu } from './UserMenu';
-import { AppBreadcrumb } from './AppBreadcrumb';
-import { VerifyEmailBanner } from './VerifyEmailBanner';
-import { __ } from '../lib/i18n';
-import { wpModuleData } from '../utils/wpData';
+import { useState } from "react";
+import { Layout, theme, Menu, Flex, Button, Tooltip } from "antd";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  FileText,
+  Settings as SettingsIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
+import { css } from "@emotion/css";
+import { Logo } from "./Logo";
+import { ConnectionPill } from "./ConnectionPill";
+import { HeaderThemeToggle } from "./HeaderThemeToggle";
+import { HeaderConnectButton } from "./HeaderConnectButton";
+import { UserMenu } from "./UserMenu";
+import { AppBreadcrumb } from "./AppBreadcrumb";
+import { VerifyEmailBanner } from "./VerifyEmailBanner";
+import { __ } from "../lib/i18n";
+import { wpModuleData } from "../utils/wpData";
 
 const { Header, Sider, Content } = Layout;
 
@@ -21,7 +26,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const connected =
-    wpModuleData.connected === '1' || wpModuleData.connected === true;
+    wpModuleData.connected === "1" || wpModuleData.connected === true;
 
   const headerStyles = css`
     background: ${token.colorBgContainer};
@@ -68,35 +73,36 @@ export function AppShell() {
   const menuItems = connected
     ? [
         {
-          key: '/forms',
+          key: "/forms",
           icon: <FileText size={16} />,
-          label: __('Forms', 'paymentform'),
-          title: __('Forms', 'paymentform'),
+          label: __("Forms", "paymentform"),
+          title: __("Forms", "paymentform"),
         },
         {
-          key: '/settings',
+          key: "/settings",
           icon: <SettingsIcon size={16} />,
-          label: __('Settings', 'paymentform'),
-          title: __('Settings', 'paymentform'),
+          label: __("Settings", "paymentform"),
+          title: __("Settings", "paymentform"),
         },
       ]
     : [
         {
-          key: '/welcome',
+          key: "/welcome",
           icon: <FileText size={16} />,
-          label: __('Welcome', 'paymentform'),
-          title: __('Welcome', 'paymentform'),
+          label: __("Welcome", "paymentform"),
+          title: __("Welcome", "paymentform"),
         },
       ];
 
-  const activeKey = '/' + (location.pathname.replace(/^\//, '').split('/')[0] || 'welcome');
+  const activeKey =
+    "/" + (location.pathname.replace(/^\//, "").split("/")[0] || "welcome");
 
   const toggleLabel = collapsed
-    ? __('Expand sidebar', 'paymentform')
-    : __('Collapse sidebar', 'paymentform');
+    ? __("Expand sidebar", "paymentform")
+    : __("Collapse sidebar", "paymentform");
 
   return (
-    <Layout style={{ height: '100%' }}>
+    <Layout style={{ height: "100%" }}>
       <Sider
         width={220}
         collapsed={collapsed}
@@ -111,7 +117,7 @@ export function AppShell() {
           selectedKeys={[activeKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ borderInlineEnd: 'none', paddingTop: token.paddingSM }}
+          style={{ borderInlineEnd: "none", paddingTop: token.paddingSM }}
         />
       </Sider>
       <Layout className={innerLayoutStyles}>
@@ -122,12 +128,20 @@ export function AppShell() {
                 type="text"
                 shape="circle"
                 aria-label={toggleLabel}
-                icon={collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                icon={
+                  collapsed ? (
+                    <PanelLeftOpen size={18} />
+                  ) : (
+                    <PanelLeftClose size={18} />
+                  )
+                }
                 onClick={() => setCollapsed((c) => !c)}
               />
             </Tooltip>
             <Logo size={28} />
-            <span className={brandText}>{__('PaymentForm', 'paymentform')}</span>
+            <span className={brandText}>
+              {__("PaymentForm.io", "paymentform")}
+            </span>
           </Flex>
           <Flex align="center" gap={token.marginXS}>
             <ConnectionPill />
@@ -139,7 +153,12 @@ export function AppShell() {
         <div className={breadcrumbBar}>
           <AppBreadcrumb />
         </div>
-        <div style={{ paddingLeft: token.paddingLG, paddingRight: token.paddingLG }}>
+        <div
+          style={{
+            paddingLeft: token.paddingLG,
+            paddingRight: token.paddingLG,
+          }}
+        >
           <VerifyEmailBanner />
         </div>
         <Content className={contentStyles}>

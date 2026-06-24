@@ -1,11 +1,11 @@
-import { Card, Button, Spin, Flex, Typography, List, theme } from 'antd';
-import { CheckCircle } from 'lucide-react';
-import { css } from '@emotion/css';
-import { useState } from 'react';
-import { Logo } from '../components/Logo';
-import { useConnect } from '../features/auth/useConnect';
-import { CreateWizardModal } from '../features/setup/CreateWizardModal';
-import { __ } from '../lib/i18n';
+import { Card, Button, Spin, Flex, Typography, List, theme } from "antd";
+import { CheckCircle } from "lucide-react";
+import { css } from "@emotion/css";
+import { useState } from "react";
+import { Logo } from "../components/Logo";
+import { useConnect } from "../features/auth/useConnect";
+import { CreateWizardModal } from "../features/setup/CreateWizardModal";
+import { __ } from "../lib/i18n";
 
 export function Welcome() {
   const { token } = theme.useToken();
@@ -31,7 +31,7 @@ export function Welcome() {
         <Flex vertical align="center" gap={token.marginMD}>
           <Spin size="large" />
           <Typography.Text type="secondary">
-            {__('Redirecting to PaymentForm…', 'paymentform')}
+            {__("Redirecting to PaymentForm…", "paymentform")}
           </Typography.Text>
         </Flex>
       </div>
@@ -39,23 +39,28 @@ export function Welcome() {
   }
 
   const permissions = [
-    __('Read your forms', 'paymentform'),
-    __('Receive submission webhooks', 'paymentform'),
-    __('Refresh your access token automatically', 'paymentform'),
+    __("Read your forms", "paymentform"),
+    __("Receive submission webhooks", "paymentform"),
+    __("Refresh your access token automatically", "paymentform"),
   ];
 
   return (
     <div className={containerStyles}>
       <Card className={cardStyles}>
-        <Flex vertical align="center" gap={token.marginMD} style={{ textAlign: 'center' }}>
+        <Flex
+          vertical
+          align="center"
+          gap={token.marginMD}
+          style={{ textAlign: "center" }}
+        >
           <Logo size={72} />
           <Typography.Title level={2} style={{ margin: 0 }}>
-            {__('Get started with PaymentForm', 'paymentform')}
+            {__("Get started with PaymentForm.io", "paymentform")}
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
             {__(
-              'Embed payment forms, receive submissions, and manage your workspace without leaving WordPress.',
-              'paymentform'
+              "Embed payment forms, receive submissions, and manage your workspace without leaving WordPress.",
+              "paymentform",
             )}
           </Typography.Paragraph>
         </Flex>
@@ -72,17 +77,30 @@ export function Welcome() {
             </List.Item>
           )}
         />
-        <Flex justify="center" gap={token.marginSM} wrap style={{ marginTop: token.marginLG }}>
-          <Button type="primary" size="large" loading={isPending} onClick={() => connect()}>
-            {__('Connect existing account', 'paymentform')}
+        <Flex
+          justify="center"
+          gap={token.marginSM}
+          wrap
+          style={{ marginTop: token.marginLG }}
+        >
+          <Button
+            type="primary"
+            size="large"
+            loading={isPending}
+            onClick={() => connect()}
+          >
+            {__("Connect existing account", "paymentform")}
           </Button>
           <Button size="large" onClick={() => setCreateOpen(true)}>
-            {__('Create new account', 'paymentform')}
+            {__("Create new account", "paymentform")}
           </Button>
         </Flex>
       </Card>
 
-      <CreateWizardModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateWizardModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+      />
     </div>
   );
 }
