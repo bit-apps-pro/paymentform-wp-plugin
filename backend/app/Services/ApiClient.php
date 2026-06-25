@@ -157,7 +157,10 @@ final class ApiClient
             if ($newToken !== null && $newToken !== $currentToken) {
                 return $this->makeRequest($method, $path, $options, isRetry: true, knownToken: $newToken);
             }
-            throw new RuntimeException('REFRESH_IN_PROGRESS');
+            // Lock held by another worker and no fresh token yet — clear credentials
+            // so the admin sees a reconnect prompt rather than a generic server error.
+            $this->tokenService->clear();
+            throw new DisconnectedException('REFRESH_LOCK_TIMEOUT');
         }
 
         try {
