@@ -54,7 +54,7 @@ final class ApiClient
     {
         $current = $this->tokenService->get();
         if ($current === null) {
-            throw new RuntimeException('NO_TOKEN_TO_REFRESH');
+            throw new DisconnectedException('NO_TOKEN_TO_REFRESH');
         }
 
         $response = $this->http->post(
@@ -91,7 +91,7 @@ final class ApiClient
     {
         $token = $knownToken ?? $this->tokenService->get();
         if ($token === null) {
-            throw new RuntimeException('NO_TOKEN');
+            throw new DisconnectedException('NO_TOKEN');
         }
 
         $tenant = $this->tokenService->getTenant();
