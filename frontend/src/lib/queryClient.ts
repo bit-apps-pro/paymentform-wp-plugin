@@ -17,30 +17,50 @@ function getNotification(): NotificationInstance | null {
   return notificationInstance;
 }
 
+function handleDisconnected(notification: NotificationInstance | null) {
+  if (notification) {
+    notification.warning({
+      message: __('Plugin disconnected', 'paymentform'),
+      description: __('Your plugin has been disconnected. Please reconnect from the dashboard.', 'paymentform'),
+      duration: 0,
+    });
+  }
+  handle401();
+}
+
+function handleSessionExpired(notification: NotificationInstance | null) {
+  if (notification) {
+    notification.warning({
+      message: __('Session expired', 'paymentform'),
+      description: __('Your session has expired. Please reconnect.', 'paymentform'),
+      duration: 4,
+      btn: null,
+    });
+  }
+  handle401();
+}
+
 const queryCache = new QueryCache({
   onError: (error: unknown, query: Query<unknown, unknown>) => {
     const meta = query.meta as { silent?: boolean } | undefined;
     if (meta?.silent) return;
 
     const apiError = error as ApiError;
-    if (apiError.status === 401 || apiError.errorCode === 'UNAUTHORIZED') {
-      const notification = getNotification();
-      if (notification) {
-        notification.warning({
-          message: __('Session expired', 'paymentform'),
-          description: __('Your session has expired. Please reconnect.', 'paymentform'),
-          duration: 4,
-          btn: null,
-        });
-      }
-      handle401();
+    const notification = getNotification();
+
+    if (apiError.errorCode === 'DISCONNECTED') {
+      handleDisconnected(notification);
       return;
     }
 
-    const notification = getNotification();
+    if (apiError.status === 401 || apiError.errorCode === 'UNAUTHORIZED') {
+      handleSessionExpired(notification);
+      return;
+    }
+
     if (notification) {
       notification.error({
-        message: apiError.errorCode || __('Error', 'paymentform'),
+        message: __('Something went wrong', 'paymentform'),
         description: apiError.message || __('An unexpected error occurred', 'paymentform'),
       });
     }
@@ -50,23 +70,21 @@ const queryCache = new QueryCache({
 const mutationCache = new MutationCache({
   onError: (error: unknown) => {
     const apiError = error as ApiError;
-    if (apiError.status === 401) {
-      const notification = getNotification();
-      if (notification) {
-        notification.warning({
-          message: __('Session expired', 'paymentform'),
-          description: __('Your session has expired. Please reconnect.', 'paymentform'),
-          duration: 4,
-        });
-      }
-      handle401();
+    const notification = getNotification();
+
+    if (apiError.errorCode === 'DISCONNECTED') {
+      handleDisconnected(notification);
       return;
     }
 
-    const notification = getNotification();
+    if (apiError.status === 401 || apiError.errorCode === 'UNAUTHORIZED') {
+      handleSessionExpired(notification);
+      return;
+    }
+
     if (notification) {
       notification.error({
-        message: apiError.errorCode || __('Error', 'paymentform'),
+        message: __('Something went wrong', 'paymentform'),
         description: apiError.message || __('Operation failed', 'paymentform'),
       });
     }
