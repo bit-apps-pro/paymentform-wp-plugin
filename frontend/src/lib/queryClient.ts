@@ -18,25 +18,21 @@ function getNotification(): NotificationInstance | null {
 }
 
 function handleDisconnected(notification: NotificationInstance | null) {
-  if (notification) {
-    notification.warning({
-      message: __('Plugin disconnected', 'paymentform'),
-      description: __('Your plugin has been disconnected. Please reconnect from the dashboard.', 'paymentform'),
-      duration: 0,
-    });
-  }
+  notification?.warning({
+    message: __('Plugin disconnected', 'paymentform'),
+    description: __('Your plugin has been disconnected. Please reconnect from the dashboard.', 'paymentform'),
+    duration: 0,
+  });
   handle401();
 }
 
 function handleSessionExpired(notification: NotificationInstance | null) {
-  if (notification) {
-    notification.warning({
-      message: __('Session expired', 'paymentform'),
-      description: __('Your session has expired. Please reconnect.', 'paymentform'),
-      duration: 4,
-      btn: null,
-    });
-  }
+  notification?.warning({
+    message: __('Session expired', 'paymentform'),
+    description: __('Your session has expired. Please reconnect.', 'paymentform'),
+    duration: 4,
+    btn: null,
+  });
   handle401();
 }
 
