@@ -4,23 +4,22 @@ declare(strict_types=1);
 
 namespace PaymentForm\Providers;
 
-use PaymentForm\Providers\Container;
 use PaymentForm\Config;
-use PaymentForm\HTTP\Rewrites;
-use PaymentForm\HTTP\Shortcode;
+use PaymentForm\Cron\PurgeExpiredSetupOptions;
+use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\SetupProofController;
 use PaymentForm\HTTP\Controllers\WebhookController;
-use PaymentForm\Services\EncryptionService;
-use PaymentForm\Services\TokenService;
-use PaymentForm\Services\TokenRefreshLock;
+use PaymentForm\HTTP\Rewrites;
+use PaymentForm\HTTP\Shortcode;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\ConnectService;
+use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\Http\HttpTransport;
 use PaymentForm\Services\SetupApiClient;
+use PaymentForm\Services\TokenRefreshLock;
+use PaymentForm\Services\TokenService;
 use PaymentForm\Services\WebhookService;
-use PaymentForm\Cron\PurgeExpiredSetupOptions;
-use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 
 final class PluginServiceProvider
 {
@@ -31,7 +30,7 @@ final class PluginServiceProvider
      * match the `wp_enqueue_script_module()` id, the `script_module_data_{id}`
      * filter tag, and the frontend reader's `wp-script-module-data-{id}` lookup.
      */
-    private const ADMIN_MODULE_ID = '@' . Config::SLUG . '/admin';
+    private const ADMIN_MODULE_ID = '@'.Config::SLUG.'/admin';
 
     /**
      * Dev-only Script Module ids. In dev the admin SPA is served from the Vite
@@ -40,8 +39,9 @@ final class PluginServiceProvider
      * Refresh preamble and the Vite HMR client are enqueued as their own modules
      * so they execute before the SPA entry.
      */
-    private const DEV_REFRESH_MODULE_ID = '@' . Config::SLUG . '/dev-react-refresh';
-    private const DEV_VITE_CLIENT_MODULE_ID = '@' . Config::SLUG . '/vite-client';
+    private const DEV_REFRESH_MODULE_ID = '@'.Config::SLUG.'/dev-react-refresh';
+
+    private const DEV_VITE_CLIENT_MODULE_ID = '@'.Config::SLUG.'/vite-client';
 
     /**
      * Script Module id for the form-embed block's editor entry. WP has no
@@ -51,7 +51,7 @@ final class PluginServiceProvider
      * on this id — the editor reads the matching `wp-script-module-data-{id}`
      * JSON tag.
      */
-    private const EDITOR_MODULE_ID = '@' . Config::SLUG . '/block-editor';
+    private const EDITOR_MODULE_ID = '@'.Config::SLUG.'/block-editor';
 
     private ?Container $container = null;
 
@@ -59,53 +59,53 @@ final class PluginServiceProvider
     {
         $this->container = $c;
         // Core encryption service
-        $c[EncryptionService::class] = static fn() => new EncryptionService();
+        $c[EncryptionService::class] = static fn () => new EncryptionService;
 
         // Token management
-        $c[TokenService::class] = static fn($c) => new TokenService($c[EncryptionService::class]);
+        $c[TokenService::class] = static fn ($c) => new TokenService($c[EncryptionService::class]);
 
         // Token refresh synchronization
-        $c[TokenRefreshLock::class] = static fn() => new TokenRefreshLock();
+        $c[TokenRefreshLock::class] = static fn () => new TokenRefreshLock;
 
         // Shared outbound HTTP transport (wp-kit HttpClient adapter). Owns the
         // API base URL; stateless beyond that — a fresh client is built per call
         // inside send().
-        $c[HttpTransport::class] = static fn() => new HttpTransport(Config::apiBaseUrl());
+        $c[HttpTransport::class] = static fn () => new HttpTransport(Config::apiBaseUrl());
 
         // API client with token awareness
-        $c[ApiClient::class] = static fn($c) => new ApiClient(
+        $c[ApiClient::class] = static fn ($c) => new ApiClient(
             $c[TokenService::class],
             $c[TokenRefreshLock::class],
             $c[HttpTransport::class]
         );
 
         // Unauthenticated client for the pre-auth setup/exchange endpoints.
-        $c[SetupApiClient::class] = static fn($c) => new SetupApiClient(
+        $c[SetupApiClient::class] = static fn ($c) => new SetupApiClient(
             $c[HttpTransport::class]
         );
 
         // OAuth-like connect flow
-        $c[ConnectService::class] = static fn() => new ConnectService();
+        $c[ConnectService::class] = static fn () => new ConnectService;
 
         // Webhook signature verification
-        $c[WebhookService::class] = static fn() => new WebhookService();
+        $c[WebhookService::class] = static fn () => new WebhookService;
 
         // Non-REST controllers, dispatched by Rewrites.php from the
         // container. REST controllers are NOT bound here: wp-kit instantiates
         // them with zero args and they pull services from ServiceContainer
         // (see Plugin.php docblock for the composition-root split).
-        $c[CallbackController::class] = static fn($c) => new CallbackController(
+        $c[CallbackController::class] = static fn ($c) => new CallbackController(
             $c[ConnectService::class],
             $c[TokenService::class],
             $c[SetupApiClient::class]
         );
 
-        $c[WebhookController::class] = static fn($c) => new WebhookController(
+        $c[WebhookController::class] = static fn ($c) => new WebhookController(
             $c[TokenService::class],
             $c[WebhookService::class]
         );
 
-        $c[SetupProofController::class] = static fn() => new SetupProofController();
+        $c[SetupProofController::class] = static fn () => new SetupProofController;
     }
 
     public function boot(): void
@@ -125,15 +125,15 @@ final class PluginServiceProvider
 
     public function registerCronSchedules(): void
     {
-        if (!wp_next_scheduled('paymentform_setup_purge')) {
+        if (! wp_next_scheduled('paymentform_setup_purge')) {
             wp_schedule_event(time(), 'daily', 'paymentform_setup_purge');
         }
-        Hooks::addAction('paymentform_setup_purge', [new PurgeExpiredSetupOptions(), 'run']);
+        Hooks::addAction('paymentform_setup_purge', [new PurgeExpiredSetupOptions, 'run']);
     }
 
     public function loadTextdomain(): void
     {
-        load_plugin_textdomain('paymentform', false, dirname(plugin_basename(Config::pluginFile())) . '/languages');
+        load_plugin_textdomain('paymentform', false, dirname(plugin_basename(Config::pluginFile())).'/languages');
     }
 
     /**
@@ -149,11 +149,11 @@ final class PluginServiceProvider
 
     public function registerBlockAndShortcode(): void
     {
-        $blockType = register_block_type(Config::pluginDir() . 'assets/form-embed');
-        if ($blockType && !empty($blockType->view_script_module_ids)) {
+        $blockType = register_block_type(Config::pluginDir().'assets/form-embed');
+        if ($blockType && ! empty($blockType->view_script_module_ids)) {
             $this->blockViewScriptModuleId = (string) $blockType->view_script_module_ids[0];
         }
-        (new Shortcode())->register();
+        (new Shortcode)->register();
     }
 
     /**
@@ -183,7 +183,7 @@ final class PluginServiceProvider
         // emitting the returned array as a `wp-script-module-data-{id}` JSON tag
         // the editor reads at module eval (see frontend blocks/form-embed/edit.tsx).
         Hooks::addFilter(
-            'script_module_data_' . self::EDITOR_MODULE_ID,
+            'script_module_data_'.self::EDITOR_MODULE_ID,
             [$this, 'createBlockEditorConfigData']
         );
     }
@@ -195,7 +195,7 @@ final class PluginServiceProvider
      * (empty-state "create form" CTA). Merges onto whatever WP or another filter
      * accumulated; WP encodes and escapes the JSON tag itself.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     public function createBlockEditorConfigData(array $data): array
@@ -216,13 +216,13 @@ final class PluginServiceProvider
         // monochrome path with `fill="currentColor"` so WP's recolor pipeline owns
         // the tint.
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor">'
-            . '<path d="M11 25V8H18.7645C20.0345 8 21.1116 8.21702 21.9957 8.65106C22.8799 9.08511 23.547 9.70402 23.9972 10.5078'
-            . 'C24.4634 11.3116 24.6965 12.2842 24.6965 13.4255C24.6965 14.5669 24.4634 15.5475 23.9972 16.3674'
-            . 'C23.547 17.1712 22.8799 17.7901 21.9957 18.2241C21.1116 18.6582 20.0345 18.8752 18.7645 18.8752'
-            . 'H14.7376V22L11 25ZM14.7376 15.9816H18.1376C19.1021 15.9816 19.8336 15.7645 20.3319 15.3305'
-            . 'C20.8463 14.8965 21.1035 14.2615 21.1035 13.4255C21.1035 12.5896 20.8463 11.9626 20.3319 11.5447'
-            . 'C19.8336 11.1267 19.1021 10.9177 18.1376 10.9177H14.7376V15.9816Z"/></svg>';
-        $iconSvg = 'data:image/svg+xml;base64,' . base64_encode($svg);
+            .'<path d="M11 25V8H18.7645C20.0345 8 21.1116 8.21702 21.9957 8.65106C22.8799 9.08511 23.547 9.70402 23.9972 10.5078'
+            .'C24.4634 11.3116 24.6965 12.2842 24.6965 13.4255C24.6965 14.5669 24.4634 15.5475 23.9972 16.3674'
+            .'C23.547 17.1712 22.8799 17.7901 21.9957 18.2241C21.1116 18.6582 20.0345 18.8752 18.7645 18.8752'
+            .'H14.7376V22L11 25ZM14.7376 15.9816H18.1376C19.1021 15.9816 19.8336 15.7645 20.3319 15.3305'
+            .'C20.8463 14.8965 21.1035 14.2615 21.1035 13.4255C21.1035 12.5896 20.8463 11.9626 20.3319 11.5447'
+            .'C19.8336 11.1267 19.1021 10.9177 18.1376 10.9177H14.7376V15.9816Z"/></svg>';
+        $iconSvg = 'data:image/svg+xml;base64,'.base64_encode($svg);
 
         add_menu_page(
             'PaymentForm',
@@ -248,7 +248,7 @@ final class PluginServiceProvider
 
         if (Config::isDev()) {
             $this->enqueueDevAdminAssets();
-        } elseif (!$this->enqueueBuiltAdminAssets()) {
+        } elseif (! $this->enqueueBuiltAdminAssets()) {
             return;
         }
 
@@ -283,14 +283,14 @@ final class PluginServiceProvider
     {
         $dev = Config::devServerUrl();
 
-        $css_file = Config::pluginDir() . 'assets/admin.css';
+        $css_file = Config::pluginDir().'assets/admin.css';
         if (file_exists($css_file)) {
-            wp_enqueue_style('paymentform-admin', Config::pluginUrl() . 'assets/admin.css', [], Config::VERSION);
+            wp_enqueue_style('paymentform-admin', Config::pluginUrl().'assets/admin.css', [], Config::VERSION);
         }
 
-        wp_enqueue_script_module(self::DEV_REFRESH_MODULE_ID, $dev . '/dev-react-refresh.js', [], false);
-        wp_enqueue_script_module(self::DEV_VITE_CLIENT_MODULE_ID, $dev . '/@vite/client', [], false);
-        wp_enqueue_script_module(self::ADMIN_MODULE_ID, $dev . '/src/main.tsx', [], false);
+        wp_enqueue_script_module(self::DEV_REFRESH_MODULE_ID, $dev.'/dev-react-refresh.js', [], null);
+        wp_enqueue_script_module(self::DEV_VITE_CLIENT_MODULE_ID, $dev.'/@vite/client', [], null);
+        wp_enqueue_script_module(self::ADMIN_MODULE_ID, $dev.'/src/main.tsx', [], null);
     }
 
     /**
@@ -309,18 +309,18 @@ final class PluginServiceProvider
      */
     private function enqueueBuiltScriptModule(string $moduleId, string $stem, array $fallbackDeps): ?string
     {
-        $assets_dir = Config::pluginDir() . 'assets';
-        $js_file = $assets_dir . '/' . $stem . '.js';
+        $assets_dir = Config::pluginDir().'assets';
+        $js_file = $assets_dir.'/'.$stem.'.js';
 
-        if (!file_exists($js_file)) {
+        if (! file_exists($js_file)) {
             return null;
         }
 
-        $asset_file = $assets_dir . '/' . $stem . '.asset.php';
+        $asset_file = $assets_dir.'/'.$stem.'.asset.php';
         $asset = file_exists($asset_file) ? require $asset_file : null;
         $version = is_array($asset) && isset($asset['version'])
             ? (string) $asset['version']
-            : Config::VERSION . '.' . filemtime($js_file);
+            : Config::VERSION.'.'.filemtime($js_file);
         $deps = is_array($asset) && isset($asset['dependencies']) && is_array($asset['dependencies'])
             ? $asset['dependencies']
             : $fallbackDeps;
@@ -329,7 +329,7 @@ final class PluginServiceProvider
             wp_enqueue_script($dep);
         }
 
-        wp_enqueue_script_module($moduleId, Config::pluginUrl() . 'assets/' . $stem . '.js', [], $version);
+        wp_enqueue_script_module($moduleId, Config::pluginUrl().'assets/'.$stem.'.js', [], $version);
 
         return $version;
     }
@@ -350,10 +350,10 @@ final class PluginServiceProvider
         // the enqueue with file_exists so a partial build (JS present, CSS
         // missing) degrades to no-stylesheet rather than a 404. Same version as
         // the module so cache-busting stays in lockstep.
-        if (file_exists(Config::pluginDir() . 'assets/admin.css')) {
+        if (file_exists(Config::pluginDir().'assets/admin.css')) {
             wp_enqueue_style(
                 'paymentform-admin',
-                Config::pluginUrl() . 'assets/admin.css',
+                Config::pluginUrl().'assets/admin.css',
                 [],
                 $version
             );
@@ -375,7 +375,7 @@ final class PluginServiceProvider
      */
     private function registerAdminConfigData(): void
     {
-        Hooks::addFilter('script_module_data_' . self::ADMIN_MODULE_ID, [$this, 'createConfigVariable']);
+        Hooks::addFilter('script_module_data_'.self::ADMIN_MODULE_ID, [$this, 'createConfigVariable']);
     }
 
     /**
@@ -384,7 +384,7 @@ final class PluginServiceProvider
      * WP encodes the returned array itself into a `type="application/json"` tag,
      * so no manual `wp_json_encode`/escaping is needed here.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     public function createConfigVariable(array $data): array
@@ -419,7 +419,7 @@ final class PluginServiceProvider
         // Best-effort Cloudflare country hint for the wizard's default country.
         // Absent outside a CF edge → empty string; wizard falls back to its own default.
         $cfCountry = isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? (string) $_SERVER['HTTP_CF_IPCOUNTRY'] : '';
-        if (!preg_match('/^[A-Z]{2}$/', $cfCountry)) {
+        if (! preg_match('/^[A-Z]{2}$/', $cfCountry)) {
             $cfCountry = '';
         }
 
@@ -466,15 +466,15 @@ final class PluginServiceProvider
         if ($hasBlock) {
             $rendererBaseUrl = $this->resolveRendererBaseUrl();
             Hooks::addFilter(
-                'script_module_data_' . $this->blockViewScriptModuleId,
+                'script_module_data_'.$this->blockViewScriptModuleId,
                 static fn (array $data): array => array_merge($data, ['rendererBaseUrl' => $rendererBaseUrl]),
             );
         }
 
-        $view_js = Config::pluginDir() . 'assets/block-view.js';
+        $view_js = Config::pluginDir().'assets/block-view.js';
 
         if ($hasShortcode && file_exists($view_js)) {
-            $version = Config::VERSION . '.' . filemtime($view_js);
+            $version = Config::VERSION.'.'.filemtime($view_js);
 
             // Shortcode path stays a CLASSIC script (it does not go through
             // block.json). The SAME built block-view.js works both ways — it is
@@ -485,7 +485,7 @@ final class PluginServiceProvider
             // handle WP might mint for the block.
             wp_enqueue_script(
                 'paymentform-shortcode-view',
-                Config::pluginUrl() . 'assets/block-view.js',
+                Config::pluginUrl().'assets/block-view.js',
                 [],
                 $version,
                 true
@@ -513,7 +513,7 @@ final class PluginServiceProvider
         }
 
         $tenant = $this->container[TokenService::class]->getTenant();
-        if (!is_string($tenant) || $tenant === '') {
+        if (! is_string($tenant) || $tenant === '') {
             return '';
         }
 
