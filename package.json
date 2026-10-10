@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:zip": "bin/package.sh build/paymentform.zip",
     "preview": "vite preview",
     "lint": "eslint frontend",
     "typecheck": "tsc --noEmit",

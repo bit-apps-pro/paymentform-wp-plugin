@@ -12,7 +12,7 @@
 # The repo's own vendor/ is never touched (dev deps such as PHPUnit stay intact).
 #
 # Usage: bin/package.sh [output-zip-path]
-#   output-zip-path defaults to $ROOT/paymentform.zip
+#   output-zip-path defaults to $ROOT/paymentform-<version>.zip
 #
 # Non-interactive, idempotent, CI-friendly.
 
@@ -28,6 +28,9 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 OUT="${1:-$ROOT/paymentform-$VERSION.zip}"
+# Absolutize: the zip step runs from inside the stage dir.
+mkdir -p "$(dirname "$OUT")"
+OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
 
 for tool in pnpm composer zip rsync; do
     if ! command -v "$tool" >/dev/null 2>&1; then
