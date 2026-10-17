@@ -68,6 +68,9 @@ export function AppShell() {
     font-weight: ${token.fontWeightStrong};
     line-height: 1;
     color: ${token.colorText};
+    @media (max-width: ${token.screenSMMax}px) {
+      display: none;
+    }
   `;
 
   const menuItems = connected
@@ -143,7 +146,7 @@ export function AppShell() {
               {__("PaymentForm.io", "paymentform")}
             </span>
           </Flex>
-          <Flex align="center" gap={token.marginXS}>
+          <Flex align="center" gap={token.marginXS} style={{ minWidth: 0 }}>
             <ConnectionPill />
             <HeaderConnectButton />
             <HeaderThemeToggle />

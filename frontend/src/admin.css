@@ -4,9 +4,8 @@
  * page stays scrollable so anything injected above the root cannot trap the SPA.
  */
 html.wp-toolbar { overflow-x: hidden; }
-body.toplevel_page_paymentform #wpcontent { padding-left: 0 !important; margin-left: 160px; }
-body.folded.toplevel_page_paymentform #wpcontent { margin-left: 36px; }
-body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
+/* WP owns #wpcontent's margin (menu width, auto-fold, RTL); only drop its gutter padding. */
+body.toplevel_page_paymentform #wpcontent { padding-inline-start: 0 !important; }
 body.toplevel_page_paymentform #wpbody-content { padding-bottom: 0 !important; }
 body.toplevel_page_paymentform .wrap { margin: 0 !important; padding: 0 !important; }
 body.toplevel_page_paymentform #wpfooter { display: none !important; }
@@ -14,8 +13,9 @@ body.toplevel_page_paymentform #wpfooter { display: none !important; }
 body.toplevel_page_paymentform #wpbody-content > :is(.notice, .update-nag, .updated, .error) { display: none !important; }
 body.toplevel_page_paymentform #paymentform-admin-root,
 body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - var(--wp-admin--admin-bar--height, 32px)); }
-@media screen and (max-width: 782px) {
-    body.toplevel_page_paymentform #wpcontent { margin-left: 0; }
+/* Below 783px WP clears the taller fixed admin bar with #wpbody padding-top, so keep it there. */
+@media screen and (min-width: 783px) {
+    body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
 }
 /* antd pins drawers to top:0, under the fixed admin bar (z-index 99999). */
 body.toplevel_page_paymentform .ant-drawer .ant-drawer-content-wrapper { top: var(--wp-admin--admin-bar--height, 32px); }

@@ -3,7 +3,8 @@ import { sprintf } from '@wordpress/i18n';
 import { useConnection } from '../features/auth/useConnection';
 import { __ } from '../lib/i18n';
 
-const PILL_MAX_WIDTH_PX = 200;
+/** Caps the workspace name so the header actions fit on phones. */
+const PILL_MAX_WIDTH = 'min(200px, 30vw)';
 
 /** Header pill showing connection state and, when connected, which workspace. */
 export function ConnectionPill() {
@@ -25,7 +26,7 @@ export function ConnectionPill() {
     <Tooltip title={data.user?.email} placement="bottom">
       <Tag
         color="success"
-        style={{ maxWidth: PILL_MAX_WIDTH_PX, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        style={{ maxWidth: PILL_MAX_WIDTH, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
       >
         {label}
       </Tag>
