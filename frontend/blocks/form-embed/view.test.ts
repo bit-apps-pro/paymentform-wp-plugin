@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { bootBlockView, buildFormSrc } from './view';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { bootBlockView, buildFormSrc, HEIGHT_FALLBACK_MS } from './view';
 
 /**
  * Tests import the REAL `view.ts` module — no inline reimplementation. If the URL
@@ -97,26 +97,81 @@ describe('paymentform block view', () => {
       expect(host.querySelectorAll('iframe').length).toBe(1);
     });
 
-    it('rejects postMessage from wrong origin', () => {
+    /** Boots one embed and returns its iframe. */
+    function bootSingleEmbed(formId: string): HTMLIFrameElement {
       const host = document.createElement('div');
       host.className = 'paymentform-embed';
-      host.dataset.formId = 'form_789';
+      host.dataset.formId = formId;
       container.appendChild(host);
-
       bootBlockView();
+      return host.querySelector('iframe') as HTMLIFrameElement;
+    }
 
-      const iframe = host.querySelector('iframe') as HTMLIFrameElement;
+    /** Dispatches a height message as if posted by `source` from `origin`. */
+    function postHeight(origin: string, source: unknown, height: number): void {
+      const ev = new MessageEvent('message', { origin, data: { type: 'paymentform:height', height } });
+      Object.defineProperty(ev, 'source', { value: source });
+      window.dispatchEvent(ev);
+    }
+
+    it('applies height from a redirected https renderer origin when posted by this iframe', () => {
+      // The renderer 302s tenant subdomains to custom/bound domains, so the frame's final origin can differ.
+      const iframe = bootSingleEmbed('form_redirected');
+
+      postHeight('https://forms.customer.example', iframe.contentWindow, 640);
+
+      expect(iframe.style.height).toBe('640px');
+    });
+
+    it('rejects a non-https origin other than the configured renderer', () => {
+      const iframe = bootSingleEmbed('form_789');
       const initialHeight = iframe.style.height;
 
-      // Even with a matching source, a wrong origin must be ignored.
-      const ev = new MessageEvent('message', {
-        origin: 'https://evil.com',
-        data: { type: 'paymentform:height', height: 500 },
-      });
-      Object.defineProperty(ev, 'source', { value: iframe.contentWindow });
-      window.dispatchEvent(ev);
+      postHeight('http://evil.example', iframe.contentWindow, 500);
 
       expect(iframe.style.height).toBe(initialHeight);
+    });
+
+    describe('when no height message arrives', () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+      });
+
+      it('falls back to a scrollable iframe and warns once', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const iframe = bootSingleEmbed('form_silent');
+
+        iframe.dispatchEvent(new Event('load'));
+        vi.advanceTimersByTime(HEIGHT_FALLBACK_MS);
+
+        expect(iframe.getAttribute('scrolling')).toBe('auto');
+        expect(iframe.style.height).toBe('80vh');
+        expect(warn).toHaveBeenCalledTimes(1);
+      });
+
+      it('does not fall back while a lazy iframe has not loaded yet', () => {
+        const iframe = bootSingleEmbed('form_lazy');
+
+        vi.advanceTimersByTime(HEIGHT_FALLBACK_MS * 3);
+
+        expect(iframe.getAttribute('scrolling')).toBe('no');
+      });
+
+      it('keeps the auto-fit iframe once a height message arrived', () => {
+        const iframe = bootSingleEmbed('form_talks');
+
+        iframe.dispatchEvent(new Event('load'));
+        postHeight(new URL(rendererUrl).origin, iframe.contentWindow, 900);
+        vi.advanceTimersByTime(HEIGHT_FALLBACK_MS);
+
+        expect(iframe.getAttribute('scrolling')).toBe('no');
+        expect(iframe.style.height).toBe('900px');
+      });
     });
 
     it('sets iframe height from valid paymentform:height message', () => {

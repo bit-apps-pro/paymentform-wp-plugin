@@ -14,6 +14,11 @@ declare global {
 // wp_localize_script) still covers the shortcode case.
 const VIEW_MODULE_DATA_ID_PREFIX = 'wp-script-module-data-paymentform-form-view-script';
 
+/** How long to wait for the renderer's first height message before falling back to a scrollable frame. */
+export const HEIGHT_FALLBACK_MS = 4000;
+const FALLBACK_HEIGHT = '80vh';
+const MAX_EMBED_HEIGHT_PX = 10000;
+
 /**
  * Resolve the renderer base URL for the embed iframe.
  *
@@ -52,6 +57,19 @@ export function buildFormSrc(rendererBaseUrl: string, formId: string): string {
   return `${rendererBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(formId)}?embedded=true`;
 }
 
+/** Accepts the configured renderer origin or any https origin it may have redirected to. */
+function isTrustedRendererOrigin(origin: string, rendererOrigin: string): boolean {
+  return origin === rendererOrigin || origin.startsWith('https://');
+}
+
+/** Lets a silent renderer's form stay usable: fixed tall frame with its own scrollbar. */
+function applyScrollableFallback(iframe: HTMLIFrameElement): void {
+  iframe.setAttribute('scrolling', 'auto');
+  iframe.style.height = FALLBACK_HEIGHT;
+  console.warn(`PaymentForm: no height from form ${iframe.dataset.formId ?? ''}; using a scrollable embed.`);
+}
+
+/** Replaces every `.paymentform-embed` placeholder with an auto-sizing renderer iframe. */
 export function bootBlockView(): void {
   const cfg = readViewConfig();
   const rendererOrigin = new URL(cfg.rendererBaseUrl).origin;
@@ -85,16 +103,28 @@ export function bootBlockView(): void {
     iframe.dataset.formId = formId;
     host.appendChild(iframe);
 
+    let receivedHeight = false;
+    let fallbackTimer: number | undefined;
+    // Start the clock on load: a lazy iframe below the fold may not fetch for a long time.
+    iframe.addEventListener(
+      'load',
+      () => {
+        if (!receivedHeight) fallbackTimer = window.setTimeout(() => applyScrollableFallback(iframe), HEIGHT_FALLBACK_MS);
+      },
+      { once: true },
+    );
+
     const onMessage = (ev: MessageEvent) => {
-      // Defence in depth: origin pins the sender to the configured renderer
-      // host; source pins it to *this* iframe's window so multiple embeds on
-      // the same page (or unrelated postMessage chatter from same-origin
-      // frames) can't cross-resize each other.
-      if (ev.origin !== rendererOrigin) return;
+      // Source pins the sender to *this* iframe's window, so other frames and
+      // other embeds can't resize it. The origin is not pinned to the configured
+      // host: the renderer 302s tenant subdomains to custom/bound domains.
       if (ev.source !== iframe.contentWindow) return;
+      if (!isTrustedRendererOrigin(ev.origin, rendererOrigin)) return;
       const data = ev.data as { type?: string; height?: number };
       if (data?.type !== 'paymentform:height') return;
-      if (typeof data.height !== 'number' || data.height <= 0 || data.height > 10000) return;
+      if (typeof data.height !== 'number' || data.height <= 0 || data.height > MAX_EMBED_HEIGHT_PX) return;
+      receivedHeight = true;
+      window.clearTimeout(fallbackTimer);
       iframe.style.height = `${data.height}px`;
     };
     window.addEventListener('message', onMessage);
