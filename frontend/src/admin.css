@@ -1,9 +1,9 @@
 /*
  * Flattens WP admin chrome on our page so the React shell fills the viewport
- * without producing an outer page scrollbar or a gap between the WP admin
- * sidebar and the plugin sidebar.
+ * without a gap between the WP admin sidebar and the plugin sidebar. The outer
+ * page stays scrollable so anything injected above the root cannot trap the SPA.
  */
-html.wp-toolbar { overflow: hidden; }
+html.wp-toolbar { overflow-x: hidden; }
 body.toplevel_page_paymentform #wpcontent { padding-left: 0 !important; margin-left: 160px; }
 body.folded.toplevel_page_paymentform #wpcontent { margin-left: 36px; }
 body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
@@ -13,9 +13,7 @@ body.toplevel_page_paymentform #wpfooter { display: none !important; }
 /* Notices injected client-side bypass the server-side suppressor (AdminNoticeSuppressor). */
 body.toplevel_page_paymentform #wpbody-content > :is(.notice, .update-nag, .updated, .error) { display: none !important; }
 body.toplevel_page_paymentform #paymentform-admin-root,
-body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 32px); }
+body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - var(--wp-admin--admin-bar--height, 32px)); }
 @media screen and (max-width: 782px) {
     body.toplevel_page_paymentform #wpcontent { margin-left: 0; }
-    body.toplevel_page_paymentform #paymentform-admin-root,
-    body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 46px); }
 }
