@@ -57,9 +57,9 @@ export async function gotoPluginPage(page: Page, hash = ''): Promise<void> {
   await expect(page.locator('#paymentform-admin-root')).toBeVisible();
 }
 
-/** Header connection pill (AntD Tag rendering exactly Connected/Disconnected). */
+/** Header connection pill (AntD Tag reading "Connected[ · workspace]" or "Disconnected"). */
 export function connectionPill(page: Page) {
-  return page.locator('.ant-tag', { hasText: /^(Connected|Disconnected)$/ }).first();
+  return page.locator('.ant-tag', { hasText: /^(Connected( · .+)?|Disconnected)$/ }).first();
 }
 
 /** Fake form returned by mockWorkspace's `/forms` stub when connected. */

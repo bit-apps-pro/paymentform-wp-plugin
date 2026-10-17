@@ -1,7 +1,11 @@
-import { Tag, Skeleton } from 'antd';
+import { Tag, Skeleton, Tooltip } from 'antd';
+import { sprintf } from '@wordpress/i18n';
 import { useConnection } from '../features/auth/useConnection';
 import { __ } from '../lib/i18n';
 
+const PILL_MAX_WIDTH_PX = 200;
+
+/** Header pill showing connection state and, when connected, which workspace. */
 export function ConnectionPill() {
   const { data, isLoading } = useConnection();
 
@@ -9,10 +13,22 @@ export function ConnectionPill() {
     return <Skeleton.Button active size="small" style={{ width: 96, height: 24 }} />;
   }
 
-  const connected = data?.connected ?? false;
+  if (!data?.connected) {
+    return <Tag color="error">{__('Disconnected', 'paymentform')}</Tag>;
+  }
+
+  const label = data.tenant?.name
+    ? sprintf(__('Connected · %s', 'paymentform'), data.tenant.name)
+    : __('Connected', 'paymentform');
+
   return (
-    <Tag color={connected ? 'success' : 'error'}>
-      {connected ? __('Connected', 'paymentform') : __('Disconnected', 'paymentform')}
-    </Tag>
+    <Tooltip title={data.user?.email} placement="bottom">
+      <Tag
+        color="success"
+        style={{ maxWidth: PILL_MAX_WIDTH_PX, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      >
+        {label}
+      </Tag>
+    </Tooltip>
   );
 }

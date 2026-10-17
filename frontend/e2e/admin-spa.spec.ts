@@ -24,7 +24,7 @@ test('plugin page shows Connected and lists Donation via enveloped REST', async 
   // Flatten contract: /forms data is the bare array, not { forms: [...] }.
   expect(Array.isArray(forms)).toBe(true);
 
-  await expect(connectionPill(page)).toHaveText('Connected');
+  await expect(connectionPill(page)).toHaveText(/^Connected/);
   await expect(page.getByRole('menuitem', { name: 'Forms' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Donation' })).toBeVisible();
