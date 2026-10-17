@@ -22,6 +22,7 @@ const MAX_EMBED_WIDTH_PX = 4000;
 /** How long the reported size must hold still before a loading form is shown. */
 export const REVEAL_SETTLE_MS = 150;
 /** Longest a form stays hidden once it has started reporting its size. */
+// Must stay below the renderer's CLIP_GRACE_MS (2s), or the form shows its own scrollbar while hidden.
 export const MAX_REVEAL_WAIT_MS = 1500;
 const REVEAL_TRANSITION = 'opacity 200ms ease';
 
@@ -29,6 +30,7 @@ interface FormSize {
   height: number;
   width?: unknown;
   frameWidth?: unknown;
+  loading?: unknown;
 }
 
 interface FormSizer {
@@ -86,13 +88,12 @@ function applyScrollableFallback(iframe: HTMLIFrameElement): void {
   console.warn(`PaymentForm: no height from form ${iframe.dataset.formId ?? ''}; using a scrollable embed.`);
 }
 
-/** Sizes the frame to the renderer's form card, centred, so the form sits in the page like native content; false when no card width came. */
-function fitFormWidth(iframe: HTMLIFrameElement, width: unknown): boolean {
-  if (typeof width !== 'number' || !(width > 0) || width > MAX_EMBED_WIDTH_PX) return false;
+/** Sizes the frame to the renderer's form card, centred, so the form sits in the page like native content. */
+function fitFormWidth(iframe: HTMLIFrameElement, width: unknown): void {
+  if (typeof width !== 'number' || !(width > 0) || width > MAX_EMBED_WIDTH_PX) return;
   iframe.style.width = `${width}px`;
   iframe.style.marginLeft = 'auto';
   iframe.style.marginRight = 'auto';
-  return true;
 }
 
 /** Whether the form measured its height at the frame's current width; older renderers don't say, so trust them. */
@@ -108,31 +109,39 @@ function createFormSizer(iframe: HTMLIFrameElement): FormSizer {
   let settleTimer: number | undefined;
   let maxWaitTimer: number | undefined;
 
+  iframe.style.opacity = '0';
+  iframe.style.transition = REVEAL_TRANSITION;
+  iframe.setAttribute('inert', '');
+
+  /** Sets the frame to the form's height, dropping the loading floor. */
   const applyHeight = (height: number) => {
     iframe.style.height = `${height}px`;
     iframe.style.minHeight = '0px';
   };
 
+  /** Shows the frame once, at the latest reported height. */
   const reveal = () => {
     if (revealed) return;
     revealed = true;
     window.clearTimeout(settleTimer);
     window.clearTimeout(maxWaitTimer);
     if (latestHeight) applyHeight(latestHeight);
+    iframe.removeAttribute('inert');
     iframe.style.opacity = '1';
   };
 
-  const onSize = ({ height, width, frameWidth }: FormSize) => {
+  /** Takes one size report: follows it once shown, otherwise waits for it to settle. */
+  const onSize = ({ height, width, frameWidth, loading }: FormSize) => {
     // Width goes on at once: the form re-measures its height at the frame's final width.
-    const hasCard = fitFormWidth(iframe, width);
+    fitFormWidth(iframe, width);
     if (revealed) {
       applyHeight(height);
       return;
     }
     latestHeight = height;
     maxWaitTimer ??= window.setTimeout(reveal, MAX_REVEAL_WAIT_MS);
-    // Without the card the form is still loading; at another frame width the height is stale.
-    const settling = hasCard && measuredAtFrameWidth(iframe, frameWidth) ? height : undefined;
+    // A loading skeleton's height is a placeholder, and one measured at another frame width is stale.
+    const settling = loading !== true && measuredAtFrameWidth(iframe, frameWidth) ? height : undefined;
     if (settling === settlingHeight) return;
     settlingHeight = settling;
     window.clearTimeout(settleTimer);
@@ -164,10 +173,9 @@ export function bootBlockView(): void {
     iframe.style.width = '100%';
     iframe.style.maxWidth = '100%';
     iframe.style.border = '0';
+    iframe.style.padding = '0';
     iframe.style.display = 'block';
     iframe.style.minHeight = '300px';
-    iframe.style.opacity = '0';
-    iframe.style.transition = REVEAL_TRANSITION;
     iframe.setAttribute('loading', 'lazy');
     iframe.setAttribute('title', 'Payment form');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
@@ -202,12 +210,12 @@ export function bootBlockView(): void {
       // host: the renderer 302s tenant subdomains to custom/bound domains.
       if (ev.source !== iframe.contentWindow) return;
       if (!isTrustedRendererOrigin(ev.origin, rendererOrigin)) return;
-      const data = ev.data as { type?: string; height?: number; width?: unknown; frameWidth?: unknown };
+      const data = ev.data as { type?: string; height?: number } & Omit<FormSize, 'height'>;
       if (data?.type !== 'paymentform:height') return;
       if (typeof data.height !== 'number' || data.height <= 0 || data.height > MAX_EMBED_HEIGHT_PX) return;
       receivedHeight = true;
       window.clearTimeout(fallbackTimer);
-      sizer.onSize({ height: data.height, width: data.width, frameWidth: data.frameWidth });
+      sizer.onSize({ height: data.height, width: data.width, frameWidth: data.frameWidth, loading: data.loading });
     };
     window.addEventListener('message', onMessage);
   });
