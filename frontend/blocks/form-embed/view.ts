@@ -18,6 +18,7 @@ const VIEW_MODULE_DATA_ID_PREFIX = 'wp-script-module-data-paymentform-form-view-
 export const HEIGHT_FALLBACK_MS = 4000;
 const FALLBACK_HEIGHT = '80vh';
 const MAX_EMBED_HEIGHT_PX = 10000;
+const MAX_EMBED_WIDTH_PX = 4000;
 
 /**
  * Resolve the renderer base URL for the embed iframe.
@@ -69,6 +70,14 @@ function applyScrollableFallback(iframe: HTMLIFrameElement): void {
   console.warn(`PaymentForm: no height from form ${iframe.dataset.formId ?? ''}; using a scrollable embed.`);
 }
 
+/** Sizes the frame to the renderer's form card, centred, so the form sits in the page like native content. */
+function fitFormWidth(iframe: HTMLIFrameElement, width: unknown): void {
+  if (typeof width !== 'number' || !(width > 0) || width > MAX_EMBED_WIDTH_PX) return;
+  iframe.style.width = `${width}px`;
+  iframe.style.marginLeft = 'auto';
+  iframe.style.marginRight = 'auto';
+}
+
 /** Replaces every `.paymentform-embed` placeholder with an auto-sizing renderer iframe. */
 export function bootBlockView(): void {
   const cfg = readViewConfig();
@@ -89,6 +98,7 @@ export function bootBlockView(): void {
     // PluginServiceProvider::resolveRendererBaseUrl), no `/forms/` prefix.
     iframe.src = buildFormSrc(cfg.rendererBaseUrl, formId);
     iframe.style.width = '100%';
+    iframe.style.maxWidth = '100%';
     iframe.style.border = '0';
     iframe.style.display = 'block';
     iframe.style.minHeight = '300px';
@@ -120,12 +130,14 @@ export function bootBlockView(): void {
       // host: the renderer 302s tenant subdomains to custom/bound domains.
       if (ev.source !== iframe.contentWindow) return;
       if (!isTrustedRendererOrigin(ev.origin, rendererOrigin)) return;
-      const data = ev.data as { type?: string; height?: number };
+      const data = ev.data as { type?: string; height?: number; width?: unknown };
       if (data?.type !== 'paymentform:height') return;
       if (typeof data.height !== 'number' || data.height <= 0 || data.height > MAX_EMBED_HEIGHT_PX) return;
       receivedHeight = true;
       window.clearTimeout(fallbackTimer);
       iframe.style.height = `${data.height}px`;
+      iframe.style.minHeight = '0px';
+      fitFormWidth(iframe, data.width);
     };
     window.addEventListener('message', onMessage);
   });

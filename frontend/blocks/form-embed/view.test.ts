@@ -107,9 +107,9 @@ describe('paymentform block view', () => {
       return host.querySelector('iframe') as HTMLIFrameElement;
     }
 
-    /** Dispatches a height message as if posted by `source` from `origin`. */
-    function postHeight(origin: string, source: unknown, height: number): void {
-      const ev = new MessageEvent('message', { origin, data: { type: 'paymentform:height', height } });
+    /** Dispatches a size message as if posted by `source` from `origin`. */
+    function postHeight(origin: string, source: unknown, height: number, width?: unknown): void {
+      const ev = new MessageEvent('message', { origin, data: { type: 'paymentform:height', height, width } });
       Object.defineProperty(ev, 'source', { value: source });
       window.dispatchEvent(ev);
     }
@@ -121,6 +121,27 @@ describe('paymentform block view', () => {
       postHeight('https://forms.customer.example', iframe.contentWindow, 640);
 
       expect(iframe.style.height).toBe('640px');
+    });
+
+    it('sizes the frame to the form card the renderer reports, centred', () => {
+      const iframe = bootSingleEmbed('form_card');
+
+      postHeight(rendererUrl, iframe.contentWindow, 1305, 800);
+
+      expect(iframe.style.height).toBe('1305px');
+      expect(iframe.style.minHeight).toBe('0px');
+      expect(iframe.style.width).toBe('800px');
+      expect(iframe.style.maxWidth).toBe('100%');
+      expect([iframe.style.marginLeft, iframe.style.marginRight]).toEqual(['auto', 'auto']);
+    });
+
+    it.each([undefined, 0, -5, 20000, '800'])('keeps the full column width for a card width of %s', (width) => {
+      const iframe = bootSingleEmbed('form_fluid');
+
+      postHeight(rendererUrl, iframe.contentWindow, 1305, width);
+
+      expect(iframe.style.height).toBe('1305px');
+      expect(iframe.style.width).toBe('100%');
     });
 
     it('rejects a non-https origin other than the configured renderer', () => {
