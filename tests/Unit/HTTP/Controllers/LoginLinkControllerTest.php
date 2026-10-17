@@ -24,7 +24,7 @@ class LoginLinkControllerTest extends TestCase
     use InteractsWithWpKit;
     use SeedsServiceContainer;
 
-    private const URL = 'https://app.paymentform.io/auth/sso?ticket=abc123';
+    private const SSO_PATH = '/auth/sso?ticket=abc123';
 
     private TokenService $tokenService;
 
@@ -47,6 +47,12 @@ class LoginLinkControllerTest extends TestCase
     {
         ServiceContainer::reset();
         $this->resetWpKitResponse();
+    }
+
+    /** A minted URL on the configured dashboard origin. */
+    private function mintedUrl(): string
+    {
+        return Config::appBaseUrl() . self::SSO_PATH;
     }
 
     private function connect(): void
@@ -78,11 +84,11 @@ class LoginLinkControllerTest extends TestCase
     public function test_returns_minted_url_and_hits_non_tenant_prefixed_path(): void
     {
         $this->connect();
-        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => self::URL, 'expires_in' => 60]]);
+        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => $this->mintedUrl(), 'expires_in' => 60]]);
 
         $data = (new LoginLinkController())->create($this->makeRequest(['redirect' => '/build/abc']));
 
-        $this->assertSame(['url' => self::URL], $data);
+        $this->assertSame(['url' => $this->mintedUrl()], $data);
         $call = end(WpHttpMock::$calls);
         // /auth/* paths are NOT tenant-prefixed even with a tenant stored.
         $this->assertSame(Config::apiBaseUrl() . '/auth/login-link', $call['url']);
@@ -91,7 +97,7 @@ class LoginLinkControllerTest extends TestCase
     public function test_forwards_supplied_redirect_to_the_backend(): void
     {
         $this->connect();
-        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => self::URL]]);
+        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => $this->mintedUrl()]]);
 
         (new LoginLinkController())->create($this->makeRequest(['redirect' => '/build/abc']));
 
@@ -101,7 +107,7 @@ class LoginLinkControllerTest extends TestCase
     public function test_defaults_redirect_to_myforms_when_absent(): void
     {
         $this->connect();
-        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => self::URL]]);
+        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => $this->mintedUrl()]]);
 
         (new LoginLinkController())->create($this->makeRequest());
 
@@ -111,7 +117,7 @@ class LoginLinkControllerTest extends TestCase
     public function test_rejects_open_redirect_and_falls_back_to_default(): void
     {
         $this->connect();
-        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => self::URL]]);
+        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => $this->mintedUrl()]]);
 
         // A protocol-relative redirect must never reach the backend verbatim;
         // the controller swaps it for the safe default (defense-in-depth — the
@@ -119,6 +125,29 @@ class LoginLinkControllerTest extends TestCase
         (new LoginLinkController())->create($this->makeRequest(['redirect' => '//evil.example']));
 
         $this->assertSame('/myforms', $this->lastForwardedRedirect());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function foreignUrls(): array
+    {
+        return [
+            'other origin' => ['https://evil.example/auth/sso?ticket=x'],
+            'javascript scheme' => ['javascript:alert(document.domain)'],
+            'relative path' => ['/auth/sso?ticket=x'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('foreignUrls')]
+    public function test_rejects_minted_url_outside_the_app_origin(string $url): void
+    {
+        $this->connect();
+        WpHttpMock::queue(200, ['status' => true, 'data' => ['url' => $url]]);
+
+        $response = (new LoginLinkController())->create($this->makeRequest());
+
+        $this->assertErrorResponse($response, 502, 'INVALID_RESPONSE');
     }
 
     public function test_returns_invalid_response_when_url_missing(): void

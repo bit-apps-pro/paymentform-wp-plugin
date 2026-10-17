@@ -47,6 +47,17 @@ describe('openLoginLink', () => {
     expect(tab.location.href).toBe('https://app.paymentform.io/signin');
   });
 
+  for (const minted of ['javascript:alert(document.domain)', 'https://evil.example/auth/sso?ticket=t']) {
+    it(`refuses a minted url outside the app origin (${minted.split(':')[0]})`, async () => {
+      const tab = fakeTab();
+      vi.spyOn(window, 'open').mockReturnValue(tab);
+
+      await openLoginLink(vi.fn().mockResolvedValue({ url: minted }), '/myforms');
+
+      expect(tab.location.href).toBe('https://app.paymentform.io/signin');
+    });
+  }
+
   it('falls back to a noopener open when the blank tab is blocked', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     const url = 'https://app.paymentform.io/auth/sso?ticket=x';

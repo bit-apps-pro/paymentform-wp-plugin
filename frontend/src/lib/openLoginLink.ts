@@ -30,14 +30,25 @@ export async function openLoginLink(
   }
 }
 
-/** Resolves the minted SSO url, or the plain sign-in page when minting fails. */
+/** Resolves the minted SSO url, or the plain sign-in page when minting fails or yields a foreign url. */
 async function mintOrSignin(
   mint: (redirect?: string) => Promise<{ url: string }>,
   redirect?: string,
 ): Promise<string> {
+  const signin = `${appBaseUrl()}/signin`;
   try {
-    return (await mint(redirect)).url;
+    const { url } = await mint(redirect);
+    return isAppUrl(url) ? url : signin;
   } catch {
-    return `${appBaseUrl()}/signin`;
+    return signin;
+  }
+}
+
+/** True only for an absolute url on the dashboard's origin; the pre-opened tab shares wp-admin's origin. */
+function isAppUrl(url: string): boolean {
+  try {
+    return new URL(url).origin === new URL(appBaseUrl()).origin;
+  } catch {
+    return false;
   }
 }

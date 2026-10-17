@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP\Controllers;
 
+use PaymentForm\Config;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\Enums\ErrorCode;
 use PaymentForm\HTTP\Requests\LoginLinkRequest;
@@ -61,11 +62,36 @@ final class LoginLinkController
 
         // Backend envelope: { status, data: { url, expires_in }, message }.
         $url = $response['data']['url'] ?? null;
-        if (! is_string($url) || $url === '') {
+        if (! is_string($url) || ! $this->isAppUrl($url)) {
             return $this->errorResponse(ErrorCode::INVALID_RESPONSE, 502);
         }
 
         return ['url' => $url];
+    }
+
+    /**
+     * True only for an absolute URL on the configured dashboard origin; the SPA opens it in a
+     * tab that starts on wp-admin's origin, so a foreign or `javascript:` URL must never pass.
+     */
+    private function isAppUrl(string $url): bool
+    {
+        $urlOrigin = self::originOf($url);
+
+        return $urlOrigin !== null && $urlOrigin === self::originOf(Config::appBaseUrl());
+    }
+
+    /**
+     * Lower-cased `scheme://host[:port]` of an http(s) URL, or null when it has none.
+     */
+    private static function originOf(string $url): ?string
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts) || ! in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host'])) {
+            return null;
+        }
+        $port = isset($parts['port']) ? ':'.$parts['port'] : '';
+
+        return strtolower($parts['scheme'].'://'.$parts['host'].$port);
     }
 
     /**
