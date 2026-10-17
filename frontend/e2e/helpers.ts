@@ -61,3 +61,52 @@ export async function gotoPluginPage(page: Page, hash = ''): Promise<void> {
 export function connectionPill(page: Page) {
   return page.locator('.ant-tag', { hasText: /^(Connected|Disconnected)$/ }).first();
 }
+
+/** Fake form returned by mockConnectedWorkspace's `/forms` stub. */
+export const MOCK_FORM = {
+  id: '00000000-0000-4000-8000-000000000001',
+  name: 'Donation',
+  slug: 'donation',
+  status: 'enabled',
+  submissionsCount: 0,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
+/**
+ * Makes the admin SPA render as connected without a live workspace: flips the
+ * server-rendered config tag and stubs the `/status` and `/forms` REST routes.
+ * For layout specs only — contract specs must keep hitting the real backend.
+ */
+export async function mockConnectedWorkspace(page: Page): Promise<void> {
+  // Rewrite the config tag as the parser inserts it; fulfilling the document via
+  // page.route would make Chromium's Private Network Access block its subresources.
+  await page.addInitScript((tagId) => {
+    new MutationObserver((_records, observer) => {
+      const tag = document.getElementById(tagId);
+      if (!tag?.textContent) return;
+      let config: Record<string, unknown>;
+      try {
+        config = JSON.parse(tag.textContent) as Record<string, unknown>;
+      } catch {
+        return; // tag still streaming in; wait for the next mutation
+      }
+      tag.textContent = JSON.stringify({ ...config, connected: true, tenant: 'e2e' });
+      observer.disconnect();
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  }, 'wp-script-module-data-@paymentform/admin');
+  await stubRest(page, 'status', {
+    connected: true,
+    user: { id: 'u1', email: 'owner@example.test', name: 'E2E Owner' },
+    tenant: { id: 't1', name: 'E2E Workspace' },
+  });
+  await stubRest(page, 'forms', [MOCK_FORM]);
+}
+
+/** Answers a plugin REST GET with a wp-kit success envelope. */
+async function stubRest(page: Page, endpoint: string, data: unknown): Promise<void> {
+  await page.route(
+    (url) => url.pathname.endsWith(`/wp-json/${REST_NAMESPACE}/${endpoint}`) || url.searchParams.get('rest_route') === `/${REST_NAMESPACE}/${endpoint}`,
+    (route) => route.fulfill({ json: { status: 'success', code: 'SUCCESS', data } })
+  );
+}

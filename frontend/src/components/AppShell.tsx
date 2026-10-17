@@ -123,7 +123,7 @@ export function AppShell() {
       <Layout className={innerLayoutStyles}>
         <Header className={headerStyles}>
           <Flex align="center" gap={token.marginSM}>
-            <Tooltip title={toggleLabel}>
+            <Tooltip title={toggleLabel} placement="bottom">
               <Button
                 type="text"
                 shape="circle"

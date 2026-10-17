@@ -14,6 +14,10 @@ import { Callback } from './pages/Callback';
 import { Forms } from './pages/Forms';
 import { Settings } from './pages/Settings';
 import { wpModuleData } from './utils/wpData';
+import { adminBarHeight } from './lib/adminBar';
+
+const TOAST_GAP_PX = 8;
+const NOTIFICATION_GAP_PX = 16;
 
 function RootRedirect() {
   const connected = wpModuleData.connected === '1' || wpModuleData.connected === true;
@@ -30,7 +34,10 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider theme={getThemeConfig(mode)}>
-        <AntApp>
+        <AntApp
+          message={{ top: adminBarHeight() + TOAST_GAP_PX }}
+          notification={{ top: adminBarHeight() + NOTIFICATION_GAP_PX }}
+        >
           <ErrorBoundary fallback={(p) => <ErrorFallback {...p} />}>
             <QueryErrorBridge />
             <HashRouter>

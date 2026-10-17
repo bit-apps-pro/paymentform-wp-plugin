@@ -12,7 +12,7 @@ export function HeaderThemeToggle() {
     : __('Switch to dark mode', 'paymentform');
 
   return (
-    <Tooltip title={label}>
+    <Tooltip title={label} placement="bottom">
       <Button
         type="text"
         shape="circle"

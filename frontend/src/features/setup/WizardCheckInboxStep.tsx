@@ -1,4 +1,4 @@
-import { Input, Button, Flex, Typography, theme, Space, message } from 'antd';
+import { App, Input, Button, Flex, Typography, theme, Space } from 'antd';
 import { useState, useEffect } from 'react';
 import { __ } from '../../lib/i18n';
 import { useVerifyOtp, useResendOtp, useSetupStatus } from './queries';
@@ -17,6 +17,7 @@ function maskEmail(email: string): string {
 
 export function WizardCheckInboxStep({ state, dispatch }: Props) {
   const { token } = theme.useToken();
+  const { message } = App.useApp();
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
   const [resendCountdown, setResendCountdown] = useState(0);
