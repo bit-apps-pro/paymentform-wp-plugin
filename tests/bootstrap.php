@@ -59,6 +59,10 @@ class TestWpFunctions
     private static array $actions = [];
     /** null = fall back to scanning post content for the block name. */
     private static ?bool $hasBlock = null;
+    /** null = get_current_screen() returns null (screen not yet set). */
+    private static ?string $currentScreenId = null;
+    /** @var list<string> hooks passed to remove_all_actions(), in call order */
+    private static array $removedAllActions = [];
 
     public static function reset(): void
     {
@@ -71,6 +75,8 @@ class TestWpFunctions
         self::$filters = [];
         self::$actions = [];
         self::$hasBlock = null;
+        self::$currentScreenId = null;
+        self::$removedAllActions = [];
 
         // Config memoises the parsed frontend/.env on first URL-getter call; the
         // static survives the whole test process. Clear it so each test starts
@@ -85,6 +91,30 @@ class TestWpFunctions
     public static function setHasBlock(?bool $present): void
     {
         self::$hasBlock = $present;
+    }
+
+    /** Sets the id get_current_screen() reports; null means no screen. */
+    public static function setCurrentScreenId(?string $id): void
+    {
+        self::$currentScreenId = $id;
+    }
+
+    /** Returns the stubbed WP_Screen-like object, or null when unset. */
+    public static function getCurrentScreen(): ?object
+    {
+        return self::$currentScreenId === null ? null : (object) ['id' => self::$currentScreenId];
+    }
+
+    /** Records a remove_all_actions() call. */
+    public static function removeAllActions(string $hook): void
+    {
+        self::$removedAllActions[] = $hook;
+    }
+
+    /** @return list<string> hooks cleared via remove_all_actions(), in call order */
+    public static function getRemovedAllActions(): array
+    {
+        return self::$removedAllActions;
     }
 
     public static function hasBlock(string $blockName, mixed $post): bool
@@ -812,6 +842,21 @@ if (!class_exists('WP_Error')) {
         {
             return $this->message;
         }
+    }
+}
+
+if (!function_exists('get_current_screen')) {
+    function get_current_screen(): ?object
+    {
+        return TestWpFunctions::getCurrentScreen();
+    }
+}
+
+if (!function_exists('remove_all_actions')) {
+    function remove_all_actions(string $hook_name, int|false $priority = false): bool
+    {
+        TestWpFunctions::removeAllActions($hook_name);
+        return true;
     }
 }
 

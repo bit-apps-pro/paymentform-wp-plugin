@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymentForm\Providers;
 
+use PaymentForm\Admin\AdminNoticeSuppressor;
 use PaymentForm\Config;
 use PaymentForm\Cron\PurgeExpiredSetupOptions;
 use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
@@ -117,6 +118,7 @@ final class PluginServiceProvider
         Hooks::addAction('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
         Hooks::addAction('enqueue_block_editor_assets', [$this, 'enqueueBlockEditorAssets']);
         Hooks::addAction('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
+        (new AdminNoticeSuppressor)->register();
 
         if ($this->container !== null) {
             (new Rewrites($this->container))->register();

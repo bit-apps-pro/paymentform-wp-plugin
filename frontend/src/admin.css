@@ -10,6 +10,8 @@ body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
 body.toplevel_page_paymentform #wpbody-content { padding-bottom: 0 !important; }
 body.toplevel_page_paymentform .wrap { margin: 0 !important; padding: 0 !important; }
 body.toplevel_page_paymentform #wpfooter { display: none !important; }
+/* Notices injected client-side bypass the server-side suppressor (AdminNoticeSuppressor). */
+body.toplevel_page_paymentform #wpbody-content > :is(.notice, .update-nag, .updated, .error) { display: none !important; }
 body.toplevel_page_paymentform #paymentform-admin-root,
 body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh - 32px); }
 @media screen and (max-width: 782px) {
