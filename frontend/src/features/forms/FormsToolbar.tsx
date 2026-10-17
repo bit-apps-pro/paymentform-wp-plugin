@@ -1,10 +1,10 @@
 import { type ReactNode } from 'react';
-import { Input, Select, Segmented, Button, Flex, theme } from 'antd';
+import { Input, Select, Button, Flex, theme } from 'antd';
 import { RefreshCw, Search } from 'lucide-react';
 import { __ } from '../../lib/i18n';
-import type { Density, StatusFilter, FormsToolbarValue } from './useFormsToolbarState';
+import type { StatusFilter, FormsToolbarValue } from './useFormsToolbarState';
 
-export type { Density, StatusFilter, FormsToolbarValue } from './useFormsToolbarState';
+export type { StatusFilter, FormsToolbarValue } from './useFormsToolbarState';
 
 interface FormsToolbarProps {
   value: FormsToolbarValue;
@@ -50,14 +50,6 @@ export function FormsToolbar({
             { label: __('Enabled', 'paymentform'), value: 'enabled' },
             { label: __('Disabled', 'paymentform'), value: 'disabled' },
             { label: __('Draft', 'paymentform'), value: 'draft' },
-          ]}
-        />
-        <Segmented
-          value={value.density}
-          onChange={(density) => onChange({ ...value, density: density as Density })}
-          options={[
-            { label: __('Comfortable', 'paymentform'), value: 'default' },
-            { label: __('Compact', 'paymentform'), value: 'compact' },
           ]}
         />
         <Button

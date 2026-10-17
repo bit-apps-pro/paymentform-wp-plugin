@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-export type Density = 'compact' | 'default';
 export type StatusFilter = 'all' | 'enabled' | 'disabled' | 'draft';
 
 export interface FormsToolbarValue {
   q: string;
   status: StatusFilter;
-  density: Density;
 }
 
 const URL_DEBOUNCE_MS = 300;
@@ -20,7 +18,6 @@ export function useFormsToolbarState(): {
   const initial: FormsToolbarValue = {
     q: params.get('q') ?? '',
     status: (params.get('status') as StatusFilter) ?? 'all',
-    density: (params.get('density') as Density) ?? 'default',
   };
   const [value, setLocal] = useState<FormsToolbarValue>(initial);
   const timer = useRef<number | undefined>(undefined);
@@ -32,7 +29,6 @@ export function useFormsToolbarState(): {
       const sp = new URLSearchParams();
       if (next.q) sp.set('q', next.q);
       if (next.status !== 'all') sp.set('status', next.status);
-      if (next.density !== 'default') sp.set('density', next.density);
       setParams(sp, { replace: true });
     }, URL_DEBOUNCE_MS);
   };

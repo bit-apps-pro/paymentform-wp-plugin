@@ -22,7 +22,7 @@ describe('FormsToolbar', () => {
     render(
       <Wrap>
         <FormsToolbar
-          value={{ q: '', status: 'all', density: 'default' }}
+          value={{ q: '', status: 'all' }}
           onChange={onChange}
           onRefresh={onRefresh}
         />
@@ -30,7 +30,7 @@ describe('FormsToolbar', () => {
     );
     const search = screen.getByPlaceholderText(/search forms/i) as HTMLInputElement;
     fireEvent.change(search, { target: { value: 'donation' } });
-    expect(onChange).toHaveBeenCalledWith({ q: 'donation', status: 'all', density: 'default' });
+    expect(onChange).toHaveBeenCalledWith({ q: 'donation', status: 'all' });
   });
 
   it('emits onChange when status select changes', () => {
@@ -39,7 +39,7 @@ describe('FormsToolbar', () => {
     render(
       <Wrap>
         <FormsToolbar
-          value={{ q: '', status: 'all', density: 'default' }}
+          value={{ q: '', status: 'all' }}
           onChange={onChange}
           onRefresh={onRefresh}
         />
@@ -60,7 +60,7 @@ describe('FormsToolbar', () => {
     render(
       <Wrap>
         <FormsToolbar
-          value={{ q: '', status: 'all', density: 'default' }}
+          value={{ q: '', status: 'all' }}
           onChange={onChange}
           onRefresh={onRefresh}
         />
@@ -70,22 +70,14 @@ describe('FormsToolbar', () => {
     expect(onRefresh).toHaveBeenCalled();
   });
 
-  it('density segmented toggles value', () => {
-    const onChange = vi.fn();
-    const onRefresh = vi.fn();
+  it('offers no table density toggle', () => {
     render(
       <Wrap>
-        <FormsToolbar
-          value={{ q: '', status: 'all', density: 'default' }}
-          onChange={onChange}
-          onRefresh={onRefresh}
-        />
+        <FormsToolbar value={{ q: '', status: 'all' }} onChange={vi.fn()} onRefresh={vi.fn()} />
       </Wrap>
     );
-    fireEvent.click(screen.getByText('Compact'));
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ density: 'compact' })
-    );
+    expect(screen.queryByText('Comfortable')).toBeNull();
+    expect(screen.queryByText('Compact')).toBeNull();
   });
 });
 

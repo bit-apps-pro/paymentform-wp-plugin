@@ -218,7 +218,6 @@ export function Forms() {
             dataSource={filtered.map((form) => ({ ...form, key: form.id }))}
             pagination={{ pageSize: 10 }}
             scroll={{ x: 'max-content' }}
-            size={toolbar.density === 'compact' ? 'small' : 'middle'}
             rowClassName={() => rowHoverStyles}
           />
         )}
