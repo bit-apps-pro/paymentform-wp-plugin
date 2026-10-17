@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, queryAllByRole } from '@testing-library/react';
+import { render, queryAllByRole, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider } from 'antd';
@@ -40,5 +40,21 @@ describe('Welcome page', () => {
     );
 
     expect(container).toBeInTheDocument();
+  });
+
+  it('renders its call-to-action buttons at the default control size', () => {
+    render(
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ConfigProvider theme={antdTheme}>
+            <Welcome />
+          </ConfigProvider>
+        </QueryClientProvider>
+      </BrowserRouter>,
+    );
+
+    for (const name of [/Connect existing account/, /Create new account/]) {
+      expect(screen.getByRole('button', { name }).className).not.toContain('ant-btn-lg');
+    }
   });
 });

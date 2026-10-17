@@ -44,7 +44,6 @@ export function WizardSuccessStep({ state, onClose }: Props) {
 
       <Button
         type="primary"
-        size="large"
         onClick={() => {
           void handlePrimary();
         }}

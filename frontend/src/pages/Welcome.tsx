@@ -85,13 +85,12 @@ export function Welcome() {
         >
           <Button
             type="primary"
-            size="large"
             loading={isPending}
             onClick={() => connect()}
           >
             {__("Connect existing account", "paymentform")}
           </Button>
-          <Button size="large" onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)}>
             {__("Create new account", "paymentform")}
           </Button>
         </Flex>

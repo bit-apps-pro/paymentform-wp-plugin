@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { gotoPluginPage, mockConnectedWorkspace } from './helpers';
+import { gotoPluginPage, mockWorkspace } from './helpers';
 
 const VIEWPORTS = [
   { width: 1280, height: 800 },
@@ -36,7 +36,7 @@ for (const viewport of VIEWPORTS) {
     });
 
     test('embed drawer header renders below the admin bar', async ({ page }) => {
-      await mockConnectedWorkspace(page);
+      await mockWorkspace(page);
       await gotoPluginPage(page, '#/forms');
       const row = page.locator('.ant-table-row', { hasText: 'Donation' });
       await expect(row).toBeVisible({ timeout: 30_000 });
@@ -48,7 +48,7 @@ for (const viewport of VIEWPORTS) {
 }
 
 test('header tooltip renders below the admin bar', async ({ page }) => {
-  await mockConnectedWorkspace(page);
+  await mockWorkspace(page);
   await gotoPluginPage(page, '#/forms');
   await page.getByRole('button', { name: /Switch to (dark|light) mode/ }).hover();
 

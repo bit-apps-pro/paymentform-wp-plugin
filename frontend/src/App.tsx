@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, App as AntApp } from 'antd';
+import { StyleProvider } from '@ant-design/cssinjs';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ErrorFallback } from './components/ErrorFallback';
@@ -33,7 +34,9 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={getThemeConfig(mode)}>
+      {/* High hash priority lets antd's selectors outrank wp-admin's forms.css element rules. */}
+      <StyleProvider hashPriority="high">
+        <ConfigProvider theme={getThemeConfig(mode)}>
         <AntApp
           message={{ top: adminBarHeight() + TOAST_GAP_PX }}
           notification={{ top: adminBarHeight() + NOTIFICATION_GAP_PX }}
@@ -81,7 +84,8 @@ export default function App() {
             </HashRouter>
           </ErrorBoundary>
         </AntApp>
-      </ConfigProvider>
+        </ConfigProvider>
+      </StyleProvider>
     </QueryClientProvider>
   );
 }

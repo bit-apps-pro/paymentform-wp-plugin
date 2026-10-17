@@ -62,7 +62,7 @@ export function connectionPill(page: Page) {
   return page.locator('.ant-tag', { hasText: /^(Connected|Disconnected)$/ }).first();
 }
 
-/** Fake form returned by mockConnectedWorkspace's `/forms` stub. */
+/** Fake form returned by mockWorkspace's `/forms` stub when connected. */
 export const MOCK_FORM = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Donation',
@@ -73,15 +73,22 @@ export const MOCK_FORM = {
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
+/** `/status` payload mockWorkspace serves when connected. */
+export const MOCK_CONNECTED_STATUS = {
+  connected: true,
+  user: { id: 'u1', email: 'owner@example.test', name: 'E2E Owner' },
+  tenant: { id: 't1', name: 'E2E Workspace' },
+};
+
 /**
- * Makes the admin SPA render as connected without a live workspace: flips the
+ * Pins the admin SPA's connection state without a live workspace: rewrites the
  * server-rendered config tag and stubs the `/status` and `/forms` REST routes.
  * For layout specs only — contract specs must keep hitting the real backend.
  */
-export async function mockConnectedWorkspace(page: Page): Promise<void> {
+export async function mockWorkspace(page: Page, connected = true): Promise<void> {
   // Rewrite the config tag as the parser inserts it; fulfilling the document via
   // page.route would make Chromium's Private Network Access block its subresources.
-  await page.addInitScript((tagId) => {
+  await page.addInitScript(({ tagId, connected }) => {
     new MutationObserver((_records, observer) => {
       const tag = document.getElementById(tagId);
       if (!tag?.textContent) return;
@@ -91,16 +98,12 @@ export async function mockConnectedWorkspace(page: Page): Promise<void> {
       } catch {
         return; // tag still streaming in; wait for the next mutation
       }
-      tag.textContent = JSON.stringify({ ...config, connected: true, tenant: 'e2e' });
+      tag.textContent = JSON.stringify({ ...config, connected, tenant: connected ? 'e2e' : null });
       observer.disconnect();
     }).observe(document, { childList: true, subtree: true, characterData: true });
-  }, 'wp-script-module-data-@paymentform/admin');
-  await stubRest(page, 'status', {
-    connected: true,
-    user: { id: 'u1', email: 'owner@example.test', name: 'E2E Owner' },
-    tenant: { id: 't1', name: 'E2E Workspace' },
-  });
-  await stubRest(page, 'forms', [MOCK_FORM]);
+  }, { tagId: 'wp-script-module-data-@paymentform/admin', connected });
+  await stubRest(page, 'status', connected ? MOCK_CONNECTED_STATUS : { connected: false });
+  await stubRest(page, 'forms', connected ? [MOCK_FORM] : []);
 }
 
 /** Answers a plugin REST GET with a wp-kit success envelope. */
