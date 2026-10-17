@@ -1,15 +1,13 @@
 import { appBaseUrl } from './appBaseUrl';
 
+/** Dashboard path that opens the template picker for a new form (client `/myforms/new`). */
+export const CREATE_FORM_PATH = '/myforms/new';
+
 /**
  * Mints a dashboard SSO login link and opens it in a new tab, falling back to
- * the plain `/signin` page if minting fails (spec §L3) so a CTA never
- * dead-ends. Shared by all four wp-admin deep-link sites (UserMenu, the two
- * Forms "Create form" buttons, the Forms edit button, and the wizard success
- * step) so the mint + open + fallback logic lives in exactly one place.
- *
- * `mint` is the bound `useLoginLink().mutateAsync` — passed in rather than
- * called here because this helper is not a React hook. Opens are `noopener`:
- * the new tab gets no `window.opener` reference back to wp-admin.
+ * `/signin` if minting fails so a CTA never dead-ends. The tab is opened
+ * synchronously, before the mint request, so popup blockers still see the
+ * user's click; its opener is severed before it navigates off-origin.
  *
  * @param mint     mints the link; resolves to the full single-origin dashboard url.
  * @param redirect optional dashboard path; defaults server-side to `/myforms`.
@@ -18,10 +16,28 @@ export async function openLoginLink(
   mint: (redirect?: string) => Promise<{ url: string }>,
   redirect?: string,
 ): Promise<void> {
-  try {
-    const { url } = await mint(redirect);
+  const tab = window.open('about:blank', '_blank');
+  if (tab) {
+    tab.opener = null;
+  }
+
+  const url = await mintOrSignin(mint, redirect);
+
+  if (tab) {
+    tab.location.href = url;
+  } else {
     window.open(url, '_blank', 'noopener');
+  }
+}
+
+/** Resolves the minted SSO url, or the plain sign-in page when minting fails. */
+async function mintOrSignin(
+  mint: (redirect?: string) => Promise<{ url: string }>,
+  redirect?: string,
+): Promise<string> {
+  try {
+    return (await mint(redirect)).url;
   } catch {
-    window.open(`${appBaseUrl()}/signin`, '_blank', 'noopener');
+    return `${appBaseUrl()}/signin`;
   }
 }

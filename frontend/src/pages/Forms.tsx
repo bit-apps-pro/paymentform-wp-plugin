@@ -21,8 +21,8 @@ import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { FormsToolbar } from '../features/forms/FormsToolbar';
 import { useFormsToolbarState } from '../features/forms/useFormsToolbarState';
 import { EmbedDrawer } from '../features/forms/EmbedDrawer';
-import { useLoginLink } from '../features/auth/useLoginLink';
-import { openLoginLink } from '../lib/openLoginLink';
+import { useDeepLink } from '../features/auth/useDeepLink';
+import { CREATE_FORM_PATH } from '../lib/openLoginLink';
 import { __ } from '../lib/i18n';
 
 const ACTIVE_STATUSES = new Set(['enabled', 'active', 'published']);
@@ -38,7 +38,7 @@ export function Forms() {
   const { data: forms = [], isLoading, isFetching, refetch } = useFormsList();
   const { value: toolbar, setValue: setToolbar } = useFormsToolbarState();
   const [openForm, setOpenForm] = useState<Form | null>(null);
-  const { mutateAsync: mintLoginLink } = useLoginLink();
+  const { open: openDeepLink, pendingPath } = useDeepLink();
 
   const containerStyles = css`
     max-width: 1200px;
@@ -117,8 +117,9 @@ export function Forms() {
               size="small"
               aria-label={__('Edit form', 'paymentform')}
               icon={<Pencil size={16} />}
+              loading={pendingPath === `/build/${record.id}`}
               onClick={() => {
-                void openLoginLink(mintLoginLink, `/build/${record.id}`);
+                void openDeepLink(`/build/${record.id}`);
               }}
             />
           </Tooltip>
@@ -170,15 +171,17 @@ export function Forms() {
     );
   }
 
+  const isCreatingForm = pendingPath === CREATE_FORM_PATH;
   const createFormButton = (
     <Button
       type="primary"
       icon={<Plus size={16} />}
+      loading={isCreatingForm}
       onClick={() => {
-        void openLoginLink(mintLoginLink, '/myforms');
+        void openDeepLink(CREATE_FORM_PATH);
       }}
     >
-      {__('Create form', 'paymentform')}
+      {isCreatingForm ? __('Redirecting…', 'paymentform') : __('Create form', 'paymentform')}
     </Button>
   );
 
@@ -202,15 +205,7 @@ export function Forms() {
             }
             style={{ marginTop: token.marginLG, marginBottom: token.marginLG }}
           >
-            <Button
-              type="primary"
-              icon={<Plus size={16} />}
-              onClick={() => {
-                void openLoginLink(mintLoginLink, '/myforms');
-              }}
-            >
-              {__('Create form', 'paymentform')}
-            </Button>
+            {createFormButton}
           </Empty>
         ) : (
           <Table
