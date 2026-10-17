@@ -24,11 +24,7 @@ for (const viewport of VIEWPORTS) {
   test.describe(`at ${viewport.width}px`, () => {
     test.use({ viewport });
 
-    test('toast renders below the admin bar', async ({ page, context }) => {
-      // wp-dev.io is plain http, where navigator.clipboard is undefined.
-      await context.addInitScript(() => {
-        Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => undefined } });
-      });
+    test('toast renders below the admin bar', async ({ page }) => {
       await gotoPluginPage(page, '#/settings');
       await page.getByRole('button', { name: /Copy diagnostic info/ }).click();
 

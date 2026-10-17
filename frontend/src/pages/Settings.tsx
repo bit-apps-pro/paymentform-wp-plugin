@@ -12,11 +12,15 @@ import {
 } from 'antd';
 import { css } from '@emotion/css';
 import { sprintf } from '@wordpress/i18n';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, Copy, XCircle } from 'lucide-react';
 import { useThemeMode } from '../theme/themeMode';
 import { request } from '../lib/request/request';
 import { __ } from '../lib/i18n';
 import { wpModuleData } from '../utils/wpData';
+import { copyText } from '../lib/clipboard';
+import { useConnection } from '../features/auth/useConnection';
+
+const INFO_LABEL_WIDTH_PX = 160;
 
 type HealthRow = { endpoint: string; ok: boolean; ms: number; error?: string };
 
@@ -27,6 +31,7 @@ export function Settings() {
   const setMode = useThemeMode((s) => s.setMode);
   const clearExplicit = useThemeMode((s) => s.clearExplicit);
   const { message } = AntApp.useApp();
+  const { data: connection } = useConnection();
 
   const [healthRows, setHealthRows] = useState<HealthRow[]>([]);
   const [isChecking, setIsChecking] = useState(false);
@@ -80,8 +85,12 @@ export function Settings() {
       siteUrl: window.location.origin,
       userAgent: navigator.userAgent,
     };
-    await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
-    message.success(__('Copied diagnostic info', 'paymentform'));
+    try {
+      await copyText(JSON.stringify(info, null, 2));
+      message.success(__('Copied diagnostic info', 'paymentform'));
+    } catch {
+      message.error(__('Copy failed', 'paymentform'));
+    }
   };
 
   return (
@@ -107,13 +116,25 @@ export function Settings() {
       </Card>
 
       <Card title={__('Plugin info', 'paymentform')} className={cardStyles}>
-        <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+        <Descriptions column={1} size="small" styles={{ label: { width: INFO_LABEL_WIDTH_PX } }}>
           <Descriptions.Item label={__('Plugin version', 'paymentform')}>
             {wpModuleData.version ?? '—'}
           </Descriptions.Item>
           <Descriptions.Item label={__('Site URL', 'paymentform')}>
-            {wpModuleData.siteUrl ?? '—'}
+            <Typography.Text ellipsis={{ tooltip: wpModuleData.siteUrl }}>
+              {wpModuleData.siteUrl ?? '—'}
+            </Typography.Text>
           </Descriptions.Item>
+          {connection?.connected && connection.tenant && (
+            <Descriptions.Item label={__('Connected account', 'paymentform')}>
+              <Typography.Text ellipsis>
+                {connection.tenant.name}
+                {connection.user?.email && (
+                  <Typography.Text type="secondary"> · {connection.user.email}</Typography.Text>
+                )}
+              </Typography.Text>
+            </Descriptions.Item>
+          )}
           <Descriptions.Item label={__('Support', 'paymentform')}>
             <a
               href="https://paymentform.io/contact"
@@ -124,7 +145,7 @@ export function Settings() {
             </a>
           </Descriptions.Item>
           <Descriptions.Item label={__('Diagnostics', 'paymentform')}>
-            <Button size="small" onClick={onCopyDiagnostic}>
+            <Button size="small" icon={<Copy size={14} />} onClick={onCopyDiagnostic}>
               {__('Copy diagnostic info', 'paymentform')}
             </Button>
           </Descriptions.Item>

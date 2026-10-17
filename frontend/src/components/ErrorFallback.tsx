@@ -1,5 +1,7 @@
 import { Result, Button, Space, App as AntApp } from 'antd';
+import { Copy } from 'lucide-react';
 import { __ } from '../lib/i18n';
+import { copyText } from '../lib/clipboard';
 import { wpModuleData } from '../utils/wpData';
 
 interface ErrorFallbackProps {
@@ -23,7 +25,7 @@ export function ErrorFallback({ error, reset }: ErrorFallbackProps = {}) {
       at: new Date().toISOString(),
     };
     try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      await copyText(JSON.stringify(payload, null, 2));
       message.success(__('Copied diagnostic info', 'paymentform'));
     } catch {
       message.error(__('Copy failed', 'paymentform'));
@@ -46,7 +48,7 @@ export function ErrorFallback({ error, reset }: ErrorFallbackProps = {}) {
           {reset && (
             <Button onClick={reset}>{__('Try again', 'paymentform')}</Button>
           )}
-          <Button onClick={copyDiagnostic}>
+          <Button icon={<Copy size={14} />} onClick={copyDiagnostic}>
             {__('Copy diagnostic info', 'paymentform')}
           </Button>
         </Space>
