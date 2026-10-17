@@ -137,7 +137,7 @@ describe('paymentform block view', () => {
       expect(iframe.style.height).toBe('640px');
     });
 
-    it('sizes the frame to the form card the renderer reports, centred', () => {
+    it('keeps the frame at the full column width, though an older renderer still reports a card width', () => {
       const iframe = bootSingleEmbed('form_card');
 
       postHeight(rendererUrl, iframe.contentWindow, 1305, { width: 800 });
@@ -145,20 +145,11 @@ describe('paymentform block view', () => {
 
       expect(iframe.style.height).toBe('1305px');
       expect(iframe.style.minHeight).toBe('0px');
-      expect(iframe.style.width).toBe('800px');
+      expect(iframe.style.width).toBe('100%');
       expect(iframe.style.maxWidth).toBe('100%');
       expect(iframe.style.padding).toBe('0px');
-      expect([iframe.style.marginLeft, iframe.style.marginRight]).toEqual(['auto', 'auto']);
-    });
-
-    it.each([undefined, 0, -5, 20000, '800'])('keeps the full column width for a card width of %s', (width) => {
-      const iframe = bootSingleEmbed('form_fluid');
-
-      postHeight(rendererUrl, iframe.contentWindow, 1305, { width });
-      vi.advanceTimersByTime(MAX_REVEAL_WAIT_MS);
-
-      expect(iframe.style.height).toBe('1305px');
-      expect(iframe.style.width).toBe('100%');
+      expect(iframe.style.colorScheme).toBe('normal');
+      expect([iframe.style.marginLeft, iframe.style.marginRight]).toEqual(['', '']);
     });
 
     describe('while the form settles', () => {
@@ -166,15 +157,14 @@ describe('paymentform block view', () => {
         const iframe = bootSingleEmbed('form_settling');
 
         postHeight(rendererUrl, iframe.contentWindow, 1001, { loading: true });
-        postHeight(rendererUrl, iframe.contentWindow, 1732, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1732);
         vi.advanceTimersByTime(REVEAL_SETTLE_MS - 1);
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
         vi.advanceTimersByTime(REVEAL_SETTLE_MS - 1);
 
         expect(iframe.style.opacity).toBe('0');
         expect(iframe.hasAttribute('inert')).toBe(true);
         expect(iframe.style.height).toBe('');
-        expect(iframe.style.width).toBe('800px');
 
         vi.advanceTimersByTime(1);
 
@@ -191,7 +181,7 @@ describe('paymentform block view', () => {
 
         expect(iframe.style.opacity).toBe('0');
 
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
         vi.advanceTimersByTime(REVEAL_SETTLE_MS);
 
         expect(iframe.style.opacity).toBe('1');
@@ -202,7 +192,7 @@ describe('paymentform block view', () => {
         const iframe = bootSingleEmbed('form_same_height');
 
         postHeight(rendererUrl, iframe.contentWindow, 1610, { loading: true });
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
         vi.advanceTimersByTime(REVEAL_SETTLE_MS);
 
         expect(iframe.style.opacity).toBe('1');
@@ -210,14 +200,14 @@ describe('paymentform block view', () => {
 
       it('waits for a height the form measured at the width the frame now has', () => {
         const iframe = bootSingleEmbed('form_resized');
-        Object.defineProperty(iframe, 'clientWidth', { get: () => (iframe.style.width === '800px' ? 800 : 1100) });
+        Object.defineProperty(iframe, 'clientWidth', { get: () => 1085 });
 
-        postHeight(rendererUrl, iframe.contentWindow, 1732, { width: 800, frameWidth: 1100 });
+        postHeight(rendererUrl, iframe.contentWindow, 1732, { frameWidth: 1100 });
         vi.advanceTimersByTime(REVEAL_SETTLE_MS * 2);
 
         expect(iframe.style.opacity).toBe('0');
 
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800, frameWidth: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610, { frameWidth: 1085 });
         vi.advanceTimersByTime(REVEAL_SETTLE_MS);
 
         expect(iframe.style.opacity).toBe('1');
@@ -238,7 +228,7 @@ describe('paymentform block view', () => {
         const iframe = bootSingleEmbed('form_zoomed');
         Object.defineProperty(iframe, 'clientWidth', { get: () => 1100 });
 
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800, frameWidth: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610, { frameWidth: 800 });
         vi.advanceTimersByTime(MAX_REVEAL_WAIT_MS - 1);
 
         expect(iframe.style.opacity).toBe('0');
@@ -252,9 +242,9 @@ describe('paymentform block view', () => {
       it('does not keep waiting on a re-sent unchanged size', () => {
         const iframe = bootSingleEmbed('form_polling');
 
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
         vi.advanceTimersByTime(REVEAL_SETTLE_MS - 50);
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
         vi.advanceTimersByTime(50);
 
         expect(iframe.style.opacity).toBe('1');
@@ -274,10 +264,10 @@ describe('paymentform block view', () => {
 
       it('follows the form at once after it is shown', () => {
         const iframe = bootSingleEmbed('form_growing');
-        postHeight(rendererUrl, iframe.contentWindow, 1610, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
         vi.advanceTimersByTime(REVEAL_SETTLE_MS);
 
-        postHeight(rendererUrl, iframe.contentWindow, 1900, { width: 800 });
+        postHeight(rendererUrl, iframe.contentWindow, 1900);
 
         expect(iframe.style.height).toBe('1900px');
       });

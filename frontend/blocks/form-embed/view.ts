@@ -18,7 +18,6 @@ const VIEW_MODULE_DATA_ID_PREFIX = 'wp-script-module-data-paymentform-form-view-
 export const HEIGHT_FALLBACK_MS = 4000;
 const FALLBACK_HEIGHT = '80vh';
 const MAX_EMBED_HEIGHT_PX = 10000;
-const MAX_EMBED_WIDTH_PX = 4000;
 /** How long the reported size must hold still before a loading form is shown. */
 export const REVEAL_SETTLE_MS = 150;
 /** Longest a form stays hidden once it has started reporting its size. */
@@ -28,7 +27,6 @@ const REVEAL_TRANSITION = 'opacity 200ms ease';
 
 interface FormSize {
   height: number;
-  width?: unknown;
   frameWidth?: unknown;
   loading?: unknown;
 }
@@ -88,14 +86,6 @@ function applyScrollableFallback(iframe: HTMLIFrameElement): void {
   console.warn(`PaymentForm: no height from form ${iframe.dataset.formId ?? ''}; using a scrollable embed.`);
 }
 
-/** Sizes the frame to the renderer's form card, centred, so the form sits in the page like native content. */
-function fitFormWidth(iframe: HTMLIFrameElement, width: unknown): void {
-  if (typeof width !== 'number' || !(width > 0) || width > MAX_EMBED_WIDTH_PX) return;
-  iframe.style.width = `${width}px`;
-  iframe.style.marginLeft = 'auto';
-  iframe.style.marginRight = 'auto';
-}
-
 /** Whether the form measured its height at the frame's current width; older renderers don't say, so trust them. */
 function measuredAtFrameWidth(iframe: HTMLIFrameElement, frameWidth: unknown): boolean {
   return typeof frameWidth !== 'number' || Math.abs(frameWidth - iframe.clientWidth) <= 1;
@@ -131,9 +121,7 @@ function createFormSizer(iframe: HTMLIFrameElement): FormSizer {
   };
 
   /** Takes one size report: follows it once shown, otherwise waits for it to settle. */
-  const onSize = ({ height, width, frameWidth, loading }: FormSize) => {
-    // Width goes on at once: the form re-measures its height at the frame's final width.
-    fitFormWidth(iframe, width);
+  const onSize = ({ height, frameWidth, loading }: FormSize) => {
     if (revealed) {
       applyHeight(height);
       return;
@@ -174,6 +162,8 @@ export function bootBlockView(): void {
     iframe.style.maxWidth = '100%';
     iframe.style.border = '0';
     iframe.style.padding = '0';
+    // A dark-scheme theme would otherwise paint the frame's canvas opaque beside the centred form card.
+    iframe.style.colorScheme = 'normal';
     iframe.style.display = 'block';
     iframe.style.minHeight = '300px';
     iframe.setAttribute('loading', 'lazy');
@@ -215,7 +205,7 @@ export function bootBlockView(): void {
       if (typeof data.height !== 'number' || data.height <= 0 || data.height > MAX_EMBED_HEIGHT_PX) return;
       receivedHeight = true;
       window.clearTimeout(fallbackTimer);
-      sizer.onSize({ height: data.height, width: data.width, frameWidth: data.frameWidth, loading: data.loading });
+      sizer.onSize({ height: data.height, frameWidth: data.frameWidth, loading: data.loading });
     };
     window.addEventListener('message', onMessage);
   });
