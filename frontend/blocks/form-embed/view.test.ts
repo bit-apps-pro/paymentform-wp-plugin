@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { bootBlockView, buildFormSrc, HEIGHT_FALLBACK_MS } from './view';
+import { bootBlockView, buildFormSrc, HEIGHT_FALLBACK_MS, MAX_REVEAL_WAIT_MS, REVEAL_SETTLE_MS } from './view';
 
 /**
  * Tests import the REAL `view.ts` module — no inline reimplementation. If the URL
@@ -46,6 +46,14 @@ describe('paymentform block view', () => {
   });
 
   describe('bootBlockView', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('creates iframe for paymentform-embed div with data-form-id', () => {
       const host = document.createElement('div');
       host.className = 'paymentform-embed';
@@ -107,9 +115,12 @@ describe('paymentform block view', () => {
       return host.querySelector('iframe') as HTMLIFrameElement;
     }
 
-    /** Dispatches a size message as if posted by `source` from `origin`. */
-    function postHeight(origin: string, source: unknown, height: number, width?: unknown): void {
-      const ev = new MessageEvent('message', { origin, data: { type: 'paymentform:height', height, width } });
+    /** Dispatches a size message as if posted by `source` from `origin`, measured at `frameWidth`. */
+    function postHeight(origin: string, source: unknown, height: number, width?: unknown, frameWidth?: number): void {
+      const ev = new MessageEvent('message', {
+        origin,
+        data: { type: 'paymentform:height', height, width, frameWidth },
+      });
       Object.defineProperty(ev, 'source', { value: source });
       window.dispatchEvent(ev);
     }
@@ -119,6 +130,7 @@ describe('paymentform block view', () => {
       const iframe = bootSingleEmbed('form_redirected');
 
       postHeight('https://forms.customer.example', iframe.contentWindow, 640);
+      vi.advanceTimersByTime(MAX_REVEAL_WAIT_MS);
 
       expect(iframe.style.height).toBe('640px');
     });
@@ -127,6 +139,7 @@ describe('paymentform block view', () => {
       const iframe = bootSingleEmbed('form_card');
 
       postHeight(rendererUrl, iframe.contentWindow, 1305, 800);
+      vi.advanceTimersByTime(REVEAL_SETTLE_MS);
 
       expect(iframe.style.height).toBe('1305px');
       expect(iframe.style.minHeight).toBe('0px');
@@ -139,9 +152,105 @@ describe('paymentform block view', () => {
       const iframe = bootSingleEmbed('form_fluid');
 
       postHeight(rendererUrl, iframe.contentWindow, 1305, width);
+      vi.advanceTimersByTime(MAX_REVEAL_WAIT_MS);
 
       expect(iframe.style.height).toBe('1305px');
       expect(iframe.style.width).toBe('100%');
+    });
+
+    describe('while the form settles', () => {
+      it('stays hidden at its placeholder until the reported size holds still, then shows at that size', () => {
+        const iframe = bootSingleEmbed('form_settling');
+
+        postHeight(rendererUrl, iframe.contentWindow, 1001);
+        postHeight(rendererUrl, iframe.contentWindow, 1732, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS - 1);
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS - 1);
+
+        expect(iframe.style.opacity).toBe('0');
+        expect(iframe.style.height).toBe('');
+        expect(iframe.style.width).toBe('800px');
+
+        vi.advanceTimersByTime(1);
+
+        expect(iframe.style.opacity).toBe('1');
+        expect(iframe.style.height).toBe('1610px');
+      });
+
+      it('does not count a size as settled before the form card has reported', () => {
+        const iframe = bootSingleEmbed('form_loading');
+
+        postHeight(rendererUrl, iframe.contentWindow, 1001);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS * 2);
+
+        expect(iframe.style.opacity).toBe('0');
+
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS);
+
+        expect(iframe.style.opacity).toBe('1');
+        expect(iframe.style.height).toBe('1610px');
+      });
+
+      it('settles a card that reports the same height as its loading state', () => {
+        const iframe = bootSingleEmbed('form_same_height');
+
+        postHeight(rendererUrl, iframe.contentWindow, 1610);
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS);
+
+        expect(iframe.style.opacity).toBe('1');
+      });
+
+      it('waits for a height the form measured at the width the frame now has', () => {
+        const iframe = bootSingleEmbed('form_resized');
+        Object.defineProperty(iframe, 'clientWidth', { get: () => (iframe.style.width === '800px' ? 800 : 1100) });
+
+        postHeight(rendererUrl, iframe.contentWindow, 1732, 800, 1100);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS * 2);
+
+        expect(iframe.style.opacity).toBe('0');
+
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS);
+
+        expect(iframe.style.opacity).toBe('1');
+        expect(iframe.style.height).toBe('1610px');
+      });
+
+      it('does not keep waiting on a re-sent unchanged size', () => {
+        const iframe = bootSingleEmbed('form_polling');
+
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS - 50);
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800);
+        vi.advanceTimersByTime(50);
+
+        expect(iframe.style.opacity).toBe('1');
+      });
+
+      it('shows the form at its latest size once the longest wait is over, though it keeps changing', () => {
+        const iframe = bootSingleEmbed('form_restless');
+
+        for (let elapsed = 0; elapsed < MAX_REVEAL_WAIT_MS; elapsed += 100) {
+          postHeight(rendererUrl, iframe.contentWindow, 1000 + elapsed);
+          vi.advanceTimersByTime(100);
+        }
+
+        expect(iframe.style.opacity).toBe('1');
+        expect(iframe.style.height).toBe(`${1000 + MAX_REVEAL_WAIT_MS - 100}px`);
+      });
+
+      it('follows the form at once after it is shown', () => {
+        const iframe = bootSingleEmbed('form_growing');
+        postHeight(rendererUrl, iframe.contentWindow, 1610, 800);
+        vi.advanceTimersByTime(REVEAL_SETTLE_MS);
+
+        postHeight(rendererUrl, iframe.contentWindow, 1900, 800);
+
+        expect(iframe.style.height).toBe('1900px');
+      });
     });
 
     it('rejects a non-https origin other than the configured renderer', () => {
@@ -172,6 +281,7 @@ describe('paymentform block view', () => {
 
         expect(iframe.getAttribute('scrolling')).toBe('auto');
         expect(iframe.style.height).toBe('80vh');
+        expect(iframe.style.opacity).toBe('1');
         expect(warn).toHaveBeenCalledTimes(1);
       });
 
@@ -211,6 +321,7 @@ describe('paymentform block view', () => {
       });
       Object.defineProperty(ev, 'source', { value: iframe.contentWindow });
       window.dispatchEvent(ev);
+      vi.advanceTimersByTime(MAX_REVEAL_WAIT_MS);
 
       expect(iframe.style.height).toBe('800px');
     });
@@ -250,6 +361,7 @@ describe('paymentform block view', () => {
       });
       Object.defineProperty(ev, 'source', { value: stubB });
       window.dispatchEvent(ev);
+      vi.advanceTimersByTime(MAX_REVEAL_WAIT_MS);
 
       expect(iframeA.style.height).toBe(initialHeightA);
       expect(iframeB.style.height).toBe('800px');

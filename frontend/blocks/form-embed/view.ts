@@ -19,6 +19,22 @@ export const HEIGHT_FALLBACK_MS = 4000;
 const FALLBACK_HEIGHT = '80vh';
 const MAX_EMBED_HEIGHT_PX = 10000;
 const MAX_EMBED_WIDTH_PX = 4000;
+/** How long the reported size must hold still before a loading form is shown. */
+export const REVEAL_SETTLE_MS = 150;
+/** Longest a form stays hidden once it has started reporting its size. */
+export const MAX_REVEAL_WAIT_MS = 1500;
+const REVEAL_TRANSITION = 'opacity 200ms ease';
+
+interface FormSize {
+  height: number;
+  width?: unknown;
+  frameWidth?: unknown;
+}
+
+interface FormSizer {
+  onSize(size: FormSize): void;
+  reveal(): void;
+}
 
 /**
  * Resolve the renderer base URL for the embed iframe.
@@ -70,12 +86,60 @@ function applyScrollableFallback(iframe: HTMLIFrameElement): void {
   console.warn(`PaymentForm: no height from form ${iframe.dataset.formId ?? ''}; using a scrollable embed.`);
 }
 
-/** Sizes the frame to the renderer's form card, centred, so the form sits in the page like native content. */
-function fitFormWidth(iframe: HTMLIFrameElement, width: unknown): void {
-  if (typeof width !== 'number' || !(width > 0) || width > MAX_EMBED_WIDTH_PX) return;
+/** Sizes the frame to the renderer's form card, centred, so the form sits in the page like native content; false when no card width came. */
+function fitFormWidth(iframe: HTMLIFrameElement, width: unknown): boolean {
+  if (typeof width !== 'number' || !(width > 0) || width > MAX_EMBED_WIDTH_PX) return false;
   iframe.style.width = `${width}px`;
   iframe.style.marginLeft = 'auto';
   iframe.style.marginRight = 'auto';
+  return true;
+}
+
+/** Whether the form measured its height at the frame's current width; older renderers don't say, so trust them. */
+function measuredAtFrameWidth(iframe: HTMLIFrameElement, frameWidth: unknown): boolean {
+  return typeof frameWidth !== 'number' || Math.abs(frameWidth - iframe.clientWidth) <= 1;
+}
+
+/** Holds a loading form hidden until its reported size stops changing, then shows it at that size in one step. */
+function createFormSizer(iframe: HTMLIFrameElement): FormSizer {
+  let revealed = false;
+  let latestHeight = 0;
+  let settlingHeight: number | undefined;
+  let settleTimer: number | undefined;
+  let maxWaitTimer: number | undefined;
+
+  const applyHeight = (height: number) => {
+    iframe.style.height = `${height}px`;
+    iframe.style.minHeight = '0px';
+  };
+
+  const reveal = () => {
+    if (revealed) return;
+    revealed = true;
+    window.clearTimeout(settleTimer);
+    window.clearTimeout(maxWaitTimer);
+    if (latestHeight) applyHeight(latestHeight);
+    iframe.style.opacity = '1';
+  };
+
+  const onSize = ({ height, width, frameWidth }: FormSize) => {
+    // Width goes on at once: the form re-measures its height at the frame's final width.
+    const hasCard = fitFormWidth(iframe, width);
+    if (revealed) {
+      applyHeight(height);
+      return;
+    }
+    latestHeight = height;
+    maxWaitTimer ??= window.setTimeout(reveal, MAX_REVEAL_WAIT_MS);
+    // Without the card the form is still loading; at another frame width the height is stale.
+    const settling = hasCard && measuredAtFrameWidth(iframe, frameWidth) ? height : undefined;
+    if (settling === settlingHeight) return;
+    settlingHeight = settling;
+    window.clearTimeout(settleTimer);
+    if (settling !== undefined) settleTimer = window.setTimeout(reveal, REVEAL_SETTLE_MS);
+  };
+
+  return { onSize, reveal };
 }
 
 /** Replaces every `.paymentform-embed` placeholder with an auto-sizing renderer iframe. */
@@ -102,6 +166,8 @@ export function bootBlockView(): void {
     iframe.style.border = '0';
     iframe.style.display = 'block';
     iframe.style.minHeight = '300px';
+    iframe.style.opacity = '0';
+    iframe.style.transition = REVEAL_TRANSITION;
     iframe.setAttribute('loading', 'lazy');
     iframe.setAttribute('title', 'Payment form');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
@@ -113,13 +179,19 @@ export function bootBlockView(): void {
     iframe.dataset.formId = formId;
     host.appendChild(iframe);
 
+    const sizer = createFormSizer(iframe);
     let receivedHeight = false;
     let fallbackTimer: number | undefined;
     // Start the clock on load: a lazy iframe below the fold may not fetch for a long time.
     iframe.addEventListener(
       'load',
       () => {
-        if (!receivedHeight) fallbackTimer = window.setTimeout(() => applyScrollableFallback(iframe), HEIGHT_FALLBACK_MS);
+        if (!receivedHeight) {
+          fallbackTimer = window.setTimeout(() => {
+            sizer.reveal();
+            applyScrollableFallback(iframe);
+          }, HEIGHT_FALLBACK_MS);
+        }
       },
       { once: true },
     );
@@ -130,14 +202,12 @@ export function bootBlockView(): void {
       // host: the renderer 302s tenant subdomains to custom/bound domains.
       if (ev.source !== iframe.contentWindow) return;
       if (!isTrustedRendererOrigin(ev.origin, rendererOrigin)) return;
-      const data = ev.data as { type?: string; height?: number; width?: unknown };
+      const data = ev.data as { type?: string; height?: number; width?: unknown; frameWidth?: unknown };
       if (data?.type !== 'paymentform:height') return;
       if (typeof data.height !== 'number' || data.height <= 0 || data.height > MAX_EMBED_HEIGHT_PX) return;
       receivedHeight = true;
       window.clearTimeout(fallbackTimer);
-      iframe.style.height = `${data.height}px`;
-      iframe.style.minHeight = '0px';
-      fitFormWidth(iframe, data.width);
+      sizer.onSize({ height: data.height, width: data.width, frameWidth: data.frameWidth });
     };
     window.addEventListener('message', onMessage);
   });
