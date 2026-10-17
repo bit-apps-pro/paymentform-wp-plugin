@@ -63,6 +63,12 @@ class TestWpFunctions
     private static ?string $currentScreenId = null;
     /** @var list<string> hooks passed to remove_all_actions(), in call order */
     private static array $removedAllActions = [];
+    /** @var array<string, array{src: string, in_footer: bool}> scripts passed to wp_register_script() */
+    private static array $registeredScripts = [];
+    /** @var list<string> handles passed to wp_enqueue_script(), in call order */
+    private static array $enqueuedScripts = [];
+    /** @var array<string, array{name: string, data: array}> wp_localize_script() payloads keyed by handle */
+    private static array $localizedScripts = [];
 
     public static function reset(): void
     {
@@ -77,6 +83,9 @@ class TestWpFunctions
         self::$hasBlock = null;
         self::$currentScreenId = null;
         self::$removedAllActions = [];
+        self::$registeredScripts = [];
+        self::$enqueuedScripts = [];
+        self::$localizedScripts = [];
 
         // Config memoises the parsed frontend/.env on first URL-getter call; the
         // static survives the whole test process. Clear it so each test starts
@@ -115,6 +124,42 @@ class TestWpFunctions
     public static function getRemovedAllActions(): array
     {
         return self::$removedAllActions;
+    }
+
+    /** Records a wp_register_script() call. */
+    public static function registerScript(string $handle, string $src, bool $inFooter): void
+    {
+        self::$registeredScripts[$handle] = ['src' => $src, 'in_footer' => $inFooter];
+    }
+
+    /** @return array<string, array{src: string, in_footer: bool}> */
+    public static function getRegisteredScripts(): array
+    {
+        return self::$registeredScripts;
+    }
+
+    /** Records a wp_enqueue_script() call. */
+    public static function enqueueScript(string $handle): void
+    {
+        self::$enqueuedScripts[] = $handle;
+    }
+
+    /** @return list<string> */
+    public static function getEnqueuedScripts(): array
+    {
+        return self::$enqueuedScripts;
+    }
+
+    /** Records a wp_localize_script() call. */
+    public static function localizeScript(string $handle, string $name, array $data): void
+    {
+        self::$localizedScripts[$handle] = ['name' => $name, 'data' => $data];
+    }
+
+    /** @return array<string, array{name: string, data: array}> */
+    public static function getLocalizedScripts(): array
+    {
+        return self::$localizedScripts;
     }
 
     public static function hasBlock(string $blockName, mixed $post): bool
@@ -557,14 +602,22 @@ if (!function_exists('register_uninstall_hook')) {
 if (!function_exists('wp_enqueue_script')) {
     function wp_enqueue_script(string $handle, string $src = '', array $deps = [], mixed $ver = false, bool $in_footer = false): void
     {
-        // No-op in tests
+        TestWpFunctions::enqueueScript($handle);
+    }
+}
+
+if (!function_exists('wp_register_script')) {
+    function wp_register_script(string $handle, string|false $src, array $deps = [], mixed $ver = false, array|bool $args = []): bool
+    {
+        TestWpFunctions::registerScript($handle, (string) $src, $args === true || (is_array($args) && ($args['in_footer'] ?? false)));
+        return true;
     }
 }
 
 if (!function_exists('wp_localize_script')) {
     function wp_localize_script(string $object_name, string $var_name, array $l10n): bool
     {
-        // No-op in tests
+        TestWpFunctions::localizeScript($object_name, $var_name, $l10n);
         return true;
     }
 }

@@ -456,7 +456,6 @@ final class PluginServiceProvider
     public function enqueueFrontendAssets(): void
     {
         global $post;
-        $hasShortcode = $post && has_shortcode($post->post_content, 'paymentform');
         $hasBlock = $post && has_block('paymentform/form', $post);
 
         // Block runtime: the view module is auto-enqueued by register_block_type
@@ -473,30 +472,30 @@ final class PluginServiceProvider
             );
         }
 
-        $view_js = Config::pluginDir().'assets/block-view.js';
+        $this->registerShortcodeView();
+    }
 
-        if ($hasShortcode && file_exists($view_js)) {
-            $version = Config::VERSION.'.'.filemtime($view_js);
+    /**
+     * Registers the classic shortcode view script (enqueued by Shortcode::render) with its renderer config.
+     */
+    private function registerShortcodeView(): void
+    {
+        // The same built block-view.js serves the block (as a Script Module) and the
+        // shortcode (as this classic script); it is import/export-free so both work.
+        $viewJs = Config::pluginDir().'assets/block-view.js';
+        $version = Config::VERSION.(file_exists($viewJs) ? '.'.filemtime($viewJs) : '');
 
-            // Shortcode path stays a CLASSIC script (it does not go through
-            // block.json). The SAME built block-view.js works both ways — it is
-            // import/export-free, so it loads fine as a classic <script> here
-            // and as the block's view *module* (block.json viewScriptModule)
-            // elsewhere. A distinct classic handle keeps this enqueue independent
-            // of the block's Script Module registration and any future classic
-            // handle WP might mint for the block.
-            wp_enqueue_script(
-                'paymentform-shortcode-view',
-                Config::pluginUrl().'assets/block-view.js',
-                [],
-                $version,
-                true
-            );
+        wp_register_script(
+            Shortcode::VIEW_HANDLE,
+            Config::pluginUrl().'assets/block-view.js',
+            [],
+            $version,
+            true
+        );
 
-            wp_localize_script('paymentform-shortcode-view', 'paymentformView', [
-                'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
-            ]);
-        }
+        wp_localize_script(Shortcode::VIEW_HANDLE, 'paymentformView', [
+            'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
+        ]);
     }
 
     /**

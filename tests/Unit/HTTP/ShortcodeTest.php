@@ -13,7 +13,22 @@ final class ShortcodeTest extends TestCase
 
     protected function setUp(): void
     {
+        \TestWpFunctions::reset();
         $this->shortcode = new Shortcode();
+    }
+
+    public function test_render_enqueues_view_script(): void
+    {
+        $this->shortcode->render(['id' => 'form_123']);
+
+        self::assertSame([Shortcode::VIEW_HANDLE], \TestWpFunctions::getEnqueuedScripts());
+    }
+
+    public function test_render_with_empty_id_does_not_enqueue(): void
+    {
+        $this->shortcode->render(['id' => '']);
+
+        self::assertSame([], \TestWpFunctions::getEnqueuedScripts());
     }
 
     public function test_render_with_valid_id(): void
