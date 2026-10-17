@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Drawer, Tabs, Typography, Flex, Segmented, Skeleton, theme, Button } from 'antd';
+import { Drawer, Tabs, Typography, Flex, Segmented, theme, Button } from 'antd';
 import { X } from 'lucide-react';
 import { css } from '@emotion/css';
 import type { Form } from './useFormsList';
+import { DevicePreview } from './DevicePreview';
 import { getEmbedUrl, getShortcode, getGutenbergBlock } from './embedUrl';
 import { __ } from '../../lib/i18n';
 
@@ -12,6 +13,10 @@ interface EmbedDrawerProps {
 }
 
 type SnippetKind = 'shortcode' | 'block' | 'iframe';
+
+const EMBED_DRAWER_WIDTH = 520;
+/** Wide enough for a legible tablet/desktop preview, never wider than the admin content area. */
+const PREVIEW_DRAWER_WIDTH = 'min(1100px, calc(100vw - 200px))';
 
 const FLEX_FILL: React.CSSProperties = {
   height: '100%',
@@ -100,7 +105,7 @@ export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
         />
       }
       styles={{
-        wrapper: { width: 520 },
+        wrapper: { width: activeTab === 'preview' ? PREVIEW_DRAWER_WIDTH : EMBED_DRAWER_WIDTH },
         header: {
           padding: `${token.paddingMD}px ${token.paddingLG}px`,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
@@ -159,42 +164,12 @@ export function EmbedDrawer({ form, onClose }: EmbedDrawerProps) {
             children:
               activeTab === 'preview' && formId ? (
                 embedUrl ? (
-                  <div
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      minHeight: 0,
-                      position: 'relative',
-                    }}
-                  >
-                    {!previewLoaded && (
-                      <Skeleton
-                        active
-                        paragraph={{ rows: 8 }}
-                        style={{ position: 'absolute', inset: 0 }}
-                      />
-                    )}
-                    <div style={{ flex: 1, minHeight: 0 }}>
-                      <iframe
-                        src={embedUrl}
-                        title={form?.name ?? __('Preview', 'paymentform')}
-                        // Sandbox so the preview can't submit a real payment or
-                        // navigate the wp-admin tab. Matches the block-editor
-                        // preview iframe.
-                        sandbox="allow-scripts allow-same-origin"
-                        referrerPolicy="no-referrer"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          border: 'none',
-                          display: 'block',
-                          background: token.colorBgContainer,
-                        }}
-                        onLoad={() => setPreviewLoaded(true)}
-                      />
-                    </div>
-                  </div>
+                  <DevicePreview
+                    src={embedUrl}
+                    title={form?.name ?? __('Preview', 'paymentform')}
+                    loading={!previewLoaded}
+                    onLoad={() => setPreviewLoaded(true)}
+                  />
                 ) : (
                   <Typography.Text type="secondary">
                     {__(

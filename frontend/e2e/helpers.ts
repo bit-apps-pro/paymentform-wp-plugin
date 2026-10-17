@@ -98,7 +98,12 @@ export async function mockWorkspace(page: Page, connected = true): Promise<void>
       } catch {
         return; // tag still streaming in; wait for the next mutation
       }
-      tag.textContent = JSON.stringify({ ...config, connected, tenant: connected ? 'e2e' : null });
+      tag.textContent = JSON.stringify({
+        ...config,
+        connected,
+        tenant: connected ? 'e2e' : null,
+        rendererBaseUrl: connected ? 'https://e2e.renderer.invalid' : '',
+      });
       observer.disconnect();
     }).observe(document, { childList: true, subtree: true, characterData: true });
   }, { tagId: 'wp-script-module-data-@paymentform/admin', connected });
