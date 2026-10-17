@@ -21,3 +21,6 @@ build/
 /playwright-report/
 /test-results/
 .phpunit.result.cache
+
+# Agent scratch
+.superpowers/
