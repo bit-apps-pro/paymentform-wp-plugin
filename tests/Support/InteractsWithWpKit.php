@@ -6,7 +6,6 @@ namespace PaymentForm\Tests\Support;
 
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
-use ReflectionClass;
 
 /**
  * Helpers for tests touching the wp-kit HTTP layer.
@@ -47,25 +46,10 @@ trait InteractsWithWpKit
     }
 
     /**
-     * wp-kit's Response is an all-static singleton with no reset API; null
-     * its state via reflection so error payloads cannot bleed across tests
-     * (migration-spec Risk #6).
+     * Starts each test on a fresh wp-kit Response so error payloads cannot bleed across tests.
      */
     protected function resetWpKitResponse(): void
     {
-        $defaults = [
-            '_instance'   => null,
-            '_message'    => null,
-            '_status'     => null,
-            '_code'       => null,
-            '_data'       => null,
-            '_httpStatus' => null,
-            '_headers'    => [],
-        ];
-
-        $reflection = new ReflectionClass(Response::class);
-        foreach ($defaults as $property => $default) {
-            $reflection->getProperty($property)->setValue(null, $default);
-        }
+        Response::reset();
     }
 }

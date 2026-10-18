@@ -138,6 +138,12 @@ final class Config
         return self::devOverride('APP_API_BASE_URL') ?? self::DEFAULT_API_BASE_URL;
     }
 
+    /** Whether the API base URL comes from the dev-only `frontend/.env` override. */
+    public static function hasDevApiBaseUrl(): bool
+    {
+        return self::devOverride('APP_API_BASE_URL') !== null;
+    }
+
     public static function appBaseUrl(): string
     {
         return self::devOverride('APP_APP_BASE_URL') ?? self::DEFAULT_APP_BASE_URL;

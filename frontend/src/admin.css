@@ -17,8 +17,6 @@ body.toplevel_page_paymentform #paymentform-admin-root > * { height: calc(100vh 
 @media screen and (min-width: 783px) {
     body.toplevel_page_paymentform #wpbody { padding-top: 0 !important; }
 }
-/* antd pins drawers to top:0, under the fixed admin bar (z-index 99999). */
-body.toplevel_page_paymentform .ant-drawer .ant-drawer-content-wrapper { top: var(--wp-admin--admin-bar--height, 32px); }
 /* WP forms.css styles bare inputs (min-height, line-height, padding, border) with higher specificity than antd; neutralise it where antd owns the box. */
 #paymentform-admin-root :is(.ant-input-affix-wrapper, .ant-select, .ant-input-number, .ant-picker) input {
     min-height: 0;

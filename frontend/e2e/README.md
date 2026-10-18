@@ -1,6 +1,6 @@
 # E2E suite (Playwright)
 
-Browser tests for the wp-kit REST migration: admin SPA, embed drawer, settings,
+Browser tests for the wp-kit REST migration: admin SPA, embed actions + form preview, settings,
 REST auth contract (401 `INVALID_NONCE`), and the Gutenberg block. They run
 against a **live dev WordPress install** — not a fixture.
 

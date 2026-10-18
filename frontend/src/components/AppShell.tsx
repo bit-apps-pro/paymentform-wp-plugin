@@ -14,6 +14,7 @@ import { HeaderThemeToggle } from "./HeaderThemeToggle";
 import { HeaderConnectButton } from "./HeaderConnectButton";
 import { UserMenu } from "./UserMenu";
 import { AppBreadcrumb } from "./AppBreadcrumb";
+import type { ShellOutletContext } from "./HeaderActions";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 import { __ } from "../lib/i18n";
 import { wpModuleData } from "../utils/wpData";
@@ -25,6 +26,9 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [headerActionsSlot, setHeaderActionsSlot] =
+    useState<HTMLDivElement | null>(null);
+  const outletContext: ShellOutletContext = { headerActionsSlot };
   const connected =
     wpModuleData.connected === "1" || wpModuleData.connected === true;
 
@@ -154,7 +158,15 @@ export function AppShell() {
           </Flex>
         </Header>
         <div className={breadcrumbBar}>
-          <AppBreadcrumb />
+          <Flex
+            align="center"
+            justify="space-between"
+            wrap
+            gap={token.marginSM}
+          >
+            <AppBreadcrumb />
+            <div ref={setHeaderActionsSlot} />
+          </Flex>
         </div>
         <div
           style={{
@@ -165,7 +177,7 @@ export function AppShell() {
           <VerifyEmailBanner />
         </div>
         <Content className={contentStyles}>
-          <Outlet />
+          <Outlet context={outletContext} />
         </Content>
       </Layout>
     </Layout>

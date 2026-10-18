@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoPluginPage, mockWorkspace } from './helpers';
+import { gotoPluginPage, mockWorkspace, MOCK_FORM } from './helpers';
 
 const HEADER_HEIGHT_PX = 64;
 
@@ -30,14 +30,17 @@ test.describe('at 390px', () => {
     await expect(page.getByRole('button', { name: /Switch to (dark|light) mode/ })).toBeInViewport({ ratio: 1 });
   });
 
-  test('preview drawer uses the full phone width', async ({ page }) => {
+  test('form preview fits within the phone viewport', async ({ page }) => {
     await mockWorkspace(page);
-    await gotoPluginPage(page, '#/forms');
-    await page.locator('.ant-table-row', { hasText: 'Donation' }).getByRole('button', { name: 'Embed', exact: true }).click();
-    await page.getByRole('tab', { name: 'Preview' }).click();
+    await gotoPluginPage(page, `#/forms/${MOCK_FORM.id}/preview`);
+    const frameContainer = page.locator('#paymentform-admin-root main iframe').locator('..');
+    await expect(frameContainer).toBeVisible();
 
-    const panel = page.locator('.ant-drawer-content-wrapper');
-    await expect.poll(async () => Math.round((await panel.boundingBox())?.width ?? 0)).toBe(390);
+    const viewport = page.viewportSize()!;
+    const box = (await frameContainer.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
   });
 });
 

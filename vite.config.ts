@@ -69,7 +69,7 @@ function wpExternals(): Plugin {
       if (!(id in mapping)) return null;
       // `@wordpress/*` always externalize (same handle scheme everywhere).
       // `react` / `react-dom` only externalize for block bundles — admin SPA
-      // bundles its own React 18 copy.
+      // bundles its own React 19 copy.
       const isReactish = id === 'react' || id === 'react-dom'
         || id.startsWith('react/') || id.startsWith('react-dom/');
       if (isReactish && importer && !inBlocksDir(importer)) {
@@ -312,18 +312,20 @@ export default defineConfig({
   // those exact paths), `.env` loads from `frontend/`, and `outDir: '../assets'`
   // still resolves to the repo-root `assets/` dir.
   root: resolve(__dirname, 'frontend'),
+  // Lazy page chunks resolve relative to admin.js; an absolute base would point preloads at the site root.
+  base: './',
   // Expose `APP_*` vars from `frontend/.env` to the client as dev-only
   // overrides (see src/lib/devEnv.ts); production reads window.paymentformAdmin.
   envPrefix: 'APP_',
-  // Single copy of react / react-dom / react-is across the bundle. Admin SPA is on
-  // React 18 (matches WP-bundled React + emotion ecosystem). `dedupe` alone is
+  // Single copy of react / react-dom / react-is across the bundle. Admin SPA bundles
+  // React 19; blocks use WP core's React (externalized above). `dedupe` alone is
   // enough — no pnpm-path alias (those slugs are brittle across pnpm versions
   // and break the build when the lockfile rewrites).
   resolve: {
     dedupe: ['react', 'react-dom', 'react-is'],
   },
   build: {
-    target: 'ES2022',
+    target: 'es2022',
     // Built assets land in the repo-root `assets/` dir (sibling of `frontend/`),
     // the only tree shipped to WordPress. `emptyOutDir` still wipes it on each
     // build — correct, since `assets/` is generated-only.
@@ -342,7 +344,6 @@ export default defineConfig({
         format: 'es',
       },
     },
-    minify: false,
     sourcemap: false,
   },
   server: {

@@ -835,7 +835,7 @@ if (!class_exists('RedirectException')) {
     }
 }
 
-// Queue-based stub for wp_remote_request / wp_remote_retrieve_* / is_wp_error.
+// Queue-based stub for wp_(safe_)remote_request / wp_remote_retrieve_* / is_wp_error.
 // Tests push canned responses with WpHttpMock::queue(...) and inspect the
 // recorded calls afterwards.
 class WpHttpMock
@@ -925,6 +925,21 @@ if (!function_exists('wp_remote_request')) {
     {
         $response = WpHttpMock::pop($url, $args);
         return $response['error'] ?? $response;
+    }
+}
+
+if (!function_exists('wp_parse_url')) {
+    function wp_parse_url(string $url, int $component = -1): mixed
+    {
+        return parse_url($url, $component);
+    }
+}
+
+if (!function_exists('wp_safe_remote_request')) {
+    function wp_safe_remote_request(string $url, array $args = []): mixed
+    {
+        $args['reject_unsafe_urls'] = true;
+        return wp_remote_request($url, $args);
     }
 }
 

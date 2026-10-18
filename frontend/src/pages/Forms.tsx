@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Table,
   Empty,
@@ -13,19 +13,24 @@ import {
   Col,
   Card,
   Statistic,
+  Grid,
 } from 'antd';
 import type { BadgeProps } from 'antd';
-import { Code2, Pencil, Plus } from 'lucide-react';
+import { Eye, Pencil, Plus } from 'lucide-react';
 import { css } from '@emotion/css';
+import { useNavigate } from 'react-router-dom';
 import { useFormsList, type Form } from '../features/forms/useFormsList';
 import { FormsToolbar } from '../features/forms/FormsToolbar';
 import { useFormsToolbarState } from '../features/forms/useFormsToolbarState';
-import { EmbedDrawer } from '../features/forms/EmbedDrawer';
+import { CopyEmbedButton } from '../features/forms/CopyEmbedButton';
+import { formPreviewPath } from '../features/forms/routes';
 import { useDeepLink } from '../features/auth/useDeepLink';
 import { CREATE_FORM_PATH } from '../lib/openLoginLink';
 import { __ } from '../lib/i18n';
 
 const ACTIVE_STATUSES = new Set(['enabled', 'active', 'published']);
+/** Fits the copy split button plus the Preview and Edit icons on one line. */
+const ACTIONS_COLUMN_WIDTH = 264;
 
 function badgeStatus(status: string): BadgeProps['status'] {
   if (ACTIVE_STATUSES.has(status)) return 'success';
@@ -37,7 +42,8 @@ export function Forms() {
   const { token } = theme.useToken();
   const { data: forms = [], isLoading, isFetching, refetch } = useFormsList();
   const { value: toolbar, setValue: setToolbar } = useFormsToolbarState();
-  const [openForm, setOpenForm] = useState<Form | null>(null);
+  const navigate = useNavigate();
+  const screens = Grid.useBreakpoint();
   const { open: openDeepLink, pendingPath } = useDeepLink();
 
   const containerStyles = css`
@@ -48,7 +54,9 @@ export function Forms() {
   const rowHoverStyles = css`
     cursor: default;
     &:hover > td {
-      background: ${token.colorFillSecondary} !important;
+      /* Layered on an opaque base so the sticky Actions cell hides rows scrolling beneath it. */
+      background: linear-gradient(${token.colorFillSecondary}, ${token.colorFillSecondary})
+        ${token.colorBgContainer} !important;
     }
   `;
 
@@ -101,16 +109,21 @@ export function Forms() {
     {
       title: __('Actions', 'paymentform'),
       key: 'actions',
-      width: 140,
+      width: ACTIONS_COLUMN_WIDTH,
+      // Pinned only where the viewport leaves room to still see the Name column beside it.
+      fixed: screens.md ? ('right' as const) : undefined,
       render: (_: unknown, record: Form) => (
         <Space size="small">
-          <Button
-            type="text"
-            size="small"
-            aria-label={__('Embed', 'paymentform')}
-            icon={<Code2 size={16} />}
-            onClick={() => setOpenForm(record)}
-          />
+          <CopyEmbedButton formId={record.id} />
+          <Tooltip title={__('Preview form', 'paymentform')}>
+            <Button
+              type="text"
+              size="small"
+              aria-label={__('Preview', 'paymentform')}
+              icon={<Eye size={16} />}
+              onClick={() => navigate(formPreviewPath(record.id))}
+            />
+          </Tooltip>
           <Tooltip title={__('Edit form', 'paymentform')}>
             <Button
               type="text"
@@ -217,10 +230,12 @@ export function Forms() {
           />
         )}
       </Card>
-      <EmbedDrawer form={openForm} onClose={() => setOpenForm(null)} />
       <div style={{ marginTop: token.marginMD }}>
         <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {__('Tip: click the embed icon to copy a shortcode or preview a form.', 'paymentform')}
+          {__(
+            'Tip: paste a copied shortcode into any post or page. Use the arrow next to Copy shortcode for block markup or an iframe URL.',
+            'paymentform'
+          )}
         </Typography.Text>
       </div>
     </div>

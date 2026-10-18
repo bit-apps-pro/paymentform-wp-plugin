@@ -8,8 +8,8 @@ import { wpModuleData } from '../../utils/wpData';
  * from the dev `APP_APP_BASE_URL` app host, so no separate renderer override is
  * needed here.
  *
- * Returns `null` when the localized config is missing — callers (EmbedDrawer)
- * render a "not connected" state instead of fabricating a wrong-host URL that
+ * Returns `null` when the localized config is missing — callers (CopyEmbedButton,
+ * FormPreview) render a "not connected" state instead of fabricating a wrong-host URL that
  * would be persisted into a published post.
  */
 function rendererBase(): string | null {

@@ -1,5 +1,4 @@
 import { useReducer } from 'react';
-import React from 'react';
 
 export type WizardStep =
   | 'diagnose'
@@ -181,7 +180,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
 }
 
 export function useWizard(initialEmail: string = '', defaultCountry: string = '') {
-  const [state, dispatch] = useReducer<React.Reducer<WizardState, WizardAction>>(wizardReducer, {
+  const [state, dispatch] = useReducer(wizardReducer, {
     ...initialState,
     email: initialEmail,
     country: defaultCountry || initialState.country,

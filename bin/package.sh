@@ -64,6 +64,7 @@ SHIPPED=(
     assets
     backend
     paymentform.php
+    readme.txt
     composer.json
 )
 for item in "${SHIPPED[@]}"; do

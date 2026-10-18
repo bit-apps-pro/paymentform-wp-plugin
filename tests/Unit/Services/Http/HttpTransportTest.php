@@ -69,6 +69,31 @@ class HttpTransportTest extends TestCase
         $this->assertSame(self::BASE_URL . $path, WpHttpMock::$calls[0]['url']);
     }
 
+    /** By default requests go through WP's safe-URL check. */
+    public function test_rejects_unsafe_urls_by_default(): void
+    {
+        WpHttpMock::queue(200, ['ok' => true]);
+
+        $this->transport->send('GET', '/x');
+
+        $this->assertTrue(WpHttpMock::$calls[0]['args']['reject_unsafe_urls']);
+    }
+
+    /** A dev base on a private host skips the safe-URL check but never follows redirects. */
+    public function test_private_base_host_skips_safe_check_without_redirects(): void
+    {
+        WpHttpMock::queue(200, ['ok' => true]);
+        $transport = new HttpTransport('https://api.local.test:8023', allowPrivateBaseHost: true);
+
+        $res = $transport->send('GET', '/x');
+
+        $args = WpHttpMock::$calls[0]['args'];
+        $this->assertFalse($res->isError());
+        $this->assertSame('https://api.local.test:8023/x', WpHttpMock::$calls[0]['url']);
+        $this->assertArrayNotHasKey('reject_unsafe_urls', $args);
+        $this->assertSame(0, $args['redirection']);
+    }
+
     /** A 2xx JSON object decodes to an associative array body. */
     public function test_2xx_returns_assoc_array_body(): void
     {

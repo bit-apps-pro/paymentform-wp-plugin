@@ -16,7 +16,7 @@ async function adminBarBottom(page: Page): Promise<number> {
 async function expectBelowAdminBar(page: Page, overlay: Locator): Promise<void> {
   await expect(overlay).toBeVisible();
   const barBottom = await adminBarBottom(page);
-  // Polled because toasts and drawers slide in; the settled position is what users see.
+  // Polled because toasts slide in; the settled position is what users see.
   await expect.poll(async () => (await overlay.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(barBottom - 1);
 }
 
@@ -31,14 +31,14 @@ for (const viewport of VIEWPORTS) {
       await expectBelowAdminBar(page, page.locator('.ant-message-notice').first());
     });
 
-    test('embed drawer header renders below the admin bar', async ({ page }) => {
+    test('copy-shortcode toast renders below the admin bar', async ({ page }) => {
       await mockWorkspace(page);
       await gotoPluginPage(page, '#/forms');
       const row = page.locator('.ant-table-row', { hasText: 'Donation' });
       await expect(row).toBeVisible({ timeout: 30_000 });
-      await row.getByRole('button', { name: 'Embed', exact: true }).click();
+      await row.getByRole('button', { name: /Copy shortcode/ }).click();
 
-      await expectBelowAdminBar(page, page.locator('.ant-drawer-header'));
+      await expectBelowAdminBar(page, page.locator('.ant-message-notice').first());
     });
   });
 }

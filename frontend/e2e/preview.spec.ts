@@ -1,33 +1,38 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoPluginPage, mockWorkspace } from './helpers';
+import { gotoPluginPage, mockWorkspace, MOCK_FORM } from './helpers';
 
-const EMBED_DRAWER_WIDTH_PX = 520;
+const DESKTOP_WIDTH_PX = 1280;
 
-/** Opens the embed drawer for the mocked Donation form. */
-async function openEmbedDrawer(page: Page): Promise<void> {
+/** Opens the preview page for the mocked Donation form from its table row. */
+async function openPreview(page: Page): Promise<void> {
   await mockWorkspace(page);
   await gotoPluginPage(page, '#/forms');
   const row = page.locator('.ant-table-row', { hasText: 'Donation' });
-  await row.getByRole('button', { name: 'Embed', exact: true }).click();
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
 }
 
-test('preview tab widens the drawer for tablet and desktop layouts', async ({ page }) => {
-  await openEmbedDrawer(page);
-  const panel = page.locator('.ant-drawer-content-wrapper');
+test('Preview button opens the form preview page', async ({ page }) => {
+  await openPreview(page);
 
-  await page.getByRole('tab', { name: 'Preview' }).click();
-
-  await expect.poll(async () => (await panel.boundingBox())?.width ?? 0).toBeGreaterThan(EMBED_DRAWER_WIDTH_PX);
+  await expect(page).toHaveURL(new RegExp(`#/forms/${MOCK_FORM.id}/preview$`));
+  await expect(page.locator('.ant-breadcrumb')).toContainText('Donation');
 });
 
 test('desktop preview renders the form at desktop width scaled to fit', async ({ page }) => {
-  await openEmbedDrawer(page);
-  await page.getByRole('tab', { name: 'Preview' }).click();
+  await openPreview(page);
   await page.getByText('Desktop', { exact: true }).click();
 
-  const frame = page.locator('.ant-drawer iframe');
-  await expect(frame).toHaveCSS('width', '1280px');
-  const box = await frame.boundingBox();
-  const panel = await page.locator('.ant-drawer-content-wrapper').boundingBox();
-  expect(box!.width).toBeLessThanOrEqual(panel!.width);
+  const frame = page.locator('#paymentform-admin-root main iframe');
+  await expect(frame).toHaveCSS('width', `${DESKTOP_WIDTH_PX}px`);
+  const content = await page.locator('#paymentform-admin-root main').boundingBox();
+  await expect.poll(async () => (await frame.boundingBox())?.width ?? Infinity).toBeLessThanOrEqual(content!.width);
+});
+
+test('Back to forms returns to the forms list', async ({ page }) => {
+  await openPreview(page);
+
+  await page.getByRole('button', { name: /Back to forms/ }).click();
+
+  await expect(page).toHaveURL(/#\/forms$/);
+  await expect(page.locator('.ant-table-row', { hasText: 'Donation' })).toBeVisible();
 });

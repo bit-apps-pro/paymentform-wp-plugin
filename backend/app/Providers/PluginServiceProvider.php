@@ -70,8 +70,11 @@ final class PluginServiceProvider
 
         // Shared outbound HTTP transport (wp-kit HttpClient adapter). Owns the
         // API base URL; stateless beyond that — a fresh client is built per call
-        // inside send().
-        $c[HttpTransport::class] = static fn () => new HttpTransport(Config::apiBaseUrl());
+        // inside send(). Only a dev override may point at a private/loopback host.
+        $c[HttpTransport::class] = static fn () => new HttpTransport(
+            Config::apiBaseUrl(),
+            allowPrivateBaseHost: Config::hasDevApiBaseUrl(),
+        );
 
         // API client with token awareness
         $c[ApiClient::class] = static fn ($c) => new ApiClient(
@@ -447,7 +450,7 @@ final class PluginServiceProvider
             'appBaseUrl' => Config::appBaseUrl(),
             // Tenant-scoped renderer base — same host-swap that powers the
             // shortcode `<tenant>.paymentform.io/<form-id>` embed. The admin SPA's
-            // EmbedDrawer uses this to render the "Iframe URL" + preview iframe
+            // CopyEmbedButton and FormPreview use this for the "Iframe URL" + preview iframe
             // against the correct subdomain instead of the static `app.` host.
             'rendererBaseUrl' => $this->resolveRendererBaseUrl(),
         ];

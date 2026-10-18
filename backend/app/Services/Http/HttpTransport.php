@@ -35,14 +35,21 @@ final class HttpTransport
 {
     private readonly string $baseUrl;
 
+    /** Base URL host wp-kit may reach despite failing WP's safe-URL check, or null for safe requests only. */
+    private readonly ?string $privateBaseHost;
+
     /**
      * @param  string  $baseUrl  Upstream API base; the trailing slash is stripped
      *                           once so per-call paths (leading slash) concatenate
      *                           cleanly.
+     * @param  bool  $allowPrivateBaseHost  Dev-only: lets requests reach the base host
+     *                                      when it resolves to a private/loopback IP or
+     *                                      uses a non-standard port.
      */
-    public function __construct(string $baseUrl = 'https://api.paymentform.io')
+    public function __construct(string $baseUrl = 'https://api.paymentform.io', bool $allowPrivateBaseHost = false)
     {
         $this->baseUrl = rtrim($baseUrl, '/');
+        $this->privateBaseHost = $allowPrivateBaseHost ? (wp_parse_url($this->baseUrl, PHP_URL_HOST) ?: null) : null;
     }
 
     /**
@@ -109,6 +116,10 @@ final class HttpTransport
         // remaining defaults (method/headers/body) from the builder. Passing
         // method/headers/body here would override the builder's values.
         $client->setOptions(['timeout' => $timeoutSeconds]);
+        if ($this->privateBaseHost !== null) {
+            // wp-kit allowlists by host and disables redirects, so only the configured base is reachable.
+            $client->allowUnsafeUrls(true, [$this->privateBaseHost]);
+        }
 
         // wp-kit concatenates `base_uri . $path`; with the base trailing slash
         // stripped and a leading-slash path this equals the legacy full URL.
