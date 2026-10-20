@@ -94,6 +94,43 @@ class SetupDiagnoseControllerTest extends TestCase
         );
     }
 
+    public static function diagnoseOutcomeProvider(): array
+    {
+        return [
+            'transport error' => [null],
+            'backend ok verdict' => [[200, ['next' => 'ok']]],
+            'backend failure verdict' => [[200, ['next' => 'failed', 'code' => 'proof_unreachable']]],
+            'backend 500' => [[500, ['error' => 'boom']]],
+        ];
+    }
+
+    /** @param array{0: int, 1: array<string, mixed>}|null $response null queues a transport error */
+    #[DataProvider('diagnoseOutcomeProvider')]
+    public function test_handle_keeps_setup_row_during_backend_call_and_deletes_it_after(?array $response): void
+    {
+        $response === null ? WpHttpMock::queueError('timeout') : WpHttpMock::queue(...$response);
+
+        $this->diagnose();
+
+        $atCallTime = $this->setupOptionNames(end(WpHttpMock::$calls)['option_names']);
+        $this->assertCount(1, $atCallTime);
+        $this->assertStringStartsWith('paymentform_setup_by_nonce_', $atCallTime[0]);
+        $this->assertSame([], $this->setupOptionNames(array_keys(\TestWpFunctions::optionRows())));
+    }
+
+    /**
+     * @param list<string> $names
+     *
+     * @return list<string>
+     */
+    private function setupOptionNames(array $names): array
+    {
+        return array_values(array_filter(
+            $names,
+            static fn (string $name): bool => str_starts_with($name, 'paymentform_setup_')
+        ));
+    }
+
     public function test_handle_sends_setup_token_payload_to_diagnose_endpoint(): void
     {
         WpHttpMock::queue(200, ['next' => 'ok']);

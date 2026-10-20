@@ -6,6 +6,7 @@ namespace PaymentForm\HTTP\Controllers;
 
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Providers\ServiceContainer;
+use PaymentForm\Services\Http\HttpResponse;
 use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\SetupOptionsStore;
 
@@ -34,12 +35,15 @@ final class SetupDiagnoseController
 
     private readonly SetupApiClient $setupApi;
 
+    /** Resolve collaborators from the service container (wp-kit builds REST controllers with zero args). */
     public function __construct()
     {
         $this->setupApi = ServiceContainer::get(SetupApiClient::class);
     }
 
     /**
+     * Ask the backend to run a throwaway proof handshake against this site.
+     *
      * @return array<string, mixed>
      */
     public function handle(Request $req): array
@@ -56,9 +60,7 @@ final class SetupDiagnoseController
         $wpSetupToken = 'v1.' . base64_encode($payload) . '.' . $hmac;
 
         // Persist the stub row.
-        $emailMd5 = md5('diagnose@stub');
         $setupRow = [
-            'email_md5' => $emailMd5,
             'site_url' => site_url(),
             'wp_setup_token' => $wpSetupToken,
             'nonce_in_token' => $nonce,
@@ -67,17 +69,28 @@ final class SetupDiagnoseController
         ];
 
         $store = new SetupOptionsStore();
-        $store->put($nonce, $setupRow, $emailMd5);
+        $store->put($nonce, $setupRow);
 
-        // Try calling the backend diagnose endpoint (if it exists).
-        // Gracefully fall back to "ok" if the endpoint returns 404.
-        $res = $this->setupApi->post('/auth/setup/diagnose', [
-            'proof_url' => site_url('/paymentform/setup-proof'),
-            'site_url' => site_url(),
-            'setup_token' => $wpSetupToken,
-            'client_slug' => 'wp-plugin',
-        ], self::TIMEOUT_SECONDS);
+        try {
+            return $this->mapDiagnoseResponse($this->setupApi->post('/auth/setup/diagnose', [
+                'proof_url' => site_url('/paymentform/setup-proof'),
+                'site_url' => site_url(),
+                'setup_token' => $wpSetupToken,
+                'client_slug' => 'wp-plugin',
+            ], self::TIMEOUT_SECONDS));
+        } finally {
+            // The proof handshake ran synchronously inside the backend call, so the row is spent.
+            $store->consumeByNonce($nonce);
+        }
+    }
 
+    /**
+     * Map the backend's diagnose verdict, soft-passing anything but an explicit failure.
+     *
+     * @return array<string, mixed>
+     */
+    private function mapDiagnoseResponse(HttpResponse $res): array
+    {
         // Network error or 404 → soft pass (backend endpoint may not exist yet).
         if ($res->isError() || $res->status === 404) {
             return ['next' => 'ok'];

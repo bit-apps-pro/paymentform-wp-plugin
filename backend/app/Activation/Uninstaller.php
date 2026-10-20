@@ -5,21 +5,29 @@ declare(strict_types=1);
 namespace PaymentForm\Activation;
 
 use PaymentForm\Config;
+use PaymentForm\Cron\PurgeExpiredFlowOptions;
+use PaymentForm\Services\ConnectService;
+use PaymentForm\Services\UncachedOptionStore;
 
 final class Uninstaller
 {
+    /** Bare prefixes of every short-lived flow row; `setup_` is broad so legacy setup rows go too. */
+    private const FLOW_OPTION_PREFIXES = ['setup_', ConnectService::STATE_OPTION_PREFIX];
+
+    /** Remove every capability, option, transient and cron event the plugin created. */
     public static function uninstall(): void
     {
-        // Remove capability from administrator role
         $role = get_role('administrator');
         if ($role !== null) {
             $role->remove_cap('paymentform_manage');
         }
 
-        // Delete credentials option
         Config::deleteOption('credentials');
+        wp_clear_scheduled_hook(PurgeExpiredFlowOptions::HOOK);
+        (new UncachedOptionStore())->deleteByPrefixes(
+            array_map(Config::withPrefix(...), self::FLOW_OPTION_PREFIXES)
+        );
 
-        // Wipe all stale transients and related options
         global $wpdb;
         $wpdb->query(
             "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_paymentform\_%' " .

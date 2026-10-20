@@ -9,6 +9,9 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Requests\SetupRequest;
 use PaymentForm\Providers\ServiceContainer;
+use PaymentForm\Services\ConnectService;
+use PaymentForm\Services\ConnectStateException;
+use PaymentForm\Services\Http\HttpResponse;
 use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\SetupOptionsStore;
 use PaymentForm\Services\TokenService;
@@ -22,11 +25,13 @@ use Throwable;
  * Flow:
  * 1. Validate email, country, optional locale, email_override
  * 2. Generate nonce + wp_setup_token under SECURE_AUTH_KEY
- * 3. Persist setup row via SetupOptionsStore (autoload=no, TTL 10min)
- * 4. POST to /auth/setup on the backend (with proof_url)
+ * 3. Persist setup row via SetupOptionsStore (non-autoloaded, TTL 10min)
+ * 4. POST to /auth/setup on the backend (with proof_url); the backend runs the
+ *    proof handshake synchronously, so the row is deleted once it answers
  * 5. Branch on response:
  *    - status: 'connected' → token present, store it, return { next: 'connected' }
  *    - status: 'use_connect_flow' → no token, return { next: 'redirect_connect', connect_url }
+ *      where connect_url is issued locally by {@see ConnectService::createConnectUrl()}
  *    - 503 + error_code: 'FEATURE_DISABLED' → return { next: 'failed', code: 'service_unavailable' }
  *    - 422 + error_code: 'PROOF_FAILED' → return { next: 'failed', code: <sub_code> }
  *    - 422 + error_code: 'INVALID_PROOF_HOST' → return { next: 'failed', code: 'invalid_proof_host' }
@@ -45,13 +50,19 @@ final class SetupController
 
     private readonly TokenServiceInterface $tokenService;
 
+    private readonly ConnectService $connectService;
+
+    /** Resolve collaborators from the service container (wp-kit builds REST controllers with zero args). */
     public function __construct()
     {
         $this->setupApi = ServiceContainer::get(SetupApiClient::class);
         $this->tokenService = ServiceContainer::get(TokenService::class);
+        $this->connectService = ServiceContainer::get(ConnectService::class);
     }
 
     /**
+     * Start the Create-new-account flow and map the backend verdict for the wizard.
+     *
      * @return array<string, mixed>|Response
      */
     public function handle(SetupRequest $req): array|Response
@@ -81,10 +92,7 @@ final class SetupController
         $payloadB64 = rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
         $wpSetupToken = 'v1.' . $payloadB64 . '.' . $hmac;
 
-        // Persist setup row (both per-nonce and per-email).
-        $emailMd5 = md5($effectiveEmail);
         $setupRow = [
-            'email_md5' => $emailMd5,
             'site_url' => site_url(),
             'wp_setup_token' => $wpSetupToken,
             'nonce_in_token' => $nonce,
@@ -93,7 +101,7 @@ final class SetupController
         ];
 
         $store = new SetupOptionsStore();
-        $store->put($nonce, $setupRow, $emailMd5);
+        $store->put($nonce, $setupRow);
 
         // POST to backend /auth/setup.
         $backendPayload = [
@@ -110,8 +118,24 @@ final class SetupController
             $backendPayload['locale'] = $locale;
         }
 
-        $res = $this->setupApi->post('/auth/setup', $backendPayload, self::TIMEOUT_SECONDS);
+        try {
+            return $this->mapSetupResponse(
+                $this->setupApi->post('/auth/setup', $backendPayload, self::TIMEOUT_SECONDS),
+                $wpSetupToken
+            );
+        } finally {
+            // The proof handshake ran synchronously inside the backend call, so the row is spent.
+            $store->consumeByNonce($nonce);
+        }
+    }
 
+    /**
+     * Map the backend's /auth/setup response onto the wizard's `next:` contract.
+     *
+     * @return array<string, mixed>|Response
+     */
+    private function mapSetupResponse(HttpResponse $res, string $wpSetupToken): array|Response
+    {
         // Handle network errors.
         if ($res->isError()) {
             return $this->failure(
@@ -206,9 +230,6 @@ final class SetupController
                         $this->tokenService->store($token, $expiresAt, $data['tenant'] ?? null);
                         $this->tokenService->storeCreatedVia('setup');
 
-                        // Wipe per-nonce row; keep per-email for OTP-resend reference.
-                        $store->consumeByNonce($nonce);
-
                         return ['next' => 'connected', 'has_workspace' => true];
                     } catch (Throwable) {
                         $this->tokenService->clear();
@@ -235,9 +256,6 @@ final class SetupController
                     );
                 }
 
-                // Per-nonce row is no longer needed once the handshake completed.
-                $store->consumeByNonce($nonce);
-
                 return [
                     'next' => 'check_inbox',
                     'email_masked' => is_string($data['email_masked'] ?? null) ? $data['email_masked'] : null,
@@ -247,13 +265,7 @@ final class SetupController
 
             // Branch A: existing email, redirect to Connect.
             if ($responseStatus === 'use_connect_flow') {
-                $connectUrl = $data['connect_url'] ?? null;
-                if ($connectUrl) {
-                    // Wipe per-nonce row.
-                    $store->consumeByNonce($nonce);
-
-                    return ['next' => 'redirect_connect', 'connect_url' => $connectUrl, 'has_workspace' => false];
-                }
+                return $this->redirectToConnect();
             }
         }
 
@@ -271,16 +283,11 @@ final class SetupController
                 $subCode = $this->extractProofSubCode($body['errors'] ?? null);
                 $message = $this->mapProofErrorMessage($subCode);
 
-                // Wipe per-nonce row.
-                $store->consumeByNonce($nonce);
-
                 return $this->failure(['next' => 'failed', 'code' => $subCode, 'message' => $message], 422);
             }
 
             // Proof host mismatch.
             if ($errorCode === 'INVALID_PROOF_HOST') {
-                $store->consumeByNonce($nonce);
-
                 return $this->failure(
                     ['next' => 'failed', 'code' => 'invalid_proof_host', 'message' => 'Site URL host mismatch.'],
                     422
@@ -289,8 +296,6 @@ final class SetupController
         }
 
         // Generic error response.
-        $store->consumeByNonce($nonce);
-
         return $this->failure(
             ['next' => 'failed', 'code' => 'unknown_error', 'message' => 'An unexpected error occurred.'],
             500
@@ -399,6 +404,25 @@ final class SetupController
             'email_verified' => (bool) ($data['email_verified'] ?? false),
             'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
         ];
+    }
+
+    /**
+     * Hand the wizard a locally issued connect URL, or a storage failure when no state could be persisted.
+     *
+     * @return array<string, mixed>|Response
+     */
+    private function redirectToConnect(): array|Response
+    {
+        try {
+            $connectUrl = $this->connectService->createConnectUrl();
+        } catch (ConnectStateException) {
+            return $this->failure(
+                ['next' => 'failed', 'code' => 'storage_failed', 'message' => 'Failed to start the connect flow.'],
+                500
+            );
+        }
+
+        return ['next' => 'redirect_connect', 'connect_url' => $connectUrl, 'has_workspace' => false];
     }
 
     /**

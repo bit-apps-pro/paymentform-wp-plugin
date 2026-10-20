@@ -9,12 +9,14 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Controllers\SetupController;
 use PaymentForm\HTTP\Requests\SetupRequest;
 use PaymentForm\Providers\ServiceContainer;
+use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\Http\HttpTransport;
 use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use PaymentForm\Tests\Support\InteractsWithWpKit;
+use PaymentForm\Tests\Support\IssuesConnectState;
 use PaymentForm\Tests\Support\SeedsServiceContainer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -31,13 +33,17 @@ use WpHttpMock;
 class SetupControllerTest extends TestCase
 {
     use InteractsWithWpKit;
+    use IssuesConnectState;
     use SeedsServiceContainer;
 
     private const VALID_PARAMS = ['email' => 'admin@example.com', 'country' => 'US'];
     private const PENDING_TRANSIENT_KEY = 'paymentform_setup_pending_1';
     private const EXPIRES_AT = '2026-07-08T09:43:46+00:00';
+    private const SETUP_OPTION_PREFIX = 'paymentform_setup_';
 
     private TokenService $tokenService;
+
+    private ConnectService $connectService;
 
     protected function setUp(): void
     {
@@ -45,6 +51,7 @@ class SetupControllerTest extends TestCase
         WpHttpMock::reset();
         $this->resetWpKitResponse();
         $this->tokenService = new TokenService(new EncryptionService());
+        $this->connectService = new ConnectService();
     }
 
     protected function tearDown(): void
@@ -60,6 +67,7 @@ class SetupControllerTest extends TestCase
         $this->seedContainer([
             SetupApiClient::class => new SetupApiClient(new HttpTransport(Config::apiBaseUrl())),
             TokenService::class => $tokenService,
+            ConnectService::class => $this->connectService,
         ]);
 
         return new SetupController();
@@ -319,34 +327,92 @@ class SetupControllerTest extends TestCase
         );
     }
 
-    public function test_handle_redirects_to_connect_for_existing_account(): void
-    {
-        WpHttpMock::queue(200, ['data' => [
-            'status' => 'use_connect_flow',
-            'connect_url' => 'https://app.paymentform.io/connect?x=1',
-        ]]);
-
-        $result = $this->handleSetup();
-
-        $this->assertSame(
-            [
-                'next' => 'redirect_connect',
-                'connect_url' => 'https://app.paymentform.io/connect?x=1',
-                'has_workspace' => false,
-            ],
-            $result
-        );
-    }
-
-    public function test_handle_use_connect_flow_without_url_falls_through_to_unknown_error(): void
+    public function test_handle_redirects_to_locally_issued_connect_url_for_existing_account(): void
     {
         WpHttpMock::queue(200, ['data' => ['status' => 'use_connect_flow']]);
 
         $result = $this->handleSetup();
 
-        $this->assertInstanceOf(Response::class, $result);
-        $this->assertSame(500, Response::getHttpStatusCode());
-        $this->assertSame('unknown_error', Response::getCode());
+        $this->assertSame('redirect_connect', $result['next']);
+        $this->assertFalse($result['has_workspace']);
+        $this->assertStringStartsWith(Config::appBaseUrl() . '/connect?', $result['connect_url']);
+
+        $params = $this->connectUrlParams($result['connect_url']);
+        $this->assertSame('http://example.test/paymentform/callback', $params['callback_url']);
+        $this->assertSame(1, $this->connectService->consumeState($params['state']));
+    }
+
+    public function test_handle_use_connect_flow_returns_storage_failed_when_state_cannot_be_persisted(): void
+    {
+        WpHttpMock::queue(200, ['data' => ['status' => 'use_connect_flow']]);
+        $GLOBALS['wpdb']->insertFails = true;
+
+        $result = $this->handleSetup();
+
+        $this->assertFailure($result, 500, [
+            'next' => 'failed',
+            'code' => 'storage_failed',
+            'message' => 'Failed to start the connect flow.',
+        ]);
+    }
+
+    public function test_handle_ignores_backend_supplied_connect_url(): void
+    {
+        $backendUrl = 'https://app.paymentform.io/connect?x=1';
+        WpHttpMock::queue(200, ['data' => ['status' => 'use_connect_flow', 'connect_url' => $backendUrl]]);
+
+        $result = $this->handleSetup();
+
+        $this->assertNotSame($backendUrl, $result['connect_url']);
+        $this->assertArrayHasKey('state', $this->connectUrlParams($result['connect_url']));
+    }
+
+    // ---------------------------------------------------------------
+    // handle() — setup option row lifecycle
+    // ---------------------------------------------------------------
+
+    public static function setupOutcomeProvider(): array
+    {
+        return [
+            'transport error' => [null],
+            'connected' => [[200, ['data' => [
+                'status' => 'connected',
+                'token' => 'access-token',
+                'expires_at' => self::EXPIRES_AT,
+            ]]]],
+            'check_inbox' => [[200, ['data' => ['status' => 'check_inbox']]]],
+            'use_connect_flow' => [[200, ['data' => ['status' => 'use_connect_flow']]]],
+            'proof failed' => [[422, ['error_code' => 'PROOF_FAILED', 'errors' => ['proof_timeout']]]],
+            'feature disabled' => [[503, ['error_code' => 'FEATURE_DISABLED']]],
+            'unexpected status' => [[500, ['error' => 'boom']]],
+        ];
+    }
+
+    /** @param array{0: int, 1: array<string, mixed>}|null $response null queues a transport error */
+    #[DataProvider('setupOutcomeProvider')]
+    public function test_handle_keeps_setup_row_during_backend_call_and_deletes_it_after(?array $response): void
+    {
+        $response === null ? WpHttpMock::queueError('timeout') : WpHttpMock::queue(...$response);
+
+        $this->handleSetup();
+
+        $atCallTime = $this->setupOptionNames(end(WpHttpMock::$calls)['option_names']);
+        $this->assertCount(1, $atCallTime);
+        $this->assertStringStartsWith(self::SETUP_OPTION_PREFIX . 'by_nonce_', $atCallTime[0]);
+        $this->assertSame([], $this->setupOptionNames(array_keys(\TestWpFunctions::optionRows())));
+    }
+
+    /**
+     * @param list<string> $names
+     *
+     * @return list<string>
+     */
+    private function setupOptionNames(array $names): array
+    {
+        return array_values(array_filter(
+            $names,
+            static fn (string $name): bool => str_starts_with($name, self::SETUP_OPTION_PREFIX)
+        ));
     }
 
     // ---------------------------------------------------------------

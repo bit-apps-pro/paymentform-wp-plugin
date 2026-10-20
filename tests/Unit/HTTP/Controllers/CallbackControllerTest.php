@@ -11,6 +11,7 @@ use PaymentForm\Services\EncryptionService;
 use PaymentForm\Services\Http\HttpTransport;
 use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\TokenService;
+use PaymentForm\Tests\Support\IssuesConnectState;
 use PaymentForm\Tests\Support\MockWpRestRequest;
 use PHPUnit\Framework\TestCase;
 use RedirectException;
@@ -18,6 +19,8 @@ use WpHttpMock;
 
 class CallbackControllerTest extends TestCase
 {
+    use IssuesConnectState;
+
     private ConnectService $connectService;
     private TokenService $tokenService;
     private EncryptionService $encryption;
@@ -73,9 +76,41 @@ class CallbackControllerTest extends TestCase
         $this->controller()->handle($req);
     }
 
+    public function test_handle_rejects_non_hex_state_without_lookup(): void
+    {
+        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
+            'code' => 'auth-code',
+            'state' => str_repeat('z', 64),
+        ]);
+
+        try {
+            $this->controller()->handle($req);
+            $this->fail('Expected a redirect.');
+        } catch (RedirectException $e) {
+            $this->assertStringContainsString('error=MISSING_PARAMS', $e->location);
+            $this->assertSame([], $GLOBALS['wpdb']->queryLog);
+            $this->assertSame([], \TestWpFunctions::getOptionApiCalls());
+        }
+    }
+
+    public function test_handle_redirect_sends_no_cache_headers(): void
+    {
+        $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
+            'code' => 'auth-code',
+            'state' => bin2hex(random_bytes(32)),
+        ]);
+
+        try {
+            $this->controller()->handle($req);
+            $this->fail('Expected a redirect.');
+        } catch (RedirectException) {
+            $this->assertSame(1, \TestWpFunctions::getNocacheHeadersSent());
+        }
+    }
+
     public function test_handle_exchange_failure_redirects_with_error(): void
     {
-        $state = $this->connectService->generateState();
+        $state = $this->issueConnectState($this->connectService);
         WpHttpMock::queue(400, ['error_code' => 'INVALID_EXCHANGE_CODE']);
 
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
@@ -91,7 +126,7 @@ class CallbackControllerTest extends TestCase
 
     public function test_handle_successful_exchange_stores_token_and_webhook_secret_then_redirects(): void
     {
-        $state = $this->connectService->generateState();
+        $state = $this->issueConnectState($this->connectService);
         WpHttpMock::queue(200, [
             'status' => true,
             'data' => [
@@ -123,7 +158,7 @@ class CallbackControllerTest extends TestCase
     {
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => '',
-            'state' => $this->connectService->generateState(),
+            'state' => $this->issueConnectState($this->connectService),
         ]);
 
         $this->expectException(RedirectException::class);
@@ -136,7 +171,7 @@ class CallbackControllerTest extends TestCase
     {
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [
             'code' => str_repeat('a', 129),
-            'state' => $this->connectService->generateState(),
+            'state' => $this->issueConnectState($this->connectService),
         ]);
 
         $this->expectException(RedirectException::class);
@@ -173,7 +208,7 @@ class CallbackControllerTest extends TestCase
 
     public function test_handle_storage_failure_clears_token_and_redirects_with_error(): void
     {
-        $state = $this->connectService->generateState();
+        $state = $this->issueConnectState($this->connectService);
         WpHttpMock::queue(200, [
             'status' => true,
             'data' => [
@@ -203,7 +238,7 @@ class CallbackControllerTest extends TestCase
 
     public function test_handle_drops_attacker_controlled_upstream_value(): void
     {
-        $state = $this->connectService->generateState();
+        $state = $this->issueConnectState($this->connectService);
         WpHttpMock::queue(400, ['error_code' => '<script>alert(1)</script>']);
 
         $req = new MockWpRestRequest('GET', '/paymentform/v1/callback', [

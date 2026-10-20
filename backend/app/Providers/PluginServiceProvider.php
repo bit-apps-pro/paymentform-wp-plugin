@@ -6,7 +6,7 @@ namespace PaymentForm\Providers;
 
 use PaymentForm\Admin\AdminNoticeSuppressor;
 use PaymentForm\Config;
-use PaymentForm\Cron\PurgeExpiredSetupOptions;
+use PaymentForm\Cron\PurgeExpiredFlowOptions;
 use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\SetupProofController;
@@ -128,12 +128,13 @@ final class PluginServiceProvider
         }
     }
 
+    /** Ensure the daily flow-option purge is scheduled and bound to its handler. */
     public function registerCronSchedules(): void
     {
-        if (! wp_next_scheduled('paymentform_setup_purge')) {
-            wp_schedule_event(time(), 'daily', 'paymentform_setup_purge');
+        if (! wp_next_scheduled(PurgeExpiredFlowOptions::HOOK)) {
+            wp_schedule_event(time(), 'daily', PurgeExpiredFlowOptions::HOOK);
         }
-        Hooks::addAction('paymentform_setup_purge', [new PurgeExpiredSetupOptions, 'run']);
+        Hooks::addAction(PurgeExpiredFlowOptions::HOOK, [new PurgeExpiredFlowOptions, 'run']);
     }
 
     public function loadTextdomain(): void

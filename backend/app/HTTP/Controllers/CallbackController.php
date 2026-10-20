@@ -41,7 +41,7 @@ final class CallbackController
 
             return;
         }
-        if (! is_string($state) || $state === '' || strlen($state) !== 64) {
+        if (! is_string($state) || strlen($state) !== 64 || ! ctype_xdigit($state)) {
             $this->redirectWithError(ErrorCode::MISSING_PARAMS);
 
             return;
@@ -148,10 +148,12 @@ final class CallbackController
      * `wp_safe_redirect()` only sets the Location header — the REST dispatcher
      * will otherwise serialise our `void` return as a JSON body and append it
      * to the redirect response. Exit immediately so the redirect contract
-     * holds and nothing else writes to the output stream.
+     * holds and nothing else writes to the output stream. No-cache headers
+     * keep page caches / CDNs from replaying this one-shot front-end 302.
      */
     private function redirect(string $url): void
     {
+        nocache_headers();
         wp_safe_redirect($url);
         exit;
     }

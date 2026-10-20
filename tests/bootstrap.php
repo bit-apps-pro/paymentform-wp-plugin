@@ -47,7 +47,16 @@ class TestWpRole
 class TestWpFunctions
 {
     private static array $options = [];
+    /** @var array<string, string> option name => stored autoload value ('on'/'off', WP 6.6+ semantics) */
+    private static array $autoload = [];
     private static array $transients = [];
+    private static int $nocacheHeadersSent = 0;
+    /** @var list<array{0: string, 1: string}> [function, option name] for every options-API call, in order */
+    private static array $optionApiCalls = [];
+    /** @var list<array{0: string, 1: string}> [group, key] passed to wp_cache_delete(), in order */
+    private static array $cacheDeletes = [];
+    /** @var list<string> hooks passed to wp_clear_scheduled_hook(), in call order */
+    private static array $clearedScheduledHooks = [];
     private static object $currentUser;
     private static array $roles = [];
     private static ?Closure $nonceValidator = null;
@@ -73,7 +82,15 @@ class TestWpFunctions
     public static function reset(): void
     {
         self::$options = [];
+        self::$autoload = [];
         self::$transients = [];
+        self::$nocacheHeadersSent = 0;
+        self::$optionApiCalls = [];
+        self::$cacheDeletes = [];
+        if (($GLOBALS['wpdb'] ?? null) instanceof TestWpDb) {
+            $GLOBALS['wpdb']->reset();
+        }
+        self::$clearedScheduledHooks = [];
         self::$currentUser = (object) ['ID' => 1, 'user_login' => 'test_user'];
         self::$roles = ['administrator' => new TestWpRole()];
         self::$nonceValidator = null;
@@ -185,19 +202,92 @@ class TestWpFunctions
             return false;
         }
         self::$options[$option] = $value;
+        self::$autoload[$option] = in_array($autoload, ['yes', 'on'], true) ? 'on' : 'off';
         return true;
     }
 
     public static function updateOption(string $option, mixed $value, bool $autoload = true): bool
     {
         self::$options[$option] = $value;
+        self::$autoload[$option] = $autoload ? 'on' : 'off';
         return true;
     }
 
+    /** Mirrors delete_option(): false when the option did not exist (single-use consumption relies on it). */
     public static function deleteOption(string $option): bool
     {
-        unset(self::$options[$option]);
+        $existed = array_key_exists($option, self::$options);
+        unset(self::$options[$option], self::$autoload[$option]);
+        return $existed;
+    }
+
+    /** @return array<string, array{value: mixed, autoload: string}> stored options in insertion (option_id) order */
+    public static function optionRows(): array
+    {
+        $rows = [];
+        foreach (self::$options as $name => $value) {
+            $rows[$name] = ['value' => $value, 'autoload' => self::$autoload[$name] ?? 'on'];
+        }
+        return $rows;
+    }
+
+    /** Records a get_option()/add_option()/update_option()/delete_option() call. */
+    public static function recordOptionApiCall(string $function, string $option): void
+    {
+        self::$optionApiCalls[] = [$function, $option];
+    }
+
+    /** @return list<array{0: string, 1: string}> */
+    public static function getOptionApiCalls(): array
+    {
+        return self::$optionApiCalls;
+    }
+
+    /** Stores a row as a raw $wpdb->insert() would; false when the name already exists. */
+    public static function insertOptionRow(string $option, mixed $value, string $autoload): bool
+    {
+        if (array_key_exists($option, self::$options)) {
+            return false;
+        }
+        self::$options[$option] = $value;
+        self::$autoload[$option] = $autoload;
         return true;
+    }
+
+    /** Records a wp_cache_delete() call. */
+    public static function cacheDelete(string $key, string $group): void
+    {
+        self::$cacheDeletes[] = [$group, $key];
+    }
+
+    /** @return list<array{0: string, 1: string}> */
+    public static function getCacheDeletes(): array
+    {
+        return self::$cacheDeletes;
+    }
+
+    /** Records a nocache_headers() call. */
+    public static function sendNocacheHeaders(): void
+    {
+        self::$nocacheHeadersSent++;
+    }
+
+    /** Number of nocache_headers() calls since reset. */
+    public static function getNocacheHeadersSent(): int
+    {
+        return self::$nocacheHeadersSent;
+    }
+
+    /** Records a wp_clear_scheduled_hook() call. */
+    public static function clearScheduledHook(string $hook): void
+    {
+        self::$clearedScheduledHooks[] = $hook;
+    }
+
+    /** @return list<string> */
+    public static function getClearedScheduledHooks(): array
+    {
+        return self::$clearedScheduledHooks;
     }
 
     public static function setTransient(string $transient, mixed $value, int $expiration = 0): bool
@@ -336,6 +426,7 @@ class TestWpFunctions
 if (!function_exists('get_option')) {
     function get_option(string $option, mixed $default = false): mixed
     {
+        TestWpFunctions::recordOptionApiCall('get_option', $option);
         return TestWpFunctions::getOption($option, $default);
     }
 }
@@ -343,6 +434,7 @@ if (!function_exists('get_option')) {
 if (!function_exists('update_option')) {
     function update_option(string $option, mixed $value, bool|null $autoload = null): bool
     {
+        TestWpFunctions::recordOptionApiCall('update_option', $option);
         return TestWpFunctions::updateOption($option, $value, $autoload ?? true);
     }
 }
@@ -350,6 +442,7 @@ if (!function_exists('update_option')) {
 if (!function_exists('add_option')) {
     function add_option(string $option, mixed $value, string $deprecated = '', string $autoload = 'yes'): bool
     {
+        TestWpFunctions::recordOptionApiCall('add_option', $option);
         return TestWpFunctions::addOption($option, $value, $deprecated, $autoload);
     }
 }
@@ -357,6 +450,7 @@ if (!function_exists('add_option')) {
 if (!function_exists('delete_option')) {
     function delete_option(string $option): bool
     {
+        TestWpFunctions::recordOptionApiCall('delete_option', $option);
         return TestWpFunctions::deleteOption($option);
     }
 }
@@ -843,7 +937,7 @@ class WpHttpMock
     /** @var array<int, array{response: array{code: int}, headers: array<string, string>, body: string}> */
     public static array $queue = [];
 
-    /** @var array<int, array{url: string, args: array<string, mixed>}> */
+    /** @var array<int, array{url: string, args: array<string, mixed>, option_names: list<string>}> option_names = options stored when the request was sent */
     public static array $calls = [];
 
     public static function reset(): void
@@ -868,7 +962,7 @@ class WpHttpMock
 
     public static function pop(string $url, array $args): mixed
     {
-        self::$calls[] = ['url' => $url, 'args' => $args];
+        self::$calls[] = ['url' => $url, 'args' => $args, 'option_names' => array_keys(TestWpFunctions::optionRows())];
 
         if (self::$queue === []) {
             return ['response' => ['code' => 500], 'headers' => [], 'body' => ''];
@@ -1004,6 +1098,47 @@ if (!function_exists('wp_json_encode')) {
     }
 }
 
+if (!function_exists('nocache_headers')) {
+    function nocache_headers(): void
+    {
+        TestWpFunctions::sendNocacheHeaders();
+    }
+}
+
+if (!function_exists('wp_clear_scheduled_hook')) {
+    function wp_clear_scheduled_hook(string $hook, array $args = [], bool $wp_error = false): int|false
+    {
+        TestWpFunctions::clearScheduledHook($hook);
+        return 0;
+    }
+}
+
+if (!function_exists('maybe_serialize')) {
+    function maybe_serialize(mixed $data): mixed
+    {
+        return is_array($data) || is_object($data) ? serialize($data) : $data;
+    }
+}
+
+if (!function_exists('wp_cache_delete')) {
+    function wp_cache_delete(int|string $key, string $group = ''): bool
+    {
+        TestWpFunctions::cacheDelete((string) $key, $group);
+        return true;
+    }
+}
+
+if (!function_exists('maybe_unserialize')) {
+    function maybe_unserialize(mixed $data): mixed
+    {
+        if (!is_string($data)) {
+            return $data;
+        }
+        $value = @unserialize($data, ['allowed_classes' => false]);
+        return ($value !== false || $data === 'b:0;') ? $value : $data;
+    }
+}
+
 if (!function_exists('wp_parse_args')) {
     function wp_parse_args(mixed $args, array $defaults = []): array
     {
@@ -1019,19 +1154,151 @@ if (!function_exists('wp_parse_args')) {
     }
 }
 
-// Mock WordPress database
+// Mock WordPress database backed by TestWpFunctions' option store. Understands
+// just enough SQL for the plugin's option sweeps: `option_name LIKE '…'`
+// predicates, an optional `autoload = '…'` filter, and `LIMIT n`.
 class TestWpDb
 {
     public array $queryLog = [];
 
+    /** When true, insert() fails as a DB write error would. */
+    public bool $insertFails = false;
+
+    /** Clears per-test state (called from TestWpFunctions::reset()). */
+    public function reset(): void
+    {
+        $this->queryLog = [];
+        $this->insertFails = false;
+    }
+
+    /** Inserts an option row; 1 on success, false on duplicate name or forced failure. */
+    public function insert(string $table, array $data, array $format = []): int|false
+    {
+        if ($this->insertFails) {
+            return false;
+        }
+        $inserted = TestWpFunctions::insertOptionRow(
+            $data['option_name'],
+            maybe_unserialize($data['option_value']),
+            $data['autoload'] ?? 'on'
+        );
+        return $inserted ? 1 : false;
+    }
+
+    /** Deletes the option row named in $where; returns the affected count. */
+    public function delete(string $table, array $where, array $format = []): int|false
+    {
+        return TestWpFunctions::deleteOption($where['option_name']) ? 1 : 0;
+    }
+
+    /** Returns the serialized option_value for an `option_name = '…'` lookup, or null when absent. */
+    public function get_var(string $query): ?string
+    {
+        $this->queryLog[] = $query;
+        if (preg_match("/option_name = '((?:[^'\\\\]|\\\\.)*)'/", $query, $m) !== 1) {
+            return null;
+        }
+        $rows = TestWpFunctions::optionRows();
+        $name = stripslashes($m[1]);
+        if (!array_key_exists($name, $rows)) {
+            return null;
+        }
+        return $this->serializeValue($rows[$name]['value']);
+    }
+
+    /** Runs a DELETE against the matching fake option rows; returns the affected count. */
     public function query(string $query): int|false
     {
         $this->queryLog[] = $query;
-        // Simulate successful DELETE
-        if (stripos($query, 'DELETE') === 0) {
-            return 1;
+        if (stripos($query, 'DELETE') !== 0) {
+            return false;
         }
-        return false;
+        $names = $this->matchingOptionNames($query);
+        foreach ($names as $name) {
+            TestWpFunctions::deleteOption($name);
+        }
+        return count($names);
+    }
+
+    /** Returns matching option rows as objects carrying option_name / serialized option_value. */
+    public function get_results(string $query): array
+    {
+        $this->queryLog[] = $query;
+        $rows = TestWpFunctions::optionRows();
+
+        return array_map(
+            fn (string $name): object => (object) [
+                'option_name' => $name,
+                'option_value' => $this->serializeValue($rows[$name]['value']),
+            ],
+            $this->matchingOptionNames($query)
+        );
+    }
+
+    /** Mirrors wpdb::esc_like(). */
+    public function esc_like(string $text): string
+    {
+        return addcslashes($text, '_%\\');
+    }
+
+    /** Minimal wpdb::prepare(): substitutes %s (quoted, escaped) and %d placeholders in order. */
+    public function prepare(string $query, mixed ...$args): string
+    {
+        return preg_replace_callback('/%[sd]/', static function (array $m) use (&$args): string {
+            $arg = array_shift($args);
+            return $m[0] === '%d' ? (string) (int) $arg : "'" . addslashes((string) $arg) . "'";
+        }, $query);
+    }
+
+    /** Serializes a stored value the way it sits in the option_value column. */
+    private function serializeValue(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : serialize($value);
+    }
+
+    /** @return list<string> option names matched by the query's LIKE / autoload / LIMIT clauses */
+    private function matchingOptionNames(string $query): array
+    {
+        preg_match_all("/option_name LIKE '((?:[^'\\\\]|\\\\.)*)'/", $query, $likes);
+        if ($likes[1] === []) {
+            return [];
+        }
+        $regexes = array_map(fn (string $literal): string => $this->likeToRegex(stripslashes($literal)), $likes[1]);
+        $autoload = preg_match("/autoload\\s*=\\s*'([^']*)'/", $query, $m) === 1 ? $m[1] : null;
+        $limit = preg_match('/LIMIT (\\d+)/', $query, $m) === 1 ? (int) $m[1] : PHP_INT_MAX;
+
+        $names = [];
+        foreach (TestWpFunctions::optionRows() as $name => $row) {
+            if ($autoload !== null && $row['autoload'] !== $autoload) {
+                continue;
+            }
+            foreach ($regexes as $regex) {
+                if (preg_match($regex, $name) === 1) {
+                    $names[] = $name;
+                    break;
+                }
+            }
+        }
+        return array_slice($names, 0, $limit);
+    }
+
+    /** Converts a SQL LIKE pattern (backslash escape) to an anchored PCRE. */
+    private function likeToRegex(string $pattern): string
+    {
+        $regex = '';
+        for ($i = 0, $n = strlen($pattern); $i < $n; $i++) {
+            $char = $pattern[$i];
+            if ($char === '\\' && $i + 1 < $n) {
+                $regex .= preg_quote($pattern[++$i], '/');
+            } elseif ($char === '%') {
+                $regex .= '.*';
+            } elseif ($char === '_') {
+                $regex .= '.';
+            } else {
+                $regex .= preg_quote($char, '/');
+            }
+        }
+        return '/^' . $regex . '$/s';
     }
 }
 

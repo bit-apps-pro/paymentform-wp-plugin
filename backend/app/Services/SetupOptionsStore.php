@@ -7,36 +7,34 @@ namespace PaymentForm\Services;
 use PaymentForm\Config;
 
 /**
- * Helper for storing and retrieving setup-flow transient state (nonce rows,
- * per-email pending state) via WP options with embedded TTL enforcement.
+ * Stores the per-nonce setup row that the backend's synchronous proof
+ * handshake (/paymentform/setup-proof) looks up while /auth/setup or
+ * /auth/setup/diagnose is in flight.
  *
- * IMPORTANT: autoload=no is required to prevent option-table bloat when
- * thousands of stale setup rows accumulate. The daily cron cleanup
- * (PurgeExpiredSetupOptions) removes rows older than 7 days; individual
- * read operations also auto-purge on-the-fly if expires_at < time().
+ * Rows are non-autoloaded options with an embedded expires_at. Callers delete
+ * the row once their backend call returns; reads auto-purge expired rows and
+ * the daily {@see \PaymentForm\Cron\PurgeExpiredFlowOptions} sweep removes any
+ * left behind by aborted requests.
  *
- * The PREFIX constants are bare (no `paymentform_`); {@see Config} prepends
- * VAR_PREFIX so the stored option names stay `paymentform_setup_*`.
+ * The prefix is bare (no `paymentform_`); {@see Config} prepends VAR_PREFIX so
+ * the stored option names are `paymentform_setup_by_nonce_*`.
  */
 final class SetupOptionsStore
 {
-    private const PER_NONCE_PREFIX = 'setup_by_nonce_';
-    private const PER_EMAIL_PREFIX = 'setup_pending_';
+    public const PER_NONCE_PREFIX = 'setup_by_nonce_';
 
     /**
-     * Persist both a per-nonce row (consumed at handshake) and a per-email row
-     * (used by OTP-resend flow to find the setup context later).
+     * Persist the setup row under its nonce.
      *
      * @param  array<string, mixed>  $row
      */
-    public function put(string $nonce, array $row, string $emailMd5): void
+    public function put(string $nonce, array $row): void
     {
         Config::updateOption(self::PER_NONCE_PREFIX . $nonce, $row);
-        Config::updateOption(self::PER_EMAIL_PREFIX . $emailMd5, $row);
     }
 
     /**
-     * Retrieve by nonce with inline expiry check.
+     * Retrieve the row for a nonce, purging and rejecting it when expired.
      *
      * @return array<string, mixed>|null
      */
@@ -47,30 +45,8 @@ final class SetupOptionsStore
             return null;
         }
 
-        // Auto-purge expired rows on read.
         if (!isset($row['expires_at']) || (int) $row['expires_at'] < time()) {
             Config::deleteOption(self::PER_NONCE_PREFIX . $nonce);
-            return null;
-        }
-
-        return $row;
-    }
-
-    /**
-     * Retrieve by email MD5 hash with inline expiry check.
-     *
-     * @return array<string, mixed>|null
-     */
-    public function getByEmail(string $emailMd5): ?array
-    {
-        $row = Config::getOption(self::PER_EMAIL_PREFIX . $emailMd5, false);
-        if ($row === false || !is_array($row)) {
-            return null;
-        }
-
-        // Auto-purge expired rows on read.
-        if (!isset($row['expires_at']) || (int) $row['expires_at'] < time()) {
-            Config::deleteOption(self::PER_EMAIL_PREFIX . $emailMd5);
             return null;
         }
 
@@ -83,6 +59,6 @@ final class SetupOptionsStore
      */
     public function consumeByNonce(string $nonce): bool
     {
-        return Config::deleteOption(self::PER_NONCE_PREFIX . $nonce) !== false;
+        return Config::deleteOption(self::PER_NONCE_PREFIX . $nonce);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymentForm\Tests\Unit;
 
 use PaymentForm\Activation\Deactivator;
+use PaymentForm\Cron\PurgeExpiredFlowOptions;
 use PHPUnit\Framework\TestCase;
 
 class DeactivatorTest extends TestCase
@@ -14,10 +15,10 @@ class DeactivatorTest extends TestCase
         \TestWpFunctions::reset();
     }
 
-    public function test_deactivate_does_not_error(): void
+    public function test_deactivate_unschedules_flow_option_purge(): void
     {
-        // MVP deactivator is a no-op
         Deactivator::deactivate();
-        $this->assertTrue(true);
+
+        $this->assertSame([PurgeExpiredFlowOptions::HOOK], \TestWpFunctions::getClearedScheduledHooks());
     }
 }
