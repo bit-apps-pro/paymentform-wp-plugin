@@ -398,10 +398,22 @@ final class SetupController
             return ['next' => 'connected', 'has_workspace' => true, 'email_verified' => true];
         }
 
+        // The email owner denied this site on the verify-link page; the setup is over.
+        if ($responseStatus === 'denied') {
+            delete_transient($this->pendingTransientKey($userId));
+
+            return [
+                'next' => 'failed',
+                'code' => 'setup_denied',
+                'message' => 'The email owner denied access to this site. Start over to try again.',
+            ];
+        }
+
         // Still pending — wizard keeps polling.
         return [
             'next' => 'check_inbox',
             'email_verified' => (bool) ($data['email_verified'] ?? false),
+            'authorized' => (bool) ($data['authorized'] ?? false),
             'provisioning' => is_string($data['provisioning'] ?? null) ? $data['provisioning'] : 'pending',
         ];
     }

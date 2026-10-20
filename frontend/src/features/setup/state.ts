@@ -12,6 +12,9 @@ export type WizardStep =
   | 'success'
   | 'failed';
 
+/** Failure code the status poll reports when the email owner denies this site. */
+export const SETUP_DENIED_CODE = 'setup_denied';
+
 export interface WizardState {
   step: WizardStep;
   country: string;
@@ -53,7 +56,8 @@ export type WizardAction =
   | { type: 'provisioning-check-start' }
   | { type: 'provisioning-check-success'; hasWorkspace: boolean }
   | { type: 'provisioning-check-pending' }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | { type: 'change-email' };
 
 const initialState: WizardState = {
   step: 'diagnose',
@@ -167,16 +171,19 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
       return { ...state, step: 'check_inbox' };
 
     case 'reset':
-      return {
-        ...initialState,
-        country: state.country, // Preserve country selection
-        locale: state.locale,
-        step: 'country', // Go back to country, skipping diagnose
-      };
+      return restart(state, 'country');
+
+    case 'change-email':
+      return restart(state, 'email_override');
 
     default:
       return state;
   }
+}
+
+/** Fresh wizard state opened at `step`, keeping the chosen country and locale and skipping diagnose. */
+function restart(state: WizardState, step: WizardStep): WizardState {
+  return { ...initialState, country: state.country, locale: state.locale, step };
 }
 
 export function useWizard(initialEmail: string = '', defaultCountry: string = '') {

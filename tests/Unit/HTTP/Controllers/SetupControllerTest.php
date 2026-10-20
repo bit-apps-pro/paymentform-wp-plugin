@@ -628,6 +628,21 @@ class SetupControllerTest extends TestCase
         $this->assertFalse(get_transient(self::PENDING_TRANSIENT_KEY));
     }
 
+    public function test_status_reports_a_denied_setup_and_drops_transient(): void
+    {
+        $this->stashPendingSetupToken();
+        WpHttpMock::queue(200, ['data' => ['status' => 'denied']]);
+
+        $result = $this->pollStatus();
+
+        $this->assertSame([
+            'next' => 'failed',
+            'code' => 'setup_denied',
+            'message' => 'The email owner denied access to this site. Start over to try again.',
+        ], $result);
+        $this->assertFalse(get_transient(self::PENDING_TRANSIENT_KEY));
+    }
+
     public static function finalizeFailureStatusProvider(): array
     {
         return [
@@ -720,12 +735,12 @@ class SetupControllerTest extends TestCase
     {
         return [
             'explicit fields' => [
-                ['data' => ['status' => 'pending', 'email_verified' => true, 'provisioning' => 'ready']],
-                ['next' => 'check_inbox', 'email_verified' => true, 'provisioning' => 'ready'],
+                ['data' => ['status' => 'pending', 'email_verified' => true, 'authorized' => true, 'provisioning' => 'ready']],
+                ['next' => 'check_inbox', 'email_verified' => true, 'authorized' => true, 'provisioning' => 'ready'],
             ],
             'defaults when fields absent' => [
                 ['data' => []],
-                ['next' => 'check_inbox', 'email_verified' => false, 'provisioning' => 'pending'],
+                ['next' => 'check_inbox', 'email_verified' => false, 'authorized' => false, 'provisioning' => 'pending'],
             ],
         ];
     }

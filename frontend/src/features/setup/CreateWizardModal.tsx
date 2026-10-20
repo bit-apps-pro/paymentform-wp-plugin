@@ -2,7 +2,7 @@ import { Modal, Flex, Typography, theme } from 'antd';
 import { useEffect, useRef } from 'react';
 import { __ } from '../../lib/i18n';
 import { defaultCountry } from '../../lib/countries';
-import { useWizard } from './state';
+import { SETUP_DENIED_CODE, useWizard } from './state';
 import { useSetup } from './queries';
 import { WizardCountryStep } from './WizardCountryStep';
 import { WizardEmailOverrideStep } from './WizardEmailOverrideStep';
@@ -10,6 +10,7 @@ import { WizardDiagnoseStep } from './WizardDiagnoseStep';
 import { WizardCheckInboxStep } from './WizardCheckInboxStep';
 import { WizardSuccessStep } from './WizardSuccessStep';
 import { WizardFailedStep } from './WizardFailedStep';
+import { WizardDeniedStep } from './WizardDeniedStep';
 import { wpModuleData } from '../../utils/wpData';
 import type { ApiError } from '../../lib/request/types';
 
@@ -113,7 +114,9 @@ export function CreateWizardModal({ open, onClose }: Props) {
       case 'success':
         return __('Success!', 'paymentform');
       case 'failed':
-        return __('Something went wrong', 'paymentform');
+        return state.failureCode === SETUP_DENIED_CODE
+          ? __('Access denied', 'paymentform')
+          : __('Something went wrong', 'paymentform');
       default:
         return '';
     }
@@ -179,7 +182,11 @@ export function CreateWizardModal({ open, onClose }: Props) {
           <WizardSuccessStep state={state} onClose={onClose} />
         )}
 
-        {state.step === 'failed' && (
+        {state.step === 'failed' && state.failureCode === SETUP_DENIED_CODE && (
+          <WizardDeniedStep dispatch={dispatch} />
+        )}
+
+        {state.step === 'failed' && state.failureCode !== SETUP_DENIED_CODE && (
           <WizardFailedStep state={state} dispatch={dispatch} />
         )}
       </Flex>

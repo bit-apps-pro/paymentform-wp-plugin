@@ -53,6 +53,7 @@ export interface ResendOtpResponse {
 export interface SetupStatusResponse {
   next: 'connected' | 'check_inbox' | 'failed';
   email_verified?: boolean;
+  authorized?: boolean;
   provisioning?: 'pending' | 'ready' | 'failed';
   has_workspace?: boolean;
   code?: string;

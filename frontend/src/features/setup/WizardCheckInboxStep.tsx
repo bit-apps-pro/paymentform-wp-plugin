@@ -46,6 +46,16 @@ export function WizardCheckInboxStep({ state, dispatch }: Props) {
     }
   }, [statusData?.next, statusData?.has_workspace, state.hasWorkspace, dispatch]);
 
+  useEffect(() => {
+    if (statusData?.next === 'failed') {
+      dispatch({
+        type: 'fail',
+        code: statusData.code ?? 'setup_failed',
+        message: statusData.message ?? __('Setup failed. Start over to try again.', 'paymentform'),
+      });
+    }
+  }, [statusData?.next, statusData?.code, statusData?.message, dispatch]);
+
   // Countdown timer for resend
   useEffect(() => {
     if (resendCountdown <= 0) return;
@@ -64,6 +74,8 @@ export function WizardCheckInboxStep({ state, dispatch }: Props) {
           type: 'verify-otp-success',
           hasWorkspace: result.data?.has_workspace ?? state.hasWorkspace,
         });
+      } else if (result.data?.email_verified && !result.data.authorized) {
+        message.info(__('Approve this site on the page that opened from the email link.', 'paymentform'));
       } else if (result.data?.email_verified) {
         message.info(__('Still finishing the workspace setup — hang tight.', 'paymentform'));
       } else {
