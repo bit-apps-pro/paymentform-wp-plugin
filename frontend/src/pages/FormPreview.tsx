@@ -15,7 +15,7 @@ const PREVIEW_MIN_HEIGHT_PX = 420;
 export function FormPreview() {
   const { formId = '' } = useParams<{ formId: string }>();
   const { data: forms } = useFormsList();
-  const [device, setDevice] = useState<PreviewDevice>('mobile');
+  const [device, setDevice] = useState<PreviewDevice>('desktop');
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
 
   const title = forms?.find((form) => form.id === formId)?.name ?? __('Preview', 'paymentform');
