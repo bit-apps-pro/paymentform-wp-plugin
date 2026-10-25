@@ -6,6 +6,12 @@ import { connectionPill, expectSuccessEnvelope, gotoPluginPage, isRestResponse }
  * contract on the two REST reads the page performs (/status and /forms).
  */
 test('plugin page shows Connected and lists Donation via enveloped REST', async ({ page }) => {
+  const pageErrors: string[] = [];
+  const entryLoads: string[] = [];
+  page.on('pageerror', (err) => pageErrors.push(err.message));
+  page.on('console', (msg) => msg.type() === 'error' && pageErrors.push(msg.text()));
+  page.on('request', (req) => /\/assets\/admin\.js(\?|$)/.test(req.url()) && entryLoads.push(req.url()));
+
   const statusPromise = page.waitForResponse((r) => isRestResponse(r, 'status'));
   const formsPromise = page.waitForResponse((r) => isRestResponse(r, 'forms'));
 
@@ -29,4 +35,8 @@ test('plugin page shows Connected and lists Donation via enveloped REST', async 
   await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
   // The workspace may hold several forms titled "Donation"; any one proves the list rendered.
   await expect(page.getByRole('cell', { name: 'Donation', exact: true }).first()).toBeVisible();
+
+  // A second (query-less) admin.js instance would boot the app twice with a split router context.
+  expect(entryLoads).toHaveLength(1);
+  expect(pageErrors).toEqual([]);
 });

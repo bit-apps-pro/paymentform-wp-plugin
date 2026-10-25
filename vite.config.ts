@@ -342,6 +342,11 @@ export default defineConfig({
         chunkFileNames: '[name]-[hash].js',
         assetFileNames: '[name][extname]',
         format: 'es',
+        // Lazy chunks must never import from an entry: WP loads entries as `<name>.js?ver=…`,
+        // so a bare `./admin.js` import would evaluate a second module instance.
+        codeSplitting: {
+          groups: [{ name: 'preload-helper', test: /vite\/preload-helper/ }],
+        },
       },
     },
     sourcemap: false,
