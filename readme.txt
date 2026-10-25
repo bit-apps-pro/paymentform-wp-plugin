@@ -32,23 +32,31 @@ Yes. Forms are created and payments are processed on PaymentForm.io; this plugin
 
 == External services ==
 
-This plugin relies on the PaymentForm.io service to connect your site and display your forms.
+This plugin relies on the PaymentForm.io service, operated by PaymentForm.io, to connect your site and display your forms. Nothing is sent before you open the plugin's setup or connect screens.
 
-* **PaymentForm API (`api.paymentform.io`)**: used when you connect the site and whenever the admin pages or the block editor list your forms. It receives your site URL, the email address you enter during setup, the verification code sent to that address, and the site's connection token.
-* **PaymentForm app (`app.paymentform.io`)**: opened when you sign in or connect the site from the admin page.
-* **Form pages (`<your-workspace>.paymentform.io`)**: embedded forms load from your workspace's subdomain whenever a visitor views a page containing a form. Payment details entered into a form go directly to PaymentForm.io and its payment processors, never through your WordPress site.
+* **PaymentForm API (`api.paymentform.io`)**
+    * When you open the account-setup wizard, it asks the API to check that your site is reachable. This sends your site URL, a one-time setup token and the address of the site's setup-proof endpoint.
+    * When you create an account from the wizard, it sends the email address you enter, your country, your site language, your site URL, the setup token and the setup-proof address. The verification code you then type is sent to confirm the email address, and you can ask for it to be resent.
+    * When you connect an existing account, the one-time code returned by PaymentForm.io is exchanged for a connection token, along with your site URL.
+    * While connected, the admin pages and the block editor send the connection token to read your account details and list your forms. The token is refreshed automatically before it expires. Opening the PaymentForm dashboard from the plugin requests a one-time sign-in link.
+    * When you disconnect, the connection token is revoked.
+* **PaymentForm app (`app.paymentform.io`)**: opened in your browser when you sign in, connect the site or open the dashboard from the admin page.
+* **Form pages (`<your-workspace>.paymentform.io`)**: embedded forms load from your workspace's subdomain whenever a visitor views a page containing a form, and only while the site is connected. Payment details entered into a form go directly to PaymentForm.io and its payment processors, never through your WordPress site.
+* **Requests from PaymentForm.io to your site**: during setup PaymentForm.io calls `/paymentform/setup-proof` on your site to confirm you control it, after connecting it redirects you back to `/paymentform/callback`, and it may send signed event notifications to `/paymentform/webhook`.
 
-Terms of Service: TODO
-Privacy Policy: TODO
+Terms of Service: https://paymentform.io/terms-conditions/
+Privacy Policy: https://paymentform.io/privacy-policy/
 
 == Source Code ==
 
-The admin interface ships as compiled, minified JavaScript in `assets/`. The human-readable source and build tooling are available at https://github.com/Bit-Apps-Pro/paymentform-wp-plugin.
+The admin interface and blocks ship as compiled, minified JavaScript in `assets/`. Their human-readable source and build configuration are included in this plugin (`frontend/`, `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `vite.config.ts`) and are also available at https://github.com/Bit-Apps-Pro/paymentform-wp-plugin.
 
 To rebuild the assets from source:
 
 1. Install Node.js 24 and pnpm 11.
 2. Run `pnpm install`, then `pnpm build`.
+
+Licenses of bundled third-party code are listed in `licenses/`.
 
 == Changelog ==
 

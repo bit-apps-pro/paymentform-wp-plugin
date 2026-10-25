@@ -331,6 +331,8 @@ export default defineConfig({
     // build — correct, since `assets/` is generated-only.
     outDir: '../assets',
     emptyOutDir: true,
+    // Bundled third-party license texts; minified output drops their notices.
+    license: { fileName: 'licenses/javascript.md' },
     rollupOptions: {
       input: {
         admin: resolve(__dirname, 'frontend/src/main.tsx'),

@@ -7,7 +7,8 @@
 #   2. Stage the shipped source-of-truth in a throwaway temp dir.
 #   3. Run `composer install --no-dev` in the stage so vendored deps are
 #      production-only and re-prefixed (imposter) into $STAGE/vendor.
-#   4. Zip the stage with a top-level `paymentform/` dir (the WP plugin slug).
+#   4. Prune dev-only files from vendor/, collect third-party licenses.
+#   5. Zip the stage with a top-level `paymentform/` dir (the WP plugin slug).
 #
 # The repo's own vendor/ is never touched (dev deps such as PHPUnit stay intact).
 #
@@ -59,20 +60,31 @@ cleanup() { rm -rf "$STAGE_PARENT"; }
 trap cleanup EXIT
 
 echo "==> Staging shipped source-of-truth in $STAGE"
-# Copy ONLY what ships; anything not listed is excluded.
+# Copy ONLY what ships; anything not listed is excluded. The frontend source and
+# build config ship too: WordPress.org requires human-readable source for assets/.
 SHIPPED=(
     assets
     backend
     paymentform.php
     readme.txt
     composer.json
+    composer.lock
+    frontend
+    package.json
+    pnpm-lock.yaml
+    tsconfig.json
+    vite.config.ts
 )
 for item in "${SHIPPED[@]}"; do
     if [[ ! -e "$ROOT/$item" ]]; then
         echo "package.sh: required artifact '$item' is missing from the repo" >&2
         exit 1
     fi
-    cp -R "$ROOT/$item" "$STAGE/$item"
+    rsync -a \
+        --exclude=node_modules --exclude=e2e --exclude='__tests__' \
+        --exclude='*.test.ts' --exclude='*.test.tsx' --exclude=vitest.setup.ts \
+        --exclude=.env --exclude=port --exclude='.*' \
+        "$ROOT/$item" "$STAGE/"
 done
 
 echo "==> Installing production composer dependencies in the stage"
@@ -89,11 +101,28 @@ if [[ ! -f "$STAGE/vendor/autoload.php" ]]; then
     exit 1
 fi
 
-echo "==> Pruning build-only imposter plugin from the stage"
-# Prefixing is already baked into the autoloader and dep files, so imposter's
-# own source is dead weight at runtime. Delete the dir only -- regenerating the
+echo "==> Pruning build-only and dev files from the stage vendor/"
+# Prefixing is already baked into the autoloader and dep files, so imposter
+# is dead weight at runtime. Delete the dirs only -- regenerating the
 # autoloader now (without imposter) would undo the prefixing.
-rm -rf "$STAGE/vendor/typisttech/imposter-plugin"
+rm -rf "$STAGE/vendor/typisttech"
+# WordPress.org rejects hidden files; tests and tool configs never run in production.
+find "$STAGE/vendor" -mindepth 3 \( -type d \( -name '.*' -o -name tests -o -name test \) \) -prune -exec rm -rf {} +
+find "$STAGE/vendor" -mindepth 3 -type f \( -name '.*' -o -name 'phpunit.xml*' -o -name 'phpcs.xml*' \
+    -o -name rector.php -o -name captainhook.json -o -name lefthook.yml \) -delete
+
+echo "==> Collecting third-party licenses"
+LICENSES="$STAGE/licenses"
+mkdir -p "$LICENSES"
+composer licenses --no-dev --working-dir="$STAGE" > "$LICENSES/php.txt"
+mv "$STAGE/assets/licenses/javascript.md" "$LICENSES/javascript.md"
+rmdir "$STAGE/assets/licenses"
+
+if find "$STAGE" -name '.*' -print -quit | grep -q .; then
+    echo "package.sh: hidden files remain in the stage:" >&2
+    find "$STAGE" -name '.*' >&2
+    exit 1
+fi
 
 echo "==> Zipping artifact to $OUT"
 # Top-level dir inside the zip MUST be `paymentform/` (the WP plugin slug).
