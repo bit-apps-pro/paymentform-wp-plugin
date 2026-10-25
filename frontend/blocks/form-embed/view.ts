@@ -24,12 +24,12 @@ const MAX_EMBED_HEIGHT_PX = 10000;
  *
  * Block path: read the Script Module Data JSON tag emitted by WP.
  * Shortcode path: fall back to `window.paymentformView` (classic
- * `wp_localize_script`). Final fallback: the canonical public renderer.
+ * `wp_localize_script`). Null when neither carries a host (site not connected).
  *
  * Kept value-import-free (only DOM globals) so this module works identically as
  * both a classic script (shortcode) and a Script Module (block view).
  */
-function readViewConfig(): { rendererBaseUrl: string } {
+function readViewConfig(): { rendererBaseUrl: string } | null {
   const el = document.querySelector(
     `script[type="application/json"][id^="${VIEW_MODULE_DATA_ID_PREFIX}"]`,
   );
@@ -40,10 +40,11 @@ function readViewConfig(): { rendererBaseUrl: string } {
         return { rendererBaseUrl: parsed.rendererBaseUrl };
       }
     } catch {
-      /* fall through to the window/default fallback */
+      /* fall through to the classic-global fallback */
     }
   }
-  return window.paymentformView ?? { rendererBaseUrl: 'https://render.paymentform.io' };
+  const classic = window.paymentformView?.rendererBaseUrl;
+  return classic ? { rendererBaseUrl: classic } : null;
 }
 
 /**
@@ -72,6 +73,8 @@ function applyScrollableFallback(iframe: HTMLIFrameElement): void {
 /** Replaces every `.paymentform-embed` placeholder with an auto-sizing renderer iframe. */
 export function bootBlockView(): void {
   const cfg = readViewConfig();
+  // No connected workspace means no known renderer host: leave placeholders empty.
+  if (!cfg) return;
   const rendererOrigin = new URL(cfg.rendererBaseUrl).origin;
 
   document.querySelectorAll<HTMLElement>('.paymentform-embed[data-form-id]').forEach((host) => {

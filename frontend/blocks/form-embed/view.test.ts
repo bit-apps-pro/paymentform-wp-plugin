@@ -8,7 +8,7 @@ import { bootBlockView, buildFormSrc, HEIGHT_FALLBACK_MS } from './view';
  */
 describe('paymentform block view', () => {
   let container: HTMLDivElement;
-  const rendererUrl = 'https://render.paymentform.io';
+  const rendererUrl = 'https://tenant.paymentform.io';
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -62,6 +62,19 @@ describe('paymentform block view', () => {
       expect(iframe?.style.maxWidth).toBe('100%');
       expect(iframe?.style.padding).toBe('0px');
       expect(iframe?.style.colorScheme).toBe('normal');
+    });
+
+    it('leaves the placeholder empty when no renderer host is configured', () => {
+      delete (window as unknown as Record<string, unknown>).paymentformView;
+      const host = document.createElement('div');
+      host.className = 'paymentform-embed';
+      host.dataset.formId = 'form_123';
+      container.appendChild(host);
+
+      bootBlockView();
+
+      expect(host.querySelector('iframe')).toBeNull();
+      expect(host.dataset.paymentformInitialized).toBeUndefined();
     });
 
     it('prefers the script-module-data tag over window.paymentformView', () => {
