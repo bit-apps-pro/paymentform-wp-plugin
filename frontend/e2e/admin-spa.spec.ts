@@ -27,5 +27,6 @@ test('plugin page shows Connected and lists Donation via enveloped REST', async 
   await expect(connectionPill(page)).toHaveText(/^Connected/);
   await expect(page.getByRole('menuitem', { name: 'Forms' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Donation' })).toBeVisible();
+  // The workspace may hold several forms titled "Donation"; any one proves the list rendered.
+  await expect(page.getByRole('cell', { name: 'Donation', exact: true }).first()).toBeVisible();
 });

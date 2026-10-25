@@ -16,12 +16,14 @@ type EditorWindow = Window & {
       getBlockType: (name: string) => unknown;
     };
   };
-  paymentformAdmin?: { restUrl?: string; nonce?: string };
 };
 
+/** Script Module Data tag the PHP side emits for the block editor (see blocks/form-embed/edit.tsx). */
+const EDITOR_MODULE_DATA_ID = 'wp-script-module-data-@paymentform/block-editor';
+
 /**
- * Gutenberg flow: the paymentform/form block can be inserted, the localized
- * REST config is present, and the block's form picker is populated from the
+ * Gutenberg flow: the paymentform/form block can be inserted, the editor
+ * config tag carries the REST nonce, and the block's form picker is populated from the
  * enveloped /forms response (shared request() chunk). The post is never saved.
  */
 test('block editor inserts paymentform/form and loads the Donation option', async ({ page }) => {
@@ -41,16 +43,12 @@ test('block editor inserts paymentform/form and loads the Donation option', asyn
     w.wp?.data.dispatch('core/preferences').set?.('core/edit-post', 'welcomeGuide', false);
   });
 
-  // Localized REST config for the editor (fix "always localize restUrl+nonce").
-  const adminConfig = await page.evaluate(() => {
-    const w = window as EditorWindow;
-    return {
-      restUrl: w.paymentformAdmin?.restUrl ?? '',
-      nonce: w.paymentformAdmin?.nonce ?? '',
-    };
-  });
-  expect(adminConfig.restUrl).toContain('paymentform/v1');
-  expect(adminConfig.nonce).not.toBe('');
+  // Editor config tag carries the REST nonce; apiFetch resolves the REST root itself.
+  const editorNonce = await page.evaluate((id) => {
+    const config = JSON.parse(document.getElementById(id)?.textContent || '{}') as { nonce?: string };
+    return config.nonce ?? '';
+  }, EDITOR_MODULE_DATA_ID);
+  expect(editorNonce).not.toBe('');
 
   // Insert the block programmatically; its Edit component fetches /forms.
   const formsPromise = page.waitForResponse((r) => isRestResponse(r, 'forms'));
@@ -66,5 +64,5 @@ test('block editor inserts paymentform/form and loads the Donation option', asyn
   const canvas = page.frameLocator('iframe[name="editor-canvas"]');
   const formSelect = canvas.locator('[data-type="paymentform/form"] select');
   await expect(formSelect).toBeVisible();
-  await expect(formSelect.locator('option', { hasText: 'Donation' })).toHaveCount(1);
+  await expect(formSelect.locator('option', { hasText: 'Donation' }).first()).toBeAttached();
 });
