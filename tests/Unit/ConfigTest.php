@@ -85,4 +85,28 @@ class ConfigTest extends TestCase
     {
         $this->assertNull(Config::swapAppSubdomain('not-a-url', 'acme'));
     }
+
+    public function test_dev_files_are_ignored_without_the_dev_opt_in(): void
+    {
+        $this->assertFalse(defined('PAYMENTFORM_DEV'));
+        $dir = sys_get_temp_dir() . '/paymentform-config-' . bin2hex(random_bytes(4));
+        mkdir($dir . '/frontend', 0777, true);
+        file_put_contents($dir . '/frontend/.env', "APP_API_BASE_URL=http://localhost:9999\n");
+        file_put_contents($dir . '/frontend/port', '5173');
+        $previous = (new \ReflectionProperty(Config::class, 'pluginFile'))->getValue();
+
+        try {
+            Config::bootstrap($dir . '/paymentform.php');
+
+            $this->assertSame('https://api.paymentform.io', Config::apiBaseUrl());
+            $this->assertFalse(Config::hasDevApiBaseUrl());
+            $this->assertFalse(Config::isDev());
+        } finally {
+            (new \ReflectionProperty(Config::class, 'pluginFile'))->setValue(null, $previous);
+            unlink($dir . '/frontend/.env');
+            unlink($dir . '/frontend/port');
+            rmdir($dir . '/frontend');
+            rmdir($dir);
+        }
+    }
 }

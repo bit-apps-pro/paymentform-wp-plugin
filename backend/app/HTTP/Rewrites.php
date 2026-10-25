@@ -13,6 +13,10 @@ use PaymentForm\Providers\Container;
 use WP;
 use WP_REST_Request;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Front-controller-style rewrite rules so the OAuth callback and incoming
  * webhook can be reached at `/paymentform/{callback,webhook}` instead of
@@ -97,15 +101,17 @@ final class Rewrites
      */
     private function buildRequest(WP $wp): WP_REST_Request
     {
-        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        $method = strtoupper(sanitize_key(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'))));
         $request = new WP_REST_Request($method, '/paymentform/' . $wp->query_vars[self::ROUTE_QUERY_VAR]);
 
+        // phpcs:disable WordPress.Security.NonceVerification -- callback/webhook/setup-proof authenticate by state token or HMAC, not a WP nonce; controllers validate every param.
         foreach (wp_unslash($_GET) as $key => $value) {
             $request->set_param($key, $value);
         }
         foreach (wp_unslash($_POST) as $key => $value) {
             $request->set_param($key, $value);
         }
+        // phpcs:enable WordPress.Security.NonceVerification
 
         $body = file_get_contents('php://input');
         if (is_string($body)) {

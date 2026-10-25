@@ -10,6 +10,10 @@ use PaymentForm\Services\Http\HttpResponse;
 use PaymentForm\Services\SetupApiClient;
 use PaymentForm\Services\SetupOptionsStore;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Pre-flight diagnostic endpoint for the setup flow.
  *

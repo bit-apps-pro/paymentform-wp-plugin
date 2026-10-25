@@ -12,6 +12,10 @@ use PaymentForm\Providers\InstallerProvider;
 use PaymentForm\Providers\PluginServiceProvider;
 use PaymentForm\Providers\ServiceContainer;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Plugin singleton: entrypoint wiring + middleware registry for the wp-kit
  * router. `backend/bootstrap.php` calls {@see load()} at include time.

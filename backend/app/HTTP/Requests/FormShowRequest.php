@@ -7,6 +7,10 @@ namespace PaymentForm\HTTP\Requests;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\HTTP\Requests\Rules\UuidRule;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates the {id} route param for GET /paymentform/v1/forms/{id}. Backend
  * form ids are UUIDs; the previous numeric guard in FormsProxyController was a

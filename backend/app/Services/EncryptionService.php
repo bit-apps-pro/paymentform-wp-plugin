@@ -6,6 +6,10 @@ namespace PaymentForm\Services;
 
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class EncryptionService
 {
     private const ALGO    = 'aes-256-gcm';

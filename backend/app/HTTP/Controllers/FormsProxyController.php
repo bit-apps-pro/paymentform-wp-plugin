@@ -13,6 +13,10 @@ use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\DisconnectedException;
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Proxies the backend `/form` endpoints for the admin SPA + Gutenberg block.
  *

@@ -8,7 +8,6 @@
  * Author URI:  https://paymentform.io
  * License:     GPL-2.0-or-later
  * Text Domain: paymentform
- * Domain Path: /languages
  * Requires PHP: 8.1
  * Requires at least: 6.7
  */

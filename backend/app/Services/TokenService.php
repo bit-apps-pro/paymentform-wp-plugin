@@ -7,6 +7,10 @@ namespace PaymentForm\Services;
 use PaymentForm\Config;
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class TokenService implements TokenServiceInterface
 {
     private const OPTION = 'credentials';

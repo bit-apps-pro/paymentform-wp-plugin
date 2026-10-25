@@ -9,6 +9,10 @@ use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\SetupOptionsStore;
 use PaymentForm\Services\UncachedOptionStore;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Daily sweep of expired setup-nonce / connect-state option rows (each carries
  * an embedded `expires_at`) left behind by aborted flows.

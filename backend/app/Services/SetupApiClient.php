@@ -7,6 +7,10 @@ namespace PaymentForm\Services;
 use PaymentForm\Services\Http\HttpResponse;
 use PaymentForm\Services\Http\HttpTransport;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Unauthenticated HTTP client for the pre-auth setup endpoints
  * (`/auth/setup`, `/auth/setup/finalize`, `/auth/setup/diagnose`,

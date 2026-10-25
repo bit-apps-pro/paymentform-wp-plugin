@@ -6,6 +6,10 @@ namespace PaymentForm\Services;
 
 use PaymentForm\Config;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class TokenRefreshLock
 {
     private const LOCK_OPTION = 'refresh_lock';

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\HTTP;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class Shortcode
 {
     /** Classic script handle that turns `.paymentform-embed` placeholders into iframes. */

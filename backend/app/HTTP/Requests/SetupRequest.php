@@ -7,6 +7,10 @@ namespace PaymentForm\HTTP\Requests;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\HTTP\Requests\Rules\CountryCodeRule;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates the POST /paymentform/v1/setup payload. These rules mirror the
  * hand-rolled input guards that previously lived inline in SetupController;

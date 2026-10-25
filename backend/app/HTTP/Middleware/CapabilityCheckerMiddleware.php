@@ -8,6 +8,10 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\Deps\BitApps\WPKit\Utils\Capabilities;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * wp-kit middleware: enforces a WordPress capability on REST routes.
  *

@@ -7,6 +7,10 @@ namespace PaymentForm\HTTP\Middleware;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * wp-kit middleware: verifies the WordPress REST nonce (`wp_rest` action).
  *

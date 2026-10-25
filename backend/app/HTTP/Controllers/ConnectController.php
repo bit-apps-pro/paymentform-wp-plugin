@@ -11,6 +11,10 @@ use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\ConnectStateException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class ConnectController
 {
     private readonly ConnectService $connectService;

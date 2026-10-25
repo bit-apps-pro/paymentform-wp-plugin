@@ -22,6 +22,10 @@ use PaymentForm\Services\TokenRefreshLock;
 use PaymentForm\Services\TokenService;
 use PaymentForm\Services\WebhookService;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class PluginServiceProvider
 {
     /**
@@ -114,7 +118,6 @@ final class PluginServiceProvider
 
     public function boot(): void
     {
-        Hooks::addAction('init', [$this, 'loadTextdomain']);
         Hooks::addAction('init', [$this, 'registerBlockAndShortcode']);
         Hooks::addAction('init', [$this, 'registerCronSchedules']);
         Hooks::addAction('admin_menu', [$this, 'registerAdminMenu']);
@@ -135,11 +138,6 @@ final class PluginServiceProvider
             wp_schedule_event(time(), 'daily', PurgeExpiredFlowOptions::HOOK);
         }
         Hooks::addAction(PurgeExpiredFlowOptions::HOOK, [new PurgeExpiredFlowOptions, 'run']);
-    }
-
-    public function loadTextdomain(): void
-    {
-        load_plugin_textdomain('paymentform', false, dirname(plugin_basename(Config::pluginFile())).'/languages');
     }
 
     /**
@@ -424,7 +422,9 @@ final class PluginServiceProvider
 
         // Best-effort Cloudflare country hint for the wizard's default country.
         // Absent outside a CF edge → empty string; wizard falls back to its own default.
-        $cfCountry = isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? (string) $_SERVER['HTTP_CF_IPCOUNTRY'] : '';
+        $cfCountry = isset($_SERVER['HTTP_CF_IPCOUNTRY'])
+            ? sanitize_text_field(wp_unslash((string) $_SERVER['HTTP_CF_IPCOUNTRY']))
+            : '';
         if (! preg_match('/^[A-Z]{2}$/', $cfCountry)) {
             $cfCountry = '';
         }

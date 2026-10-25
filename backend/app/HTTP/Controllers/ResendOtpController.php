@@ -9,6 +9,10 @@ use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\SetupApiClient;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * POST /setup/resend-otp — re-send the verification code for the deferred-token
  * setup flow.

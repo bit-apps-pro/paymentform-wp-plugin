@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace PaymentForm\Activation;
 
+use PaymentForm\Config;
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class Activator
 {
+    /** Grant the manage capability and schedule a rewrite flush for the next request. */
     public static function activate(): void
     {
         if (is_multisite()) {
@@ -19,7 +26,8 @@ final class Activator
             $role->add_cap('paymentform_manage');
         }
 
-        // Flush rewrite rules to register REST endpoints
-        flush_rewrite_rules();
+        // Activation runs after plugins_loaded, so the rules aren't registered yet;
+        // clearing the marker makes Rewrites::maybeFlush() flush on the next init.
+        Config::deleteOption('rewrite_rules_version');
     }
 }

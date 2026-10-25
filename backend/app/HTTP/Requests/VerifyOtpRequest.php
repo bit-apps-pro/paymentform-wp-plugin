@@ -6,6 +6,10 @@ namespace PaymentForm\HTTP\Requests;
 
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates the POST /paymentform/v1/setup/verify-otp payload. Mirrors the
  * six-digit guard that previously lived inline in VerifyOtpController; wp-kit

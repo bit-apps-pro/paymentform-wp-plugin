@@ -14,6 +14,10 @@ use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\DisconnectedException;
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * POST /paymentform/v1/login-link — mints a one-time dashboard SSO login link.
  *
@@ -85,7 +89,7 @@ final class LoginLinkController
      */
     private static function originOf(string $url): ?string
     {
-        $parts = parse_url($url);
+        $parts = wp_parse_url($url);
         if (! is_array($parts) || ! in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host'])) {
             return null;
         }

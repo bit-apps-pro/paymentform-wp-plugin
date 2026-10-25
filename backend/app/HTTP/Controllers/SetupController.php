@@ -18,6 +18,10 @@ use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use Throwable;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * REST controller for POST /paymentform/v1/setup — orchestrates the
  * Create-new-account flow per §4.4.

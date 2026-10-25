@@ -6,6 +6,10 @@ namespace PaymentForm\HTTP\Requests\Rules;
 
 use PaymentForm\Deps\BitApps\WPValidator\Rule;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates an ISO 3166-1 alpha-2 country code: exactly two uppercase ASCII
  * letters. wp-validator has no `regex`/`alpha` rule, and `size:2`+`uppercase`

@@ -6,6 +6,10 @@ namespace PaymentForm\HTTP\Requests\Rules;
 
 use PaymentForm\Deps\BitApps\WPValidator\Rule;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates a dashboard redirect path for the SSO login-link flow (spec §L1).
  *

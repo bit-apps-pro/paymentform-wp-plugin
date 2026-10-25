@@ -10,6 +10,10 @@ use PaymentForm\Deps\BitApps\WPKit\Http\RequestType;
 use PaymentForm\Deps\BitApps\WPKit\Http\Router\Router;
 use PaymentForm\Plugin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Wires the wp-kit REST router.
  *
@@ -45,9 +49,11 @@ final class HookProvider
 
         $routeFile = Config::pluginDir() . 'backend/hooks/api.php';
         if (!is_readable($routeFile)) {
-            // Fail closed (no routes → REST 404s) but leave an operational
-            // trace; a silent return here makes a broken deployment invisible.
-            error_log('PaymentForm: REST route file missing: ' . $routeFile);
+            // Fail closed (no routes → REST 404s); leave a trace when debugging.
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-only diagnostics; output would corrupt redirect/JSON responses.
+                error_log('PaymentForm: REST route file missing: ' . $routeFile);
+            }
             return;
         }
 

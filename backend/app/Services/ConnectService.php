@@ -6,6 +6,10 @@ namespace PaymentForm\Services;
 
 use PaymentForm\Config;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Issues and redeems the single-use OAuth-style `state` for the Connect flow.
  *

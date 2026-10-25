@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Providers;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class ServiceContainer
 {
     private static ?Container $instance = null;

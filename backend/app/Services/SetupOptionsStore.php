@@ -6,6 +6,10 @@ namespace PaymentForm\Services;
 
 use PaymentForm\Config;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Stores the per-nonce setup row that the backend's synchronous proof
  * handshake (/paymentform/setup-proof) looks up while /auth/setup or

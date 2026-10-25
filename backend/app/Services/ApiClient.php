@@ -8,6 +8,10 @@ use PaymentForm\Services\Http\HttpResponse;
 use PaymentForm\Services\Http\HttpTransport;
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Token-aware HTTP client that drives the shared {@see HttpTransport} adapter
  * (wp-kit `HttpClient` under the hood, which itself rides the site's own
@@ -67,7 +71,7 @@ final class ApiClient
         );
 
         if ($response->isError()) {
-            throw new RuntimeException('REFRESH_FAILED: ' . $response->error->get_error_message());
+            throw new RuntimeException('REFRESH_FAILED: ' . esc_html($response->error->get_error_message()));
         }
 
         // Refresh historically did not check the HTTP status — it only decoded
@@ -115,7 +119,7 @@ final class ApiClient
         $response = $this->http->send($method, $effectivePath, $headers, json: $json, body: $body, timeoutSeconds: $timeout);
 
         if ($response->isError()) {
-            throw new RuntimeException('API_REQUEST_FAILED: ' . $response->error->get_error_message());
+            throw new RuntimeException('API_REQUEST_FAILED: ' . esc_html($response->error->get_error_message()));
         }
 
         $status = $response->status;
@@ -130,8 +134,8 @@ final class ApiClient
 
         throw new RuntimeException(sprintf(
             'API_ERROR_%d: %s',
-            $status,
-            $this->truncate($response->rawBody),
+            (int) $status,
+            esc_html($this->truncate($response->rawBody)),
         ));
     }
 
@@ -193,7 +197,8 @@ final class ApiClient
 
     private function truncate(string $body): string
     {
-        return strlen($body) > 500 ? substr($body, 0, 500) . '…' : $body;
+        // Character-based so a cut never splits a multibyte char (esc_html blanks invalid UTF-8).
+        return mb_strlen($body) > 500 ? mb_substr($body, 0, 500) . '…' : $body;
     }
 }
 

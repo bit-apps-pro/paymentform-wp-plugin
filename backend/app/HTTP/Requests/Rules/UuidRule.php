@@ -6,6 +6,10 @@ namespace PaymentForm\HTTP\Requests\Rules;
 
 use PaymentForm\Deps\BitApps\WPValidator\Rule;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates a canonical RFC 4122 UUID string (case-insensitive). Any
  * version/variant is accepted — backend form ids are UUIDs and we only need to

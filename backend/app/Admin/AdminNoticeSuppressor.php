@@ -6,6 +6,10 @@ namespace PaymentForm\Admin;
 
 use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Clears third-party admin notices on the PaymentForm admin screen so they cannot push the SPA out of view.
  */

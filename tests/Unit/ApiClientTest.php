@@ -85,6 +85,16 @@ class ApiClientTest extends TestCase
         $this->client()->request('GET', '/data');
     }
 
+    public function test_long_multibyte_error_body_is_truncated_without_losing_the_message(): void
+    {
+        WpHttpMock::queue(502, str_repeat('é', 600));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('API_ERROR_502: ' . str_repeat('é', 500) . '…');
+
+        $this->client()->request('GET', '/data');
+    }
+
     public function test_no_token_throws(): void
     {
         \TestWpFunctions::reset();

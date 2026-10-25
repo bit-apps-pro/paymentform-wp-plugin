@@ -6,6 +6,10 @@ namespace PaymentForm\Services;
 
 use InvalidArgumentException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Direct `$wpdb` access to wp_options rows that must bypass the options API.
  *
@@ -24,6 +28,7 @@ final class UncachedOptionStore
     {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- bypasses the options API by design (see class docblock).
         $inserted = $wpdb->insert(
             $wpdb->options,
             ['option_name' => $name, 'option_value' => maybe_serialize($value), 'autoload' => self::AUTOLOAD_OFF],
@@ -38,6 +43,7 @@ final class UncachedOptionStore
     {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one-shot rows must not touch the options cache (see class docblock).
         $raw = $wpdb->get_var(
             $wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", $name)
         );
@@ -50,6 +56,7 @@ final class UncachedOptionStore
     {
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- bypasses the options API by design (see class docblock).
         $deleted = (int) $wpdb->delete($wpdb->options, ['option_name' => $name], ['%s']);
         wp_cache_delete($name, 'options');
 
@@ -66,10 +73,17 @@ final class UncachedOptionStore
     {
         global $wpdb;
 
+        $patterns = $this->likePatterns($prefixes);
+        $where = self::likeClauses(count($patterns));
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is only `option_name LIKE %s` placeholders, bound by prepare().
         $rows = $wpdb->get_results(
-            "SELECT option_name, option_value FROM {$wpdb->options} WHERE " . $this->prefixFilter($prefixes)
-            . $wpdb->prepare(' ORDER BY option_id ASC LIMIT %d', $limit)
+            $wpdb->prepare(
+                "SELECT option_name, option_value FROM {$wpdb->options} WHERE {$where} ORDER BY option_id ASC LIMIT %d",
+                ...[...$patterns, $limit]
+            )
         );
+        // phpcs:enable
 
         $values = [];
         foreach ($rows as $row) {
@@ -88,15 +102,23 @@ final class UncachedOptionStore
     {
         global $wpdb;
 
-        return (int) $wpdb->query("DELETE FROM {$wpdb->options} WHERE " . $this->prefixFilter($prefixes));
+        $patterns = $this->likePatterns($prefixes);
+        $where = self::likeClauses(count($patterns));
+
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $where is only `option_name LIKE %s` placeholders, bound by prepare().
+        $deleted = $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE {$where}", ...$patterns));
+        // phpcs:enable
+
+        return (int) $deleted;
     }
 
     /**
-     * Prepared `(option_name LIKE … OR …)` predicate with LIKE wildcards in the prefixes escaped.
+     * LIKE patterns matching names that start with each prefix, wildcards escaped.
      *
      * @param  list<string>  $prefixes
+     * @return list<string>
      */
-    private function prefixFilter(array $prefixes): string
+    private function likePatterns(array $prefixes): array
     {
         global $wpdb;
 
@@ -104,9 +126,12 @@ final class UncachedOptionStore
             throw new InvalidArgumentException('At least one option-name prefix is required.');
         }
 
-        $patterns = array_map(static fn (string $prefix): string => $wpdb->esc_like($prefix) . '%', $prefixes);
-        $clauses = array_fill(0, count($patterns), 'option_name LIKE %s');
+        return array_map(static fn (string $prefix): string => $wpdb->esc_like($prefix) . '%', $prefixes);
+    }
 
-        return $wpdb->prepare('(' . implode(' OR ', $clauses) . ')', ...$patterns);
+    /** `(option_name LIKE %s OR …)` with one placeholder per pattern. */
+    private static function likeClauses(int $count): string
+    {
+        return '(' . implode(' OR ', array_fill(0, $count, 'option_name LIKE %s')) . ')';
     }
 }

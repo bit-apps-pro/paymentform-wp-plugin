@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Services;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 interface TokenServiceInterface
 {
     public function get(): ?string;

@@ -7,6 +7,10 @@ namespace PaymentForm\HTTP\Requests;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\HTTP\Requests\Rules\RedirectPathRule;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Validates the POST /paymentform/v1/login-link payload (SSO login-link mint).
  *

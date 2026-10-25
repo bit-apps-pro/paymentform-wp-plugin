@@ -12,6 +12,10 @@ use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class StatusController
 {
     private readonly TokenServiceInterface $tokenService;

@@ -7,6 +7,10 @@ namespace PaymentForm\HTTP\Controllers;
 use PaymentForm\Services\SetupOptionsStore;
 use WP_REST_Request;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * HTTP-01-style proof-of-control handler for the setup flow.
  *
@@ -139,7 +143,7 @@ final class SetupProofController
      */
     private function normalizeUrl(string $url): string
     {
-        $parts = parse_url($url);
+        $parts = wp_parse_url($url);
         if ($parts === false) {
             return rtrim(strtolower($url), '/');
         }

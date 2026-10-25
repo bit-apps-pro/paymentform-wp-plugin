@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Plugin-level config accessor. Replaces ad-hoc `define()` globals so internal
  * code depends on namespaced lookups instead of polluting the global table.
@@ -160,7 +164,7 @@ final class Config
      */
     public static function swapAppSubdomain(string $url, string $subdomain): ?string
     {
-        $parts = parse_url($url);
+        $parts = wp_parse_url($url);
         if (!is_array($parts) || empty($parts['host']) || !str_starts_with((string) $parts['host'], 'app.')) {
             return null;
         }
@@ -176,12 +180,16 @@ final class Config
      * Development override for an upstream URL, read from `frontend/.env` — the
      * same `APP_*` vars the Vite dev server consumes. Returns the value when the
      * key is present and non-empty, null otherwise so the caller falls back to
-     * its production `DEFAULT_*` constant. The frontend source (and thus `.env`)
-     * never ships in the built plugin, so this is always null in production.
+     * its production `DEFAULT_*` constant. Only honoured when the site opts in
+     * via {@see devModeEnabled()}, so a stray `.env` can never repoint a live site.
      * Parsed once per request.
      */
     private static function devOverride(string $key): ?string
     {
+        if (!self::devModeEnabled()) {
+            return null;
+        }
+
         if (self::$devEnv === null) {
             self::$devEnv = self::parseEnvFile(self::pluginDir() . 'frontend/.env');
         }
@@ -223,10 +231,17 @@ final class Config
      * on boot and removes it on shutdown (see vite.config.ts,
      * setDevServerConfig). The file's presence means "serve the admin SPA
      * from the dev server with HMR" instead of the built `assets/` bundle.
+     * Requires the {@see devModeEnabled()} opt-in.
      */
     public static function isDev(): bool
     {
-        return is_readable(self::pluginDir() . 'frontend/port');
+        return self::devModeEnabled() && is_readable(self::pluginDir() . 'frontend/port');
+    }
+
+    /** Development tooling opt-in: `define('PAYMENTFORM_DEV', true);` in wp-config.php. */
+    private static function devModeEnabled(): bool
+    {
+        return defined('PAYMENTFORM_DEV') && PAYMENTFORM_DEV === true;
     }
 
     /**

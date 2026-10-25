@@ -9,6 +9,10 @@ use PaymentForm\HTTP\Requests\VerifyOtpRequest;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\SetupApiClient;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * POST /setup/verify-otp — the wizard's manual code-entry fallback for the
  * deferred-token setup flow.

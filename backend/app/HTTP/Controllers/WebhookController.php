@@ -9,6 +9,10 @@ use PaymentForm\Services\TokenServiceInterface;
 use PaymentForm\Services\WebhookService;
 use WP_REST_Response;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class WebhookController
 {
     public function __construct(
@@ -33,6 +37,7 @@ final class WebhookController
 
         if ($reason !== null) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-only diagnostics; output would corrupt redirect/JSON responses.
                 error_log('[paymentform][webhook] ' . $reason);
             }
             return new WP_REST_Response([

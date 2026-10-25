@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Services;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class WebhookService
 {
     private const FRESHNESS_WINDOW = 300; // 5 minutes: reject timestamps older than this

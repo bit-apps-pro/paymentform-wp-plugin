@@ -11,6 +11,10 @@ use PaymentForm\Services\TokenService;
 use PaymentForm\Services\TokenServiceInterface;
 use RuntimeException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class DisconnectController
 {
     private readonly TokenServiceInterface $tokenService;

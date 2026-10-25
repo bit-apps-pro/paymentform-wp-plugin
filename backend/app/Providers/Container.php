@@ -8,6 +8,10 @@ use ArrayAccess;
 use InvalidArgumentException;
 use OutOfBoundsException;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Minimal lazy-singleton DI container. Replaces the abandoned Pimple package
  * with ~30 lines of vanilla PHP. Each binding is a factory closure invoked at
@@ -33,7 +37,7 @@ final class Container implements ArrayAccess
             throw new InvalidArgumentException('Container keys must be non-empty strings.');
         }
         if (! is_callable($value)) {
-            throw new InvalidArgumentException(sprintf('Binding for "%s" must be callable.', $offset));
+            throw new InvalidArgumentException(sprintf('Binding for "%s" must be callable.', esc_html($offset)));
         }
 
         $this->factories[$offset] = $value;
@@ -43,7 +47,7 @@ final class Container implements ArrayAccess
     public function offsetGet(mixed $offset): mixed
     {
         if (! is_string($offset) || ! isset($this->factories[$offset])) {
-            throw new OutOfBoundsException(sprintf('Container has no binding for "%s".', (string) $offset));
+            throw new OutOfBoundsException(sprintf('Container has no binding for "%s".', esc_html(is_string($offset) ? $offset : get_debug_type($offset))));
         }
 
         return $this->instances[$offset] ??= ($this->factories[$offset])($this);

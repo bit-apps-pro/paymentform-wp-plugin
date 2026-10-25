@@ -8,6 +8,10 @@ use JsonException;
 use PaymentForm\Deps\BitApps\WPKit\Http\Client\HttpClient;
 use WP_Error;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Thin adapter over the vendored wp-kit {@see HttpClient}, the plugin's single
  * outbound HTTP transport. It normalizes the client's quirks back into the

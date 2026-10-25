@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PaymentForm\Enums;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Symbolic error codes emitted by the plugin's WP REST endpoints + bubbled
  * up from the upstream paymentform API. Keep values in UPPER_SNAKE so they

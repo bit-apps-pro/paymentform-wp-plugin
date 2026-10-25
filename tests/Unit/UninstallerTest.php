@@ -55,6 +55,17 @@ class UninstallerTest extends TestCase
         $this->assertSame(['paymentform_settings', 'other_plugin_setup_x'], array_keys(\TestWpFunctions::optionRows()));
     }
 
+    public function test_uninstall_deletes_version_markers(): void
+    {
+        update_option('paymentform_version', '0.1.0');
+        update_option('paymentform_rewrite_rules_version', '2');
+
+        Uninstaller::uninstall();
+
+        $this->assertFalse(get_option('paymentform_version'));
+        $this->assertFalse(get_option('paymentform_rewrite_rules_version'));
+    }
+
     public function test_uninstall_unschedules_flow_option_purge(): void
     {
         Uninstaller::uninstall();

@@ -12,6 +12,10 @@ use PaymentForm\Services\TokenServiceInterface;
 use Throwable;
 use WP_REST_Request;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 final class CallbackController
 {
     /**
@@ -161,6 +165,7 @@ final class CallbackController
     private function debugLog(string $context, string $detail): void
     {
         if (defined('WP_DEBUG') && WP_DEBUG) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-only diagnostics; output would corrupt redirect/JSON responses.
             error_log(sprintf('[paymentform] %s: %s', $context, $detail));
         }
     }

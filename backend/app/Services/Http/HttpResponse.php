@@ -6,6 +6,10 @@ namespace PaymentForm\Services\Http;
 
 use WP_Error;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Immutable, normalized result of an {@see HttpTransport::send()} call.
  *
