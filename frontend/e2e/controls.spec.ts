@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { gotoPluginPage, mockWorkspace } from './helpers';
 
 const CONTROL_HEIGHT_PX = 42;
-const STATUS_LABELS = ['All statuses', 'Enabled', 'Draft'];
+const STATUS_LABELS = ['All statuses', 'Enabled', 'Disabled'];
 
 /** Vertical gap between the select's selected-label text and its chevron centres. */
 async function selectLabelOffset(page: Page): Promise<number> {

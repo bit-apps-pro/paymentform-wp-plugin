@@ -49,7 +49,6 @@ export function FormsToolbar({
             { label: __('All statuses', 'paymentform'), value: 'all' },
             { label: __('Enabled', 'paymentform'), value: 'enabled' },
             { label: __('Disabled', 'paymentform'), value: 'disabled' },
-            { label: __('Draft', 'paymentform'), value: 'draft' },
           ]}
         />
         <Button
