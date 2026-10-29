@@ -5,7 +5,7 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.1",
-        "bitapps/wp-kit": "^2.4",
+        "bitapps/wp-kit": "^2.5",
         "typisttech/imposter-plugin": "^0.6.2"
     },
     "require-dev": {
@@ -21,7 +21,10 @@
     "autoload-dev": {
         "psr-4": {
             "PaymentForm\\Tests\\": "tests/"
-        }
+        },
+        "exclude-from-classmap": [
+            "tests/bootstrap.php"
+        ]
     },
     "scripts": {
         "lint": "phpcs --standard=WordPress backend/",
