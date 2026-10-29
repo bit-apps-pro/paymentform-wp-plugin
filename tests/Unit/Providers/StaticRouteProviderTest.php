@@ -46,6 +46,12 @@ final class StaticRouteProviderTest extends TestCase
         \TestWpFunctions::reset();
     }
 
+    /** Drops the main-request WP object a test installed. */
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['wp']);
+    }
+
     public function test_registers_exactly_the_expected_route_table(): void
     {
         $actual = array_map(
@@ -153,6 +159,48 @@ final class StaticRouteProviderTest extends TestCase
         (new StaticRouteProvider())->mapQueryRoute($wp);
 
         $this->assertSame('sample-page', $wp->request);
+    }
+
+    #[DataProvider('routePaths')]
+    public function test_suppresses_canonical_redirect_for_route_urls(string $path): void
+    {
+        new StaticRouteProvider();
+        $this->setRequestPath($path);
+
+        $this->assertFalse(apply_filters('redirect_canonical', 'https://example.test/paymentform-demo/'));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function routePaths(): iterable
+    {
+        yield 'route root' => ['paymentform'];
+        yield 'wrong-method route' => ['paymentform/webhook'];
+        yield 'unknown route' => ['paymentform/nope/'];
+    }
+
+    #[DataProvider('otherPaths')]
+    public function test_keeps_canonical_redirect_for_other_pages(string $path): void
+    {
+        new StaticRouteProvider();
+        $this->setRequestPath($path);
+
+        $this->assertSame('https://example.test/about/', apply_filters('redirect_canonical', 'https://example.test/about/'));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function otherPaths(): iterable
+    {
+        yield 'other page' => ['about'];
+        yield 'lookalike slug' => ['paymentform-demo'];
+        yield 'front page' => [''];
+    }
+
+    /** Sets the path WP parsed for the main request. */
+    private function setRequestPath(string $path): void
+    {
+        $wp = new \WP();
+        $wp->request = $path;
+        $GLOBALS['wp'] = $wp;
     }
 
     /** Builds a front-page request carrying the route query var. */

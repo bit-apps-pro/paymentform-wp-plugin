@@ -37,6 +37,17 @@ final class StaticRouteProvider
 
         Hooks::addFilter('query_vars', [$this, 'addRouteQueryVar']);
         Hooks::addAction('parse_request', [$this, 'mapQueryRoute'], self::QUERY_ROUTE_PRIORITY);
+        Hooks::addFilter('redirect_canonical', [$this, 'skipCanonicalRedirect']);
+    }
+
+    /** Stops WP's 404 slug guess from 301-ing unmatched route URLs (bare /paymentform, GET on the webhook) to a lookalike post. */
+    public function skipCanonicalRedirect(mixed $redirectUrl): mixed
+    {
+        // The parsed path, not query vars: WP resolves a missing page's slug as a post `name`.
+        $path = ($GLOBALS['wp'] ?? null) instanceof WP ? trim((string) $GLOBALS['wp']->request, '/') : '';
+        $isRouteUrl = $path === StaticRoutes::PAGE_NAME || str_starts_with($path, StaticRoutes::PAGE_NAME . '/');
+
+        return $isRouteUrl ? false : $redirectUrl;
     }
 
     /**
