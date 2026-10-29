@@ -100,6 +100,8 @@ if [[ ! -f "$STAGE/vendor/autoload.php" ]]; then
     echo "package.sh: composer did not produce vendor/autoload.php in the stage" >&2
     exit 1
 fi
+# The lock only pins the install above; the shipped vendor/ is its result.
+rm -f "$STAGE/composer.lock"
 
 echo "==> Pruning build-only and dev files from the stage vendor/"
 # Prefixing is already baked into the autoloader and dep files, so imposter
