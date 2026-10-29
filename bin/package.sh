@@ -13,7 +13,7 @@
 # The repo's own vendor/ is never touched (dev deps such as PHPUnit stay intact).
 #
 # Usage: bin/package.sh [output-zip-path]
-#   output-zip-path defaults to $ROOT/paymentform-<version>.zip (version = readme.txt Stable tag)
+#   output-zip-path defaults to $ROOT/build/paymentform-<version>.zip (version = readme.txt Stable tag)
 #
 # Non-interactive, idempotent, CI-friendly.
 
@@ -33,8 +33,10 @@ if [[ "$HEADER_VERSION" != "$VERSION" ]]; then
     echo "package.sh: readme.txt Stable tag '$VERSION' does not match paymentform.php Version '$HEADER_VERSION'" >&2
     exit 1
 fi
+# composer.json has no version; this stops Composer warning that it cannot detect one.
+export COMPOSER_ROOT_VERSION="$VERSION"
 
-OUT="${1:-$ROOT/paymentform-$VERSION.zip}"
+OUT="${1:-$ROOT/build/paymentform-$VERSION.zip}"
 # Absolutize: the zip step runs from inside the stage dir.
 mkdir -p "$(dirname "$OUT")"
 OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
@@ -114,7 +116,8 @@ find "$STAGE/vendor" -mindepth 3 -type f \( -name '.*' -o -name 'phpunit.xml*' -
 echo "==> Collecting third-party licenses"
 LICENSES="$STAGE/licenses"
 mkdir -p "$LICENSES"
-composer licenses --no-dev --working-dir="$STAGE" > "$LICENSES/php.txt"
+# Third-party only: the root block names the Composer package, not the plugin slug.
+composer licenses --no-dev --working-dir="$STAGE" | sed '1,/^Dependencies:/d; /./,$!d' > "$LICENSES/php.txt"
 mv "$STAGE/assets/licenses/javascript.md" "$LICENSES/javascript.md"
 rmdir "$STAGE/assets/licenses"
 

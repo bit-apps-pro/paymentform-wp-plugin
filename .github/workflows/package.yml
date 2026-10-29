@@ -38,7 +38,7 @@ jobs:
         id: build
         run: |
           bash bin/package.sh
-          ZIP="$(ls paymentform-*.zip | head -1)"
+          ZIP="$(ls build/paymentform-*.zip | head -1)"
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifact

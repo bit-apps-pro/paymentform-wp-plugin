@@ -3,7 +3,6 @@ node_modules/
 assets/
 build/
 /paymentform.zip
-/paymentform-*.zip
 .pnpm-store/
 .bin/
 /.wrangler/
