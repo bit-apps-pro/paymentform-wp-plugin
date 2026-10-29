@@ -4,8 +4,8 @@
  * Plugin URI:  https://paymentform.io
  * Description: Connector for the PaymentForm.io service: embed your hosted payment and donation forms in WordPress pages and posts.
  * Version:     0.1.0
- * Author:      PaymentForm
- * Author URI:  https://paymentform.io
+ * Author:      Bit Apps
+ * Author URI:  https://bitapps.pro
  * License:     GPL-2.0-or-later
  * Text Domain: paymentform
  * Requires PHP: 8.1
