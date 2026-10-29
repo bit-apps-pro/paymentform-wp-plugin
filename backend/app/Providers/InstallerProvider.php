@@ -21,13 +21,13 @@ use PaymentForm\Deps\BitApps\WPKit\Installer;
  *
  * The Installer adds two cross-cutting concerns: PHP/WP requirement gating and
  * version-tracked DB migration. The plugin's own domain work — the
- * `paymentform_manage` capability, rewrite-rule flushing and option/transient
+ * `paymentform_manage` capability, cron and option/transient
  * cleanup — stays in {@see Activator}/{@see Deactivator}/{@see Uninstaller},
  * which this provider invokes from the lifecycle hooks. The activation flow is:
  *
  *   register_activation_hook → registerActivator() → Activator::activate()
  *   then Hooks::doAction(activate) → Installer::activate() (requirement gate +
- *   migration).
+ *   migration) and StaticRouter::flushOnActivate().
  *
  * The plugin ships no custom DB tables yet, so migration/drop are wired empty;
  * MigrationHelper iterates an empty set, leaving a seam for future migrations

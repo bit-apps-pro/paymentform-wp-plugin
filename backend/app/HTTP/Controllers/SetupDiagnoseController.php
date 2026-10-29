@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymentForm\HTTP\Controllers;
 
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
+use PaymentForm\HTTP\StaticRoutes;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\Http\HttpResponse;
 use PaymentForm\Services\SetupApiClient;
@@ -26,7 +27,7 @@ if (!defined('ABSPATH')) {
  * surfaces as { next: 'failed' }.
  *
  * SSRF scope note: this endpoint does NOT accept caller-supplied URLs.
- * The target is always site_url('/paymentform/setup-proof'). The site_url
+ * The target is always the site's own setup-proof route. The site_url
  * is already a WP-internal value; trust boundary is the WP admin (nonce +
  * paymentform_manage middleware on the route). The actual guarded outbound
  * fetch is performed by the backend (WordPressSetupProof::handshake, which
@@ -77,7 +78,7 @@ final class SetupDiagnoseController
 
         try {
             return $this->mapDiagnoseResponse($this->setupApi->post('/auth/setup/diagnose', [
-                'proof_url' => site_url('/paymentform/setup-proof'),
+                'proof_url' => site_url(StaticRoutes::path(StaticRoutes::SETUP_PROOF)),
                 'site_url' => site_url(),
                 'setup_token' => $wpSetupToken,
                 'client_slug' => 'wp-plugin',

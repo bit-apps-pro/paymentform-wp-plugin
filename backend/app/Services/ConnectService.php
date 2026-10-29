@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymentForm\Services;
 
 use PaymentForm\Config;
+use PaymentForm\HTTP\StaticRoutes;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -27,8 +28,6 @@ final class ConnectService
     /** Long enough for the user to sign up or log in on the platform first. */
     private const STATE_TTL_SECONDS = 30 * MINUTE_IN_SECONDS;
 
-    private const CALLBACK_PATH = '/paymentform/callback';
-
     /** Defaults to a fresh store so the zero-arg container binding keeps working. */
     public function __construct(
         private readonly UncachedOptionStore $options = new UncachedOptionStore(),
@@ -43,7 +42,7 @@ final class ConnectService
     {
         $params = [
             'site_url' => site_url(),
-            'callback_url' => home_url(self::CALLBACK_PATH),
+            'callback_url' => home_url(StaticRoutes::path(StaticRoutes::CALLBACK)),
             'state' => $this->generateState(),
         ];
 

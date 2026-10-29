@@ -49,8 +49,8 @@ class ConfigTest extends TestCase
 
     public function test_update_option_writes_a_prefixed_option(): void
     {
-        $this->assertTrue(Config::updateOption('rewrite_rules_version', '2'));
-        $this->assertSame('2', get_option('paymentform_rewrite_rules_version'));
+        $this->assertTrue(Config::updateOption('version', '0.1.0'));
+        $this->assertSame('0.1.0', get_option('paymentform_version'));
     }
 
     public function test_with_prefix_applies_var_prefix(): void

@@ -23,13 +23,4 @@ class ActivatorTest extends TestCase
 
         $this->assertTrue($role->has_cap('paymentform_manage'));
     }
-
-    public function test_activate_clears_rewrite_marker_so_next_init_flushes_with_rules(): void
-    {
-        update_option('paymentform_rewrite_rules_version', '2');
-
-        Activator::activate();
-
-        $this->assertFalse(get_option('paymentform_rewrite_rules_version'));
-    }
 }

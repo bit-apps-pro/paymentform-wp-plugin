@@ -11,6 +11,7 @@ use PaymentForm\Providers\HookProvider;
 use PaymentForm\Providers\InstallerProvider;
 use PaymentForm\Providers\PluginServiceProvider;
 use PaymentForm\Providers\ServiceContainer;
+use PaymentForm\Providers\StaticRouteProvider;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -27,8 +28,9 @@ if (!defined('ABSPATH')) {
  *    constructor arguments, so they pull their collaborators from
  *    `ServiceContainer::get(...)` inside their own constructors.
  *  - The non-REST trio (CallbackController, WebhookController,
- *    SetupProofController) stays constructor-injected and is dispatched by
- *    Rewrites.php from the Container.
+ *    SetupProofController) stays constructor-injected; the static routes in
+ *    `backend/hooks/static.php` resolve it from the Container through
+ *    StaticRouteDispatcher.
  *
  * Both sides read services from the same ServiceContainer/Container
  * singleton, so there is exactly one composition root.
@@ -82,6 +84,7 @@ final class Plugin
         Hooks::addAction('plugins_loaded', [$provider, 'boot']);
 
         new HookProvider();
+        new StaticRouteProvider();
     }
 
     public static function instance(): ?Plugin

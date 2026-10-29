@@ -21,8 +21,8 @@ use PaymentForm\HTTP\Controllers\VerifyOtpController;
 // Declarative REST route table for `paymentform/v1`, included by
 // HookProvider::loadApiRoutes() via Router::registerFile().
 //
-// /callback, /webhook and /setup/proof live on rewrite rules
-// (see Rewrites.php) and are intentionally NOT part of this table.
+// /callback, /webhook and /setup-proof are static routes
+// (see hooks/static.php) and are intentionally NOT part of this table.
 //
 // SECURITY: every route MUST carry BOTH `nonce` and `cap:paymentform_manage`.
 // wp-kit registers each route with `permission_callback => '__return_true'`,

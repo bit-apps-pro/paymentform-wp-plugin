@@ -23,9 +23,8 @@ if (!defined('ABSPATH')) {
  * `plugins_loaded` (from Plugin::load(), Phase 2) is always early enough
  * and costs nothing on non-REST requests.
  *
- * Forward-looking constraint: wp-kit's Router keeps a single static
- * instance; constructing a second Router (e.g. an AJAX one) would clobber
- * it. Only this API router may exist.
+ * wp-kit keeps one Router per request type, so this API router coexists
+ * with the static one owned by StaticRouteProvider.
  */
 final class HookProvider
 {

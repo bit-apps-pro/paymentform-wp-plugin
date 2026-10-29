@@ -28,6 +28,7 @@ final class Uninstaller
 
         Config::deleteOption('credentials');
         Config::deleteOption('version');
+        // Legacy marker from the pre-StaticRouter rewrites; still present on upgraded sites.
         Config::deleteOption('rewrite_rules_version');
         wp_clear_scheduled_hook(PurgeExpiredFlowOptions::HOOK);
         (new UncachedOptionStore())->deleteByPrefixes(

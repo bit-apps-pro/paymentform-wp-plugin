@@ -133,6 +133,7 @@ class SetupDiagnoseControllerTest extends TestCase
 
     public function test_handle_sends_setup_token_payload_to_diagnose_endpoint(): void
     {
+        update_option('permalink_structure', '/%postname%/');
         WpHttpMock::queue(200, ['next' => 'ok']);
 
         $this->diagnose();

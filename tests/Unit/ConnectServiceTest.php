@@ -28,6 +28,7 @@ class ConnectServiceTest extends TestCase
 
     public function test_create_connect_url_targets_app_connect_with_site_callback_and_state(): void
     {
+        update_option('permalink_structure', '/%postname%/');
         $url = $this->svc->createConnectUrl();
         $params = $this->connectUrlParams($url);
 
@@ -82,7 +83,12 @@ class ConnectServiceTest extends TestCase
         $state = $this->issueConnectState($this->svc);
         $this->svc->consumeState($state);
 
-        $this->assertSame([], \TestWpFunctions::getOptionApiCalls());
+        $stateCalls = array_filter(
+            \TestWpFunctions::getOptionApiCalls(),
+            static fn (array $call): bool => str_starts_with($call[1], self::STATE_OPTION_PREFIX)
+        );
+
+        $this->assertSame([], $stateCalls);
     }
 
     public function test_create_connect_url_throws_when_state_cannot_be_persisted(): void

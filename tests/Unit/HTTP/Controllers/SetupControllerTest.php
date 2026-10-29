@@ -329,6 +329,7 @@ class SetupControllerTest extends TestCase
 
     public function test_handle_redirects_to_locally_issued_connect_url_for_existing_account(): void
     {
+        update_option('permalink_structure', '/%postname%/');
         WpHttpMock::queue(200, ['data' => ['status' => 'use_connect_flow']]);
 
         $result = $this->handleSetup();
@@ -526,6 +527,7 @@ class SetupControllerTest extends TestCase
 
     public function test_handle_sends_setup_token_payload_to_backend(): void
     {
+        update_option('permalink_structure', '/%postname%/');
         WpHttpMock::queue(200, ['data' => ['status' => 'check_inbox']]);
 
         $this->handleSetup();

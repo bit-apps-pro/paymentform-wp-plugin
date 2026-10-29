@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace PaymentForm\Activation;
 
-use PaymentForm\Config;
-
 if (!defined('ABSPATH')) {
     exit;
 }
 
 final class Activator
 {
-    /** Grant the manage capability and schedule a rewrite flush for the next request. */
+    /** Grant the manage capability; StaticRouter flushes the rewrite rules on the activate hook. */
     public static function activate(): void
     {
         if (is_multisite()) {
@@ -25,9 +23,5 @@ final class Activator
         if ($role !== null) {
             $role->add_cap('paymentform_manage');
         }
-
-        // Activation runs after plugins_loaded, so the rules aren't registered yet;
-        // clearing the marker makes Rewrites::maybeFlush() flush on the next init.
-        Config::deleteOption('rewrite_rules_version');
     }
 }

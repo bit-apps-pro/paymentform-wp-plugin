@@ -11,7 +11,6 @@ use PaymentForm\Deps\BitApps\WPKit\Hooks\Hooks;
 use PaymentForm\HTTP\Controllers\CallbackController;
 use PaymentForm\HTTP\Controllers\SetupProofController;
 use PaymentForm\HTTP\Controllers\WebhookController;
-use PaymentForm\HTTP\Rewrites;
 use PaymentForm\HTTP\Shortcode;
 use PaymentForm\Services\ApiClient;
 use PaymentForm\Services\ConnectService;
@@ -98,7 +97,7 @@ final class PluginServiceProvider
         // Webhook signature verification
         $c[WebhookService::class] = static fn () => new WebhookService;
 
-        // Non-REST controllers, dispatched by Rewrites.php from the
+        // Non-REST controllers, dispatched by StaticRouteDispatcher from the
         // container. REST controllers are NOT bound here: wp-kit instantiates
         // them with zero args and they pull services from ServiceContainer
         // (see Plugin.php docblock for the composition-root split).
@@ -125,10 +124,6 @@ final class PluginServiceProvider
         Hooks::addAction('enqueue_block_editor_assets', [$this, 'enqueueBlockEditorAssets']);
         Hooks::addAction('wp_enqueue_scripts', [$this, 'enqueueFrontendAssets']);
         (new AdminNoticeSuppressor)->register();
-
-        if ($this->container !== null) {
-            (new Rewrites($this->container))->register();
-        }
     }
 
     /** Ensure the daily flow-option purge is scheduled and bound to its handler. */

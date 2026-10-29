@@ -78,6 +78,8 @@ class TestWpFunctions
     private static array $enqueuedScripts = [];
     /** @var array<string, array{name: string, data: array}> wp_localize_script() payloads keyed by handle */
     private static array $localizedScripts = [];
+    /** @var array<string, mixed> main-query vars returned by get_query_var() */
+    private static array $queryVars = [];
 
     public static function reset(): void
     {
@@ -103,6 +105,7 @@ class TestWpFunctions
         self::$registeredScripts = [];
         self::$enqueuedScripts = [];
         self::$localizedScripts = [];
+        self::$queryVars = [];
 
         // Config memoises the parsed frontend/.env on first URL-getter call; the
         // static survives the whole test process. Clear it so each test starts
@@ -117,6 +120,18 @@ class TestWpFunctions
     public static function setHasBlock(?bool $present): void
     {
         self::$hasBlock = $present;
+    }
+
+    /** Sets a main-query var for get_query_var(). */
+    public static function setQueryVar(string $name, mixed $value): void
+    {
+        self::$queryVars[$name] = $value;
+    }
+
+    /** Returns a main-query var set via setQueryVar(). */
+    public static function getQueryVar(string $name, mixed $default): mixed
+    {
+        return self::$queryVars[$name] ?? $default;
     }
 
     /** Sets the id get_current_screen() reports; null means no screen. */
@@ -396,6 +411,21 @@ class TestWpFunctions
         self::$actions[$tag][] = ['callback' => $callback, 'priority' => $priority];
     }
 
+    /** Drops a recorded action matching the callback and priority, as remove_action() does. */
+    public static function removeAction(string $tag, callable $callback, int $priority = 10): bool
+    {
+        foreach (self::$actions[$tag] ?? [] as $index => $record) {
+            if ($record['callback'] === $callback && $record['priority'] === $priority) {
+                unset(self::$actions[$tag][$index]);
+                self::$actions[$tag] = array_values(self::$actions[$tag]);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Callbacks recorded by the add_action() stub, in registration order.
      * The harness never fires hooks — tests invoke callbacks explicitly.
@@ -612,6 +642,13 @@ if (!function_exists('add_filter')) {
     }
 }
 
+if (!function_exists('get_query_var')) {
+    function get_query_var(string $query_var, mixed $default_value = ''): mixed
+    {
+        return TestWpFunctions::getQueryVar($query_var, $default_value);
+    }
+}
+
 if (!function_exists('apply_filters')) {
     function apply_filters(string $tag, mixed $value, mixed ...$args): mixed
     {
@@ -659,6 +696,13 @@ if (!function_exists('add_action')) {
         // TestWpFunctions::getActions() / getActionRecords().
         TestWpFunctions::addAction($hook, $function_to_add, $priority);
         return true;
+    }
+}
+
+if (!function_exists('remove_action')) {
+    function remove_action(string $hook_name, callable $callback, int $priority = 10): bool
+    {
+        return TestWpFunctions::removeAction($hook_name, $callback, $priority);
     }
 }
 
@@ -861,6 +905,17 @@ if (!function_exists('register_block_type')) {
 // SetupController / SetupDiagnoseController / SetupProofController type-hint
 // WP_REST_Request natively; alias the shared test double so MockWpRestRequest
 // instances satisfy that hint in unit tests.
+if (!class_exists('WP')) {
+    /** Minimal WP double: the parsed request path and query vars parse_request handlers read. */
+    class WP
+    {
+        public string $request = '';
+
+        /** @var array<string, mixed> */
+        public array $query_vars = [];
+    }
+}
+
 if (!class_exists('WP_REST_Request')) {
     class_alias(\PaymentForm\Tests\Support\MockWpRestRequest::class, 'WP_REST_Request');
 }

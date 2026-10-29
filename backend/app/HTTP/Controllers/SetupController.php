@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use PaymentForm\Deps\BitApps\WPKit\Http\Request\Request;
 use PaymentForm\Deps\BitApps\WPKit\Http\Response;
 use PaymentForm\HTTP\Requests\SetupRequest;
+use PaymentForm\HTTP\StaticRoutes;
 use PaymentForm\Providers\ServiceContainer;
 use PaymentForm\Services\ConnectService;
 use PaymentForm\Services\ConnectStateException;
@@ -112,7 +113,7 @@ final class SetupController
             'email' => $effectiveEmail,
             'country' => $country,
             'site_url' => site_url(),
-            'proof_url' => site_url('/paymentform/setup-proof'),
+            'proof_url' => site_url(StaticRoutes::path(StaticRoutes::SETUP_PROOF)),
             'setup_token' => $wpSetupToken,
             'client_slug' => 'wp-plugin',
             'client_type' => 'server',
