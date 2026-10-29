@@ -64,11 +64,11 @@ Privacy Policy: https://paymentform.io/privacy-policy/
 
 == Source Code ==
 
-The admin interface and blocks ship as compiled, minified JavaScript in `assets/`. Their human-readable source and build configuration are included in this plugin (`frontend/`, `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `vite.config.ts`) and are also available at https://github.com/Bit-Apps-Pro/paymentform-wp-plugin.
+The admin interface and blocks ship as compiled, minified JavaScript in `assets/`. Their human-readable source and build configuration (`frontend/`, `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `vite.config.ts`) are in the public repository at https://github.com/bit-apps-pro/paymentform-wp-plugin.
 
 To rebuild the assets from source:
 
-1. Install Node.js 24 and pnpm 11.
+1. Clone the repository, then install Node.js 24 and pnpm 11.
 2. Run `pnpm install`, then `pnpm build`.
 
 Licenses of bundled third-party code are listed in `licenses/`.

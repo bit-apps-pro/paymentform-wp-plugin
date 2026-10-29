@@ -12,4 +12,4 @@ With it set, the plugin honours `frontend/.env` (`APP_API_BASE_URL`, `APP_APP_BA
 
 ## Release
 
-`bin/package.sh [output.zip]` builds the WordPress.org zip: built assets, PHP, production `vendor/`, the readable frontend source and third-party licenses.
+`bin/package.sh [output.zip]` builds the WordPress.org zip: built assets, PHP, production `vendor/` and third-party licenses. The readable frontend source stays in this repo, which readme.txt links for WordPress.org review.

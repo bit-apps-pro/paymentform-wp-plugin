@@ -13,7 +13,7 @@
 # The repo's own vendor/ is never touched (dev deps such as PHPUnit stay intact).
 #
 # Usage: bin/package.sh [output-zip-path]
-#   output-zip-path defaults to $ROOT/paymentform-<version>.zip
+#   output-zip-path defaults to $ROOT/paymentform-<version>.zip (version = readme.txt Stable tag)
 #
 # Non-interactive, idempotent, CI-friendly.
 
@@ -21,10 +21,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Version comes from the canonical source: the plugin file header.
-VERSION="$(awk '/^[[:space:]]*\*?[[:space:]]*Version:/ {print $NF; exit}' "$ROOT/paymentform.php")"
+# Version comes from readme.txt's Stable tag, the release WordPress.org serves.
+VERSION="$(awk -F': *' '/^Stable tag:/ {print $2; exit}' "$ROOT/readme.txt" | tr -d '[:space:]')"
 if [[ -z "$VERSION" ]]; then
-    echo "package.sh: could not read 'Version:' from $ROOT/paymentform.php" >&2
+    echo "package.sh: could not read 'Stable tag:' from $ROOT/readme.txt" >&2
+    exit 1
+fi
+# A header that disagrees with the Stable tag ships a release WordPress.org mislabels.
+HEADER_VERSION="$(awk '/^[[:space:]]*\*?[[:space:]]*Version:/ {print $NF; exit}' "$ROOT/paymentform.php")"
+if [[ "$HEADER_VERSION" != "$VERSION" ]]; then
+    echo "package.sh: readme.txt Stable tag '$VERSION' does not match paymentform.php Version '$HEADER_VERSION'" >&2
     exit 1
 fi
 
@@ -60,8 +66,9 @@ cleanup() { rm -rf "$STAGE_PARENT"; }
 trap cleanup EXIT
 
 echo "==> Staging shipped source-of-truth in $STAGE"
-# Copy ONLY what ships; anything not listed is excluded. The frontend source and
-# build config ship too: WordPress.org requires human-readable source for assets/.
+# Copy ONLY what ships; anything not listed is excluded. The readable frontend
+# source lives in the public repo linked from readme.txt (WordPress.org guideline 4).
+# composer.json stays: Plugin Check flags a vendor/ without it.
 SHIPPED=(
     assets
     backend
@@ -69,22 +76,13 @@ SHIPPED=(
     readme.txt
     composer.json
     composer.lock
-    frontend
-    package.json
-    pnpm-lock.yaml
-    tsconfig.json
-    vite.config.ts
 )
 for item in "${SHIPPED[@]}"; do
     if [[ ! -e "$ROOT/$item" ]]; then
         echo "package.sh: required artifact '$item' is missing from the repo" >&2
         exit 1
     fi
-    rsync -a \
-        --exclude=node_modules --exclude=e2e --exclude='__tests__' \
-        --exclude='*.test.ts' --exclude='*.test.tsx' --exclude=vitest.setup.ts \
-        --exclude=.env --exclude=port --exclude='.*' \
-        "$ROOT/$item" "$STAGE/"
+    rsync -a --exclude='.*' "$ROOT/$item" "$STAGE/"
 done
 
 echo "==> Installing production composer dependencies in the stage"
