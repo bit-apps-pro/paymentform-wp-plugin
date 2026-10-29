@@ -27,6 +27,11 @@ export function getShortcode(formId: string): string {
   return `[paymentform id="${formId}"]`;
 }
 
+/** Block markup exactly as the static block's save() serializes it; a bare comment parses as invalid and renders nothing. */
 export function getGutenbergBlock(formId: string): string {
-  return `<!-- wp:paymentform/form {"formId":"${formId}"} /-->`;
+  return (
+    `<!-- wp:paymentform/form {"formId":"${formId}"} -->\n` +
+    `<div class="wp-block-paymentform-form paymentform-embed" data-form-id="${formId}"></div>\n` +
+    '<!-- /wp:paymentform/form -->'
+  );
 }
