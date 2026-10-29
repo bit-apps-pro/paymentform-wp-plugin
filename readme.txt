@@ -1,5 +1,5 @@
 === PaymentForm ===
-Contributors: bitapps
+Contributors: bitpressadmin
 Tags: payment form, donation, stripe, checkout, forms
 Requires at least: 6.7
 Tested up to: 7.1
@@ -8,15 +8,22 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Embed payment forms from PaymentForm.io into WordPress pages and posts.
+Connector for the PaymentForm.io service: embed your hosted payment and donation forms in WordPress pages and posts.
 
 == Description ==
 
-PaymentForm connects your WordPress site to your [PaymentForm.io](https://paymentform.io) workspace so you can place your payment and donation forms anywhere on your site.
+[PaymentForm.io](https://paymentform.io) is a hosted service (Software as a Service) for building payment and donation forms, taking payments through supported payment processors, and managing submissions and transactions. This plugin is the official connector that links your WordPress site to your PaymentForm.io workspace, so you can place those forms anywhere on your site.
 
-* Connect your site to PaymentForm.io from the plugin's admin page.
+The forms themselves, payment processing and your form data all live on PaymentForm.io. The plugin does not build forms, process payments or store payment details in WordPress, and it needs a PaymentForm.io account to do anything beyond its connect screen.
+
+What the plugin does:
+
+* Connect your site to PaymentForm.io from the plugin's admin page, either by creating an account or by signing in to an existing one.
 * Browse your forms and preview them at mobile, tablet and desktop sizes.
 * Embed a form with the "PaymentForm Form" block or the `[paymentform id="..."]` shortcode.
+* Open your PaymentForm.io dashboard to build and edit forms, connect payment processors and review submissions.
+
+Every feature of the plugin is available to any connected account; the plugin contains no locked, trial or premium-only code.
 
 == Installation ==
 
@@ -28,7 +35,15 @@ PaymentForm connects your WordPress site to your [PaymentForm.io](https://paymen
 
 = Do I need a PaymentForm.io account? =
 
-Yes. Forms are created and payments are processed on PaymentForm.io; this plugin embeds them on your site.
+Yes. PaymentForm.io is an external hosted service: forms are created and payments are processed there, and this plugin embeds them on your site. You can create an account from the plugin's admin page.
+
+= Where are forms and payments handled? =
+
+On PaymentForm.io. Embedded forms load from your workspace's PaymentForm.io address, and payment details go straight to PaymentForm.io and its payment processors without passing through your WordPress site.
+
+= What happens if I disconnect or deactivate the plugin? =
+
+Embedded forms stop showing on your site. Your forms, submissions and transactions stay in your PaymentForm.io account.
 
 == External services ==
 

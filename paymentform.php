@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaymentForm
  * Plugin URI:  https://paymentform.io
- * Description: Embed payment forms from paymentform.io into WordPress pages and posts.
+ * Description: Connector for the PaymentForm.io service: embed your hosted payment and donation forms in WordPress pages and posts.
  * Version:     0.1.0
  * Author:      PaymentForm
  * Author URI:  https://paymentform.io
